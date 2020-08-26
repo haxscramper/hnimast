@@ -8,7 +8,7 @@ import hmisc/types/colorstring
 import sequtils, colors, macros, tables, strutils,
        terminal, options, parseutils, sets, strformat, sugar
 
-import compiler/[ast, idents, lineinfos]
+import compiler/[ast, idents, lineinfos, renderer]
 
 import hnimast/pnode_parse
 export pnode_parse
@@ -19,6 +19,8 @@ func `$!`*(n: NimNode): string =
   ## NimNode stringification that does not blow up in your face on
   ## 'invalid node kind'
   n.toStrLit().strVal()
+
+proc `$`*(n: PNode): string = renderer.`$`(n)
 
 func getStrVal*(n: NimNode): string = n.strVal()
 func getStrVal*(p: PNode): string =
@@ -1395,19 +1397,25 @@ func toNNode*[NNode, A](
     return selector
 
 func toNNode*[NNode, A](obj: Object[NNode, A], annotConv: A ~> NNode): NNode =
+  let head =
+    if obj.exported:
+      newNTree[NNode](
+        nnkPostfix,
+        newNIdent[NNode]("*"),
+        newNIdent[NNode](obj.name.head)
+      )
+    else:
+      newNIdent[NNode](obj.name.head)
+
   let header =
     if obj.annotation.isSome():
       let node = annotConv obj.annotation.get()
       if node.kind != nnkEmpty:
-        newNTree[NNode](
-          nnkPragmaExpr,
-          newNIdent[NNode](obj.name.head),
-          node
-        )
+        newNTree[NNode](nnkPragmaExpr, head, node)
       else:
-        newNIdent[NNode](obj.name.head)
+        head
     else:
-      newNIdent[NNode](obj.name.head)
+      head
 
   let genparams: NNode =
     block:
@@ -1443,7 +1451,7 @@ func toNNode*[NNode](
     )
 
 func toNimNode*(obj: NObject[NPragma]): NimNode =
-  static: echo typeof obj
+  # static: echo typeof obj
   toNNode[NimNode](obj)
 
 #===========================  Pretty-printing  ===========================#
@@ -1558,6 +1566,17 @@ func mkOType*(name: string, gparams: seq[string] = @[]): NType[ObjTree] =
     head: name,
     genParams: gparams.mapIt(mkOType(it, @[]))
   )
+
+proc prettyPrintConverter*(val: PNode, path: seq[int] = @[0]): ObjTree =
+  # TODO can add syntax hightlight to string literal generated from
+  #      nim node
+  ObjTree(
+    styling: initPrintStyling(),
+    kind: okConstant,
+    constType: "PNode",
+    strLit: $val
+  )
+
 
 
 #=============================  Predicates  ==============================#

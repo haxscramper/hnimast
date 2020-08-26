@@ -1,7 +1,7 @@
 import macroutils, sugar, options
 import strutils, strformat, macros, sequtils
 
-import compiler/[ast, renderer]
+import compiler/ast
 import hmisc/algo/halgorithm
 import hmisc/helpers
 import hmisc/types/colorstring
@@ -286,10 +286,10 @@ proc parseObject*[NNode, A](node: NNode, cb: ParseCb[NNode, A]): Object[NNode, A
     of nnkPragmaExpr:
       case node[0][0].kind.toNNK():
         of nnkPostfix:
-          result.name = mkNNType[NNode](node[0][0][1].strVal)
+          result.name = mkNNType[NNode](node[0][0][1].getStrVal)
           result.exported = true
         else:
-          result.name = mkNNType[NNode](node[0][0].strVal)
+          result.name = mkNNType[NNode](node[0][0].getStrVal)
     else:
       result.name = mkNNType[NNode](node[0].getStrVal())
 

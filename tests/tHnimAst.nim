@@ -3,7 +3,10 @@ import ../src/hnimast
 import hmisc/helpers
 import ../src/hnimast/obj_field_macros
 
-import compiler/[renderer, ast]
+import compiler/ast
+import hmisc/types/colorstring
+# import hpprint
+
 
 #===========================  implementation  ============================#
 
@@ -271,3 +274,13 @@ lobortis eget, lacus. Sed diam. Praesent fermentum tempor tellus.
 Nullam tempus. Mauris ac felis vel velit tristique imperdiet."""
 
       echo en.toNNode()
+
+  test "Parsing objects":
+    let node = """
+type Type = object
+  hello: float
+""".parsePNodeStr()
+
+    var obj = parseObject(node, parsePPragma)
+    obj.exported = true
+    echo obj.toNNode()

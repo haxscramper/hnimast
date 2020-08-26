@@ -1,8 +1,72 @@
 #+title: readme
 
-Statically typed wrapper for nim ast. Another take on solving problem
-of ~node[0][0][1][0]~. Right now mostly covers types - parsing of
-implementation, generation and analysis.
+Statically typed wrapper for nim ast at compile (~NimNode~) and rutime
+(~PNode~). Another take on solving problem of ~node[0][0][1][0]~.
+Mostly concerned with processing of types and procedure declarations.
+
+Provides logical structure for objects/fields - you can set/get type,
+check if field is a switch for case statement or not. Visit
+~eachField~ in the object, map object to some code structure.
+
+#+begin_src nim
+  import hnimast, hnimast/obj_field_macros
+  import hpprint
+
+  let node = """
+  type Type = object
+    hello: float
+  """.parsePNodeStr()
+
+  var obj = parseObject(node, parsePPragma)
+
+  echo "# ~~~~ make object exported ~~~~ #"
+
+  obj.exported = true
+  echo obj.toNNode()
+
+
+  echo "# ~~~~ internal structure of object ~~~~ #"
+  pprint obj
+#+end_src
+
+#+RESULTS:
+#+begin_example
+# ~~~~ make object exported ~~~~ #
+Type* = object
+  hello: float
+
+# ~~~~ internal structure of object ~~~~ #
+Object[ast.PNode, Pragma[ast.PNode]]
+  exported:   true
+  annotation:
+    Option[Pragma[ast.PNode]]
+      val: Pragma[ast.PNode](kind: oakCaseOfBranch, elements: [])
+      has: false
+  name:
+    NType[ast.PNode]
+      kind:      ntkIdent
+      head:      "Type"
+      genParams: []
+  flds:
+    - ObjectField[ast.PNode, Pragma[ast.PNode]]
+        annotation:
+          Option[Pragma[ast.PNode]]
+            val:
+              Pragma[ast.PNode]
+                kind:     oakCaseOfBranch
+                elements: []
+            has: false
+        value:      Option[ast.PNode](val: <nil tree>)
+        exported:   false
+        isTuple:    false
+        name:       "hello"
+        fldType:
+          NType[ast.PNode]
+            kind:      ntkIdent
+            head:      "float"
+            genParams: []
+        isKind:     false
+#+end_example
 
 - working with enums
   - ~parseEnumImpl~ - parse as enum implementation. Tested on alias,
@@ -40,7 +104,7 @@ my [[https://discord.gg/hjfYJCU][discord server]] and ask there.
 Right now not all possible ast combinations are covered, more testing
 is necessary.
 
-Todo/ideas:
+Ideas:
 
 - [ ] Genereate wrappers for [[https://www.sourcetrail.com/][sourcetrail]] code indexer software [[https://github.com/CoatiSoftware/SourcetrailDB][library]]
   using [[https://github.com/haxscramper/hcparse][libclang wrapper]]. Most groundwork has already been done - it
@@ -48,3 +112,8 @@ Todo/ideas:
 - [ ] Generate graphviz graph of object dependencies using [[https://github.com/haxscramper/hasts][graphviz
   wrapper]] - basically the same as sourcetrail DB, just easier to
   implement as it does not require working with C++ bindings.
+- [ ] Having more 'typed' representation of of object opens
+  possibilities for things like refactoring, building graphs of object
+  dependencies (which one uses another as field etc). Right now I
+  don't have any concrete ideas, but something like this might be
+  easier to implement when we know logical structure of an object.
