@@ -1,0 +1,50 @@
+#+title: readme
+
+Statically typed wrapper for nim ast. Another take on solving problem
+of ~node[0][0][1][0]~. Right now mostly covers types - parsing of
+implementation, generation and analysis.
+
+- working with enums
+  - ~parseEnumImpl~ - parse as enum implementation. Tested on alias,
+    symbol, value, enum-as-generic-parameter, ~typedesc[Enum]~ etc.
+  - ~getEnumPref~ - for [[https://nim-lang.org/docs/nep1.html#introduction-naming-conventions][NEP-conforming]] enums (~prefixEnumValueName~)
+    get ~prefix~
+  - ~getEnumNames~ - get list of all enum names
+  - ~enumNames~ - macro. Generate ~seq[string]~ of names for all
+    enums.
+- working with object declarations
+  - ~ObjectBranch~, ~Object~ and ~ObjectField~ types - wrappers on top
+    of nim object declarations. Supports arbitrarily named case
+    fields, annotations for objects etc. Currently does not cover all
+    possible cases.
+  - ~eachField~ - visit each field in object
+  - ~eachField~ - recursively generate ~case~ expression for each
+    possible and use insert result of callback for each field. For use
+    case example see [[file:tests/tHnimAst.nim]]
+  - can be conveted to and from ~NimNode~
+  - ~eachCase~ - generate case statement for object's kind fields
+  - ~eachParallelCase~ - generate case statement for two object's kind
+    fields.
+  - ~eachPath~
+- working with object values
+  - ~ObjTree~ - 'stringly typed' representation of object value.
+    mainly used in ~hpprint~, but due to dependency reasons type
+    definitions is still here.
+
+
+* Contribution & development
+
+If you have any question about implementation, API etc. you can join
+my [[https://discord.gg/hjfYJCU][discord server]] and ask there.
+
+Right now not all possible ast combinations are covered, more testing
+is necessary.
+
+Todo/ideas:
+
+- [ ] Genereate wrappers for [[https://www.sourcetrail.com/][sourcetrail]] code indexer software [[https://github.com/CoatiSoftware/SourcetrailDB][library]]
+  using [[https://github.com/haxscramper/hcparse][libclang wrapper]]. Most groundwork has already been done - it
+  should be relatively simple to assemble all pieces together.
+- [ ] Generate graphviz graph of object dependencies using [[https://github.com/haxscramper/hasts][graphviz
+  wrapper]] - basically the same as sourcetrail DB, just easier to
+  implement as it does not require working with C++ bindings.
