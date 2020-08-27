@@ -87,6 +87,7 @@ proc newPIdent*(str: string): PNode =
   ## Create new `nkIdent` pnode
   newIdentNode(PIdent(s: str), TLineInfo())
 
+
 func newInfix*(op: string, lhs, rhs: NimNode): NimNode =
   ## Create new `nnkInfix` node
   nnkInfix.newTree(ident op, lhs, rhs)
@@ -156,10 +157,22 @@ func newPLit*(i: int): PNode =
   ## Create new integer literal `PNode`
   newIntTypeNode(BiggestInt(i), PType(kind: tyInt))
 
+func newPLit*(i: BiggestInt): PNode =
+  ## Create new integer literal `PNode`
+  newIntTypeNode(i, PType(kind: tyInt))
+
+func newPLit*(c: char): PNode =
+  newIntTYpeNode(BiggestInt(c), PType(kind: tyChar))
 
 func newPLit*(i: string): PNode =
   ## Create new string literal `PNode`
   newStrNode(nkStrLit, i)
+
+template newNNLit[NNode](val: untyped): untyped =
+  when NNode is PNode:
+    newPLit(val)
+  else:
+    newLit(val)
 
 type
   ObjectAnnotKind* = enum
@@ -721,34 +734,7 @@ func isEnum*(en: NimNode): bool =
   ## Check if `typeImpl` for `en` is `enum`
   en.getTypeImpl().kind == nnkEnumTy
 
-#============================  Constructors  =============================#
-func parseRTimeOrdinal*[NNode](nnode: NNode): RTimeOrdinal =
-  let kind = nnode.kind.toNNK()
-  case kind:
-    of nnkIntLit .. nnkUInt64Lit:
-      RTimeOrdinal(kind: rtokInt, intval: nnode.intVal)
-    of nnkCharLit:
-      RTimeOrdinal(kind: rtokChar, charval: char(nnode.intVal))
-    of nnkIdent:
-      let val = case nnode.getStrVal():
-        of "off", "false":
-          false
-        of "on", "true":
-          true
-        else:
-          raiseAssert("Unexpected identifier for parsing RTimeOrdinal")
-
-
-      RTimeOrdinal(kind: rtokBool, boolVal: val)
-
-    else:
-      raiseAssert(&"Unexpected node kind for parsing RTimeOrdinal: {kind}")
-
-# func parseEnumField*[NNode](enval: NNode): EnumField[NNode] =
-#   let kind = nnode.kind.toNNK()
-#   case kind:
-#     of nnkEmpty:
-
+#===============================  parsers  ===============================#
 
 func makeEnumField*[NNode](
   name: string,
@@ -756,39 +742,7 @@ func makeEnumField*[NNode](
   comment: string = ""): EnumField[NNode] =
   EnumField[NNode](name: name, value: value, comment: comment)
 
-func toNNode*[NNode](en: Enum[NNode], standalone: bool = false): NNode =
-  ## Convert enum definition to `NNode`. If `standalone` is true wrap
-  ## result in `nnkTypeSection`, otherwise generate `nnkTypeDef` only.
-  let flds = collect(newSeq):
-    for val in en.values:
-      if val.value.isSome():
-        newNTree[NNode](
-          nnkEnumFieldDef,
-          newNIdent[NNode](val.name),
-          val.value.get()).withIt do:
-            when NNode is PNode:
-              it.comment = val.comment
-      else:
-        when NNode is PNode:
-          newPIdent(val.name).withIt do:
-            it.comment = val.comment
-        else:
-          ident(val.name)
 
-  result = newNTree[NNode](
-    nnkTypeDef,
-    newNIdent[NNode](en.name),
-    newEmptyNNode[NNode](),
-    newNTree[NNode](nnkEnumTy, @[ newEmptyNNode[NNode]() ] & flds))
-
-  when NNode is PNode:
-    result.comment = en.comment
-
-  if standalone:
-    result = newNTree[NNode](
-      nnkTypeSection,
-      result
-    )
 
 func parseEnumField*[NNode](fld: NNode): EnumField[NNode] =
   case fld.kind.toNNK():
@@ -821,6 +775,105 @@ func parseEnumField*[NNode](fld: NNode): EnumField[NNode] =
       )
     else:
       raiseAssert(&"#[ IMPLEMENT {fld.kind} ]#")
+
+
+
+#============================  Constructors  =============================#
+func parseRTimeOrdinal*[NNode](nnode: NNode): RTimeOrdinal =
+  let kind = nnode.kind.toNNK()
+  case kind:
+    of nnkIntLit .. nnkUInt64Lit:
+      RTimeOrdinal(kind: rtokInt, intval: nnode.intVal)
+    of nnkCharLit:
+      RTimeOrdinal(kind: rtokChar, charval: char(nnode.intVal))
+    of nnkIdent:
+      let val = case nnode.getStrVal():
+        of "off", "false":
+          false
+        of "on", "true":
+          true
+        else:
+          raiseAssert("Unexpected identifier for parsing RTimeOrdinal")
+
+
+      RTimeOrdinal(kind: rtokBool, boolVal: val)
+
+    else:
+      raiseAssert(&"Unexpected node kind for parsing RTimeOrdinal: {kind}")
+
+# func parseEnumField*[NNode](enval: NNode): EnumField[NNode] =
+#   let kind = nnode.kind.toNNK()
+#   case kind:
+#     of nnkEmpty:
+
+func toNNode*[NNode](ro: RTimeOrdinal): NNode =
+  case ro.kind:
+    of rtokInt:
+      newNNLit[NNode](ro.intVal)
+    of rtokChar:
+      newNNLit[NNode](ro.charVal)
+    of rtokBool:
+      if ro.boolVal:
+        newNident[NNode]("true")
+      else:
+        newNident[NNode]("false")
+
+
+func toNNode*[NNode](fld: EnumField[NNode]): NNode =
+  let fldVal: Option[NNode] = case fld.kind:
+    of efvNone:
+      none(NNode)
+    of efvIdent:
+      some fld.ident
+    of efvString:
+      some newNNLit[NNode](fld.strval)
+    of efvOrdinal:
+      some toNNode[NNode](fld.ordval)
+    of efvOrdString:
+      some newNTree[NNode](
+        nnkPar,
+        toNNode[NNode](fld.ordStr.ordVal),
+        newNNLit[NNode](fld.ordStr.strVal)
+      )
+
+  if fldVal.isSome():
+    newNTree[NNode](
+      nnkEnumFieldDef,
+      newNIdent[NNode](fld.name),
+      fldVal.get()).withIt do:
+        when NNode is PNode:
+          it.comment = fld.comment
+  else:
+    when NNode is PNode:
+      newPIdent(fld.name).withIt do:
+        it.comment = fld.comment
+    else:
+      # TODO generate documentation comments for NimNode
+      ident(fld.name)
+
+
+func toNNode*[NNode](en: Enum[NNode], standalone: bool = false): NNode =
+  ## Convert enum definition to `NNode`. If `standalone` is true wrap
+  ## result in `nnkTypeSection`, otherwise generate `nnkTypeDef` only.
+  let flds = collect(newSeq):
+    for val in en.values:
+      toNNode(val)
+
+  result = newNTree[NNode](
+    nnkTypeDef,
+    newNIdent[NNode](en.name),
+    newEmptyNNode[NNode](),
+    newNTree[NNode](nnkEnumTy, @[ newEmptyNNode[NNode]() ] & flds))
+
+  when NNode is PNode:
+    result.comment = en.comment
+
+  if standalone:
+    result = newNTree[NNode](
+      nnkTypeSection,
+      result
+    )
+
 
 
 func parseEnumImpl*[NNode](en: NNode): Enum[NNode] =

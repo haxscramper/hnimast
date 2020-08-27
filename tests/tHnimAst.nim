@@ -297,4 +297,5 @@ type Type = object
     echo "type E = enum\n  f1 = 12".
       parsePNodeStr().
       dropStmtList().
-      parseEnumImpl()
+      parseEnumImpl().
+      toNNode()
