@@ -37,6 +37,13 @@ func getStrVal*(p: PNode): string =
     else:
       p.strVal
 
+func dropStmtList*(p: PNode): PNode =
+  case p.kind:
+    of nkStmtList:
+      p[0]
+    else:
+      p
+
 func subnodes*(p: PNode): seq[PNode] =
   ## Get subnodes as a sequence
   p.sons
@@ -357,6 +364,8 @@ type
       of ntkRange:
         discard ## TODO
 
+  # PType* = NType[PNode]
+
   NVarDeclKind* = enum
     ## Kind of variable declaration
     # TODO static parameters?
@@ -659,11 +668,50 @@ func `$`*(nt: NType): string =
 #*************************************************************************#
 #===========================  Type definition  ===========================#
 type
+  EnumFieldVal = enum
+    efvNone
+    efvIdent
+    efvOrdinal
+    efvString
+    efvOrdString
+
+  RTimeOrdinalKind = enum
+    rtokInt
+    rtokBool
+    rtokChar
+
+  RTimeOrdinal = object
+    case kind*: RTimeOrdinalKind
+      of rtokInt:
+        intVal*: BiggestInt
+      of rtokBool:
+        boolVal*: bool
+      of rtokChar:
+        charVal*: char
+
+  EnumField*[NNode] = object
+    comment*: string
+    name*: string
+    value*: Option[NNode]
+
+    case kind*: EnumFieldVal
+      of efvNone:
+        discard
+      of efvIdent:
+        ident*: NNode
+      of efvOrdinal:
+        ordVal*: RtimeOrdinal
+      of efvString:
+        strval*: string
+      of efvOrdString:
+        ordStr*: tuple[ordVal: RtimeOrdinal, strval: string]
+
+
   Enum*[NNode] = object
     ## Enum declaration wrapper
     comment*: string
     name*: string
-    values*: seq[tuple[name: string, value: Option[NNode]]]
+    values*: seq[EnumField[NNode]]
 
   NEnum* = Enum[NimNode]
   PEnum* = Enum[PNode]
@@ -674,6 +722,40 @@ func isEnum*(en: NimNode): bool =
   en.getTypeImpl().kind == nnkEnumTy
 
 #============================  Constructors  =============================#
+func parseRTimeOrdinal*[NNode](nnode: NNode): RTimeOrdinal =
+  let kind = nnode.kind.toNNK()
+  case kind:
+    of nnkIntLit .. nnkUInt64Lit:
+      RTimeOrdinal(kind: rtokInt, intval: nnode.intVal)
+    of nnkCharLit:
+      RTimeOrdinal(kind: rtokChar, charval: char(nnode.intVal))
+    of nnkIdent:
+      let val = case nnode.getStrVal():
+        of "off", "false":
+          false
+        of "on", "true":
+          true
+        else:
+          raiseAssert("Unexpected identifier for parsing RTimeOrdinal")
+
+
+      RTimeOrdinal(kind: rtokBool, boolVal: val)
+
+    else:
+      raiseAssert(&"Unexpected node kind for parsing RTimeOrdinal: {kind}")
+
+# func parseEnumField*[NNode](enval: NNode): EnumField[NNode] =
+#   let kind = nnode.kind.toNNK()
+#   case kind:
+#     of nnkEmpty:
+
+
+func makeEnumField*[NNode](
+  name: string,
+  value: Option[NNode] = none(NNode),
+  comment: string = ""): EnumField[NNode] =
+  EnumField[NNode](name: name, value: value, comment: comment)
+
 func toNNode*[NNode](en: Enum[NNode], standalone: bool = false): NNode =
   ## Convert enum definition to `NNode`. If `standalone` is true wrap
   ## result in `nnkTypeSection`, otherwise generate `nnkTypeDef` only.
@@ -683,10 +765,15 @@ func toNNode*[NNode](en: Enum[NNode], standalone: bool = false): NNode =
         newNTree[NNode](
           nnkEnumFieldDef,
           newNIdent[NNode](val.name),
-          val.value.get()
-        )
+          val.value.get()).withIt do:
+            when NNode is PNode:
+              it.comment = val.comment
       else:
-        newNIdent[NNode](val.name)
+        when NNode is PNode:
+          newPIdent(val.name).withIt do:
+            it.comment = val.comment
+        else:
+          ident(val.name)
 
   result = newNTree[NNode](
     nnkTypeDef,
@@ -703,36 +790,66 @@ func toNNode*[NNode](en: Enum[NNode], standalone: bool = false): NNode =
       result
     )
 
+func parseEnumField*[NNode](fld: NNode): EnumField[NNode] =
+  case fld.kind.toNNK():
+    of nnkEnumFieldDef:
+      let val = fld[1]
+      result = case val.kind.toNNK():
+        of nnkCharLit..nnkUInt64Lit:
+          EnumField[NNode](kind: efvOrdinal,
+                           ordVal: val.parseRTimeOrdinal())
+        of nnkPar:
+          val[1].expectKind nnkStrLit
+          EnumField[NNode](
+            kind: efvOrdString, ordStr: (
+              ordVal: val[0].parseRTimeOrdinal(),
+              strval: val[1].getStrVal()))
+        of nnkStrLit:
+          EnumField[NNode](kind: efvString, strval: val.strVal)
+        of nnkIdent, nnkSym:
+          EnumField[NNode](kind: efvIdent, ident: val)
+        else:
+          # when NNode is NimNode:
+          #   debugecho fld.treeRepr()
+          raiseAssert(&"Unexpected node kind for enum field: {val.kind}")
+
+      result.name = fld[0].getStrVal
+    of nnkSym:
+      return makeEnumField(
+        name = fld.getStrVal,
+        value = none(NNode)
+      )
+    else:
+      raiseAssert(&"#[ IMPLEMENT {fld.kind} ]#")
 
 
-func parseEnumImpl*(en: NimNode): NEnum =
+func parseEnumImpl*[NNode](en: NNode): Enum[NNode] =
   # echov en.kind
   # debugecho en.treeRepr()
-  case en.kind:
+  case en.kind.toNNK():
     of nnkSym:
-      let impl = en.getTypeImpl()
-      # echov impl.kind
-      case impl.kind:
-        of nnkBracketExpr:
-          # let impl = impl.getTypeInst()[1].getImpl()
-          return parseEnumImpl(impl.getTypeInst()[1].getImpl())
-        of nnkEnumTy:
-          result = parseEnumImpl(impl)
-        else:
-          raiseAssert(&"#[ IMPLEMENT {impl.kind} ]#")
+      when NNode is PNode:
+        raiseAssert("Parsing of enum implementation from " &
+          "Sym node is not support for PNode")
+      else:
+        let impl = en.getTypeImpl()
+        # echov impl.kind
+        case impl.kind:
+          of nnkBracketExpr:
+            # let impl = impl.getTypeInst()[1].getImpl()
+            return parseEnumImpl(impl.getTypeInst()[1].getImpl())
+          of nnkEnumTy:
+            result = parseEnumImpl(impl)
+          else:
+            raiseAssert(&"#[ IMPLEMENT {impl.kind} ]#")
     of nnkTypeDef:
-      # result = Enum(name: )
       result = parseEnumImpl(en[2])
-      result.name = en[0].strVal()
+      result.name = en[0].getStrVal
     of nnkEnumTy:
       for fld in en[1..^1]:
-        case fld.kind:
-          of nnkEnumFieldDef:
-            result.values.add (name: fld[0].strVal(), value: some(fld[1]))
-          of nnkSym:
-            result.values.add (name: fld.strVal(), value: none(NimNode))
-          else:
-            raiseAssert(&"#[ IMPLEMENT {fld.kind} ]#")
+        result.values.add parseEnumField(fld)
+    of nnkTypeSection:
+      result = parseEnumImpl(en[0])
     else:
       raiseAssert(&"#[ IMPLEMENT {en.kind} ]#")
 
@@ -782,10 +899,9 @@ type
     name*: string
     kind*: ProcKind
     signature*: NType[NNode] ## Signature of the proc as `ntProc` NType
-    docstr*: string ## Documentation string
+    comment*: string ## Documentation string
     genParams*: seq[NType[NNode]] ## Generic parameters for proc
     impl*: NNode ## Implementation body
-
 
 
 # ~~~~ proc declaration ~~~~ #
@@ -879,6 +995,9 @@ func toNNode*[NNode](pr: ProcDecl[NNode]): NNode =
     newEmptyNNode[NNode](),
     impl
   )
+
+  when NNode is PNode:
+    result.comment = pr.comment
 
 
 

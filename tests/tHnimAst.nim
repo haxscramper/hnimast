@@ -250,22 +250,28 @@ suite "working with PNode":
       var procdef: ProcDecl[PNode]
       procdef.name = "Hello"
       procdef.signature = mkProcNType[PNode](@[])
+      procdef.comment = "werqwre"
       echo procdef.toNNode()
 
       decl.comment = "hello world"
       echo decl
 
     block:
-      var en = PEnum(
-        name: "Eee",
-        values: @{
-          "hello" : some(
-            newPIdent("eee").withIt do:
-              it.comment = "documentation for field"
-          ),
-          "world" : some(newPLit(12))
-        }
-      )
+      var en = PEnum(name: "Eee").withIt do:
+        it.values.add makeEnumField(
+          name = "Hello",
+          value = some(newPIdent("EEE")),
+          comment = "documentation comment"
+        )
+
+        # values: @{
+        #   "hello" : some(
+        #     newPIdent("eee").withIt do:
+        #       it.comment = "documentation for field"
+        #   ),
+        #   "world" : some(newPLit(12))
+        # }
+      # )
 
       en.comment = """
 Aliquam erat volutpat. Nunc eleifend leo vitae magna. In id erat non
@@ -284,3 +290,11 @@ type Type = object
     var obj = parseObject(node, parsePPragma)
     obj.exported = true
     echo obj.toNNode()
+
+  test "Runtime ordinal parsing":
+    echo parsePNodeStr("1").dropStmtList().parseRTimeOrdinal()
+    echo parsePNodeStr("'1'").dropStmtList().parseRTimeOrdinal()
+    echo "type E = enum\n  f1 = 12".
+      parsePNodeStr().
+      dropStmtList().
+      parseEnumImpl()
