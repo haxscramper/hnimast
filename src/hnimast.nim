@@ -20,18 +20,30 @@ func `$!`*(n: NimNode): string =
   ## 'invalid node kind'
   n.toStrLit().strVal()
 
-proc `$`*(n: PNode): string = renderer.`$`(n)
+proc `$`*(n: PNode): string =
+  ## Convert `PNode` back to code.
+  renderer.`$`(n)
 
-func getStrVal*(n: NimNode): string = n.strVal()
+func getStrVal*(n: NimNode): string =
+  ## Get string value from `NimNode` that can have it - e.g. strings,
+  ## identifiers etc.
+  n.strVal()
+
 func getStrVal*(p: PNode): string =
+  ## Get string value from `PNode`
   case p.kind:
     of nkIdent:
       p.ident.s
     else:
       p.strVal
 
-func subnodes*(p: PNode): seq[PNode] = p.sons
-func subnodes*(n: NimNode): seq[NimNode] = toSeq(n.children)
+func subnodes*(p: PNode): seq[PNode] =
+  ## Get subnodes as a sequence
+  p.sons
+
+func subnodes*(n: NimNode): seq[NimNode] =
+  ## Get subnodes as a sequence
+  toSeq(n.children)
 
 func skipNil*(n: NimNode): NimNode =
   ## If node `n` is `nil` generated new empty node, otherwise return
@@ -54,6 +66,8 @@ func `==`*(k1: TNodeKind, k2: NimNodeKind): bool = k1.toNNK() == k2
 
 
 func newTree*(kind: NimNodeKind, subnodes: seq[PNode]): PNode =
+  ## Create new `PNode` tree with `subnodes` as child elements. `kind`
+  ## will be converted to corresponding `TNodeKind`
   kind.toNK().newTree(subnodes)
 
 func newAccQuoted*(args: varargs[NimNode]): NimNode =
@@ -63,26 +77,38 @@ func newAccQuoted*(args: varargs[string]): NimNode =
   nnkAccQuoted.newTree(args.mapIt(ident it))
 
 proc newPIdent*(str: string): PNode =
+  ## Create new `nkIdent` pnode
   newIdentNode(PIdent(s: str), TLineInfo())
 
 func newInfix*(op: string, lhs, rhs: NimNode): NimNode =
+  ## Create new `nnkInfix` node
   nnkInfix.newTree(ident op, lhs, rhs)
 
 func newPrefix*(op: string, expr: NimNode): NimNode =
+  ## Create new `nnkPrefix` node
   nnkPrefix.newTree(@[ident op, expr])
 
 func newPrefix*(op: string, expr: PNode): PNode =
+  ## Create new `nkPrefix` node
   nnkPrefix.newTree(@[newPIdent op, expr])
 
-func newReturn*(expr: NimNode): NimNode = nnkReturnStmt.newTree(@[expr])
-func newReturn*(expr: PNode): PNode = nnkReturnStmt.newTree(@[expr])
+func newReturn*(expr: NimNode): NimNode =
+  ## Create new return statement
+  nnkReturnStmt.newTree(@[expr])
+
+func newReturn*(expr: PNode): PNode =
+  ## Create new return stetement
+  nnkReturnStmt.newTree(@[expr])
+
 func expectKind*(expr: PNode, kind: NimNodeKind): void =
+  ## Raise assertion error of `expr` kind is not equal to `kind`
   if expr.kind != kind.toNK():
     raiseAssert(
       &"Unexpected node kind: got {expr.kind}, but expected {kind}")
 
 
 func newNIdent*[NNode](str: string): NNode =
+  ## Create new `nnkIdent` node of type `NNode`
   when NNode is NimNode:
     newIdentNode(str)
   else:
@@ -90,15 +116,18 @@ func newNIdent*[NNode](str: string): NNode =
 
 func newNTree*[NNode](
   kind: NimNodeKind, subnodes: varargs[NNode]): NNode =
+  ## Create new tree with `subnodes` and `kind`
   when NNode is NimNode:
     newTree(kind, subnodes)
   else:
     newTree(kind.toNK(), subnodes)
 
 func newPTree*(kind: NimNodeKind, subnodes: varargs[PNode]): PNode =
+  ## Create new `PNode` tree
   newTree(kind.toNK(), subnodes)
 
 func newCommentStmtNNode*[NNode](comment: string): NNode =
+  ## Create new `nnkCommentStmt` node
   when NNode is NimNode:
     return newCommentStmtNode(comment)
   else:
@@ -106,18 +135,23 @@ func newCommentStmtNNode*[NNode](comment: string): NNode =
     result.comment = comment
 
 func newEmptyNNode*[NNode](): NNode =
+  ## Create new empty node of type `NNode`
   when NNode is NimNode:
     newEmptyNode()
   else:
     newTree(nkEmpty)
 
-func newEmptyPNode*(): PNode = newEmptyNNode[PNode]()
+func newEmptyPNode*(): PNode =
+  ## Create new empty PNode
+  newEmptyNNode[PNode]()
 
 func newPLit*(i: int): PNode =
+  ## Create new integer literal `PNode`
   newIntTypeNode(BiggestInt(i), PType(kind: tyInt))
 
 
 func newPLit*(i: string): PNode =
+  ## Create new string literal `PNode`
   newStrNode(nkStrLit, i)
 
 type
@@ -210,11 +244,13 @@ proc parseEnumSet*[Enum](
 
 func toBracket*(elems: seq[NimNode]): NimNode =
   ## Create `nnkBracket` with elements
+  # TODO use `NNode`
   nnkBracket.newTree(elems)
 
 func toBracketSeq*(elems: seq[NimNode]): NimNode =
   ## Create `nnkBracket` with `@` prefix - sequence literal
   ## `@[<elements>]`
+  # TODO use `NNode`
   nnkPrefix.newTree(ident "@", nnkBracket.newTree(elems))
 
 #*************************************************************************#
@@ -230,8 +266,8 @@ type
                          ## like `{.hello, world.}` this will contain
                          ## `@[hello, world]`
 
-  NPragma* = Pragma[NimNode]
-  PPragma* = Pragma[PNode]
+  NPragma* = Pragma[NimNode] ## Pragma with nim node
+  PPragma* = Pragma[PNode] ## Pragma with pnode
 
 #===============================  Getters  ===============================#
 func getElem*(pragma: NPragma, name: string): Option[NimNode] =
@@ -279,6 +315,8 @@ func mkPPragma*(names: varargs[PNode]): PPragma =
 #========================  Other implementation  =========================#
 
 func toNNode*[NNode](pragma: Pragma[NNode]): NNode =
+  ## Convert pragma to `NNode`. If pragma has no elements empty node
+  ## (`nnkEmptyNode`) will be returned.
   if pragma.elements.len == 0:
     newEmptyNNode[NNode]()
   else:
@@ -299,40 +337,39 @@ func toNimNode*(pragma: NPragma): NimNode =
 
 type
   NTypeKind* = enum
-    ntkIdent
-    ntkProc
-    ntkRange
-    ntkGenericSpec
+    ## Type kind
+    ntkIdent ## Generic identifier, possibly with parameters: `G[A, C]`
+    ntkProc ## Procedure type: `proc(a: int, b: float) {.cdecl.}`
+    ntkRange ## Range type: `range[1..10]`
+    ntkGenericSpec ## Constrained generic: `A: B | C | D`
 
   NType*[NNode] = object
     ## Representation of generic nim type;
-    ##
-    ## TODO support `range[a..b]`, generic constraints: `A: B | C` and
-    ## `A: B or C`
-
     case kind*: NTypeKind
       of ntkIdent, ntkGenericSpec:
-        head*: string
-        genParams*: seq[NType[NNode]]
+        head*: string ## Type name `head[...]` or `head: .. | ..`
+        genParams*: seq[NType[NNode]] ## Parameters or alternatives:
+        ## `[@genParams]` or `..: alt1 | alt2 ..`
       of ntkProc:
-        rType*: Option[SingleIt[NType[NNode]]]
-        arguments*: seq[NIdentDefs[NNode]]
-        pragma*: Pragma[NNode]
+        rType*: Option[SingleIt[NType[NNode]]] ## Optional return type
+        arguments*: seq[NIdentDefs[NNode]] ## Sequence of argument identifiers
+        pragma*: Pragma[NNode] ## Pragma annotation for proc
       of ntkRange:
-        discard
+        discard ## TODO
 
   NVarDeclKind* = enum
     ## Kind of variable declaration
+    # TODO static parameters?
     nvdLet
     nvdVar
     nvdConst
 
   NIdentDefs*[NNode] = object
     ## Identifier declaration
-    varname*: string
+    varname*: string ## Variable name
     kind*: NVarDeclKind
-    vtype*: NType[NNode]
-    value*: Option[NNode]
+    vtype*: NType[NNode] ## Variable type
+    value*: Option[NNode] ## Optional initialization value
 
   PIdentDefs* = NIdentDefs[PNode]
 
@@ -376,6 +413,7 @@ func toNIdentDefs*[NNode](
 func toNFormalParam*[NNode](nident: NIdentDefs[NNode]): NNode
 
 func toNNode*[NNode](ntype: NType[NNode]): NNode =
+  ## Convert to NNode
   case ntype.kind:
     of ntkProc:
       result = newNTree[NNode](nnkProcTy)
@@ -474,12 +512,14 @@ func mkProcNType*[NNode](
 
 
 func mkProcNType*[NNode](args: seq[NType[NNode]]): NType[NNode] =
-    NType[NNode](
-      kind: ntkProc,
-      arguments: toNIdentDefs[NNode](args.mapIt(("", it))),
-      rtype: none(SingleIt[NType[NNode]]),
-      pragma: mkNNPragma[NNode]()
-    )
+  ## CRreate procedure type with arguments types `args`, no return type and
+  ## no pragma annotations.
+  NType[NNode](
+    kind: ntkProc,
+    arguments: toNIdentDefs[NNode](args.mapIt(("", it))),
+    rtype: none(SingleIt[NType[NNode]]),
+    pragma: mkNNPragma[NNode]()
+  )
 
 func mkNTypeNNode*[NNode](impl: NNode): NType[NNode] =
   ## Convert type described in `NimNode` into `NType`
@@ -502,6 +542,7 @@ func mkNTypeNNode*[NNode](impl: NNode): NType[NNode] =
       raiseAssert("#[ IMPLEMENT ]#")
 
 template `[]`*(node: PNode, slice: HSLice[int, BackwardsIndex]): untyped =
+  ## Get range of subnodes from `PNode`
   `[]`(node.sons, slice)
 
 func mkNType*(impl: NimNode): NType[NimNode] =
@@ -634,6 +675,8 @@ func isEnum*(en: NimNode): bool =
 
 #============================  Constructors  =============================#
 func toNNode*[NNode](en: Enum[NNode], standalone: bool = false): NNode =
+  ## Convert enum definition to `NNode`. If `standalone` is true wrap
+  ## result in `nnkTypeSection`, otherwise generate `nnkTypeDef` only.
   let flds = collect(newSeq):
     for val in en.values:
       if val.value.isSome():
@@ -725,20 +768,23 @@ macro enumNames*(en: typed): seq[string] =
 #==========================  Type definitions  ===========================#
 
 type
+  # TODO different keyword types: `method`, `iterator`, `proc`,
+  # `func`, `template` etc.
   ProcKind* = enum
-    pkRegular
-    pkOperator
-    pkHook
-    pkAssgn
+    ## Procedure kind
+    pkRegular ## Regular proc: `hello()`
+    pkOperator ## Operator: `*`
+    pkHook ## Destructor/sink (etc.) hook: `=destroy`
+    pkAssgn ## Assignment proc `field=`
 
   ProcDecl*[NNode] = object
     exported*: bool
     name*: string
     kind*: ProcKind
-    signature*: NType[NNode]
-    docstr*: string
-    genParams*: seq[NType[NNode]]
-    impl*: NNode
+    signature*: NType[NNode] ## Signature of the proc as `ntProc` NType
+    docstr*: string ## Documentation string
+    genParams*: seq[NType[NNode]] ## Generic parameters for proc
+    impl*: NNode ## Implementation body
 
 
 
