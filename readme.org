@@ -4,6 +4,8 @@ Statically typed wrapper for nim ast at compile (~NimNode~) and rutime
 (~PNode~). Another take on solving problem of ~node[0][0][1][0]~.
 Mostly concerned with processing of types and procedure declarations.
 
+Documentation: [[https://haxscramper.github.io/hnimast-doc/src/hnimast.html][link]]
+
 Provides logical structure for objects/fields - you can set/get type,
 check if field is a switch for case statement or not. Visit
 ~eachField~ in the object, map object to some code structure.
