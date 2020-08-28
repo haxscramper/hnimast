@@ -290,6 +290,9 @@ proc parseObject*[NNode, A](node: NNode, cb: ParseCb[NNode, A]): Object[NNode, A
           result.exported = true
         else:
           result.name = mkNNType[NNode](node[0][0].getStrVal)
+    of nnkPostfix:
+      result.name = mkNNType[NNode](node[0][1].getStrVal())
+      result.exported = true
     else:
       result.name = mkNNType[NNode](node[0].getStrVal())
 

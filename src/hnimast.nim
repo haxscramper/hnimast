@@ -407,6 +407,11 @@ func `==`*(l, r: NType): bool =
         true
   )
 
+func `rType=`*[NNode](t: var NType[NNode], val: NType[NNode]): void =
+    t.rtype = some(mkIt(val))
+
+func setRType*[NNode](t: var NType[NNode], val: NType[NNode]): void =
+  t.rtype = some(mkIt(val))
 
 #============================  Constructors  =============================#
 func toNIdentDefs*[NNode](
@@ -681,14 +686,14 @@ func `$`*(nt: NType): string =
 #*************************************************************************#
 #===========================  Type definition  ===========================#
 type
-  EnumFieldVal = enum
+  EnumFieldVal* = enum
     efvNone
     efvIdent
     efvOrdinal
     efvString
     efvOrdString
 
-  RTimeOrdinalKind = enum
+  RTimeOrdinalKind* = enum
     rtokInt
     rtokBool
     rtokChar
@@ -725,6 +730,7 @@ type
     comment*: string
     name*: string
     values*: seq[EnumField[NNode]]
+    exported*: bool
 
   NEnum* = Enum[NimNode]
   PEnum* = Enum[PNode]
@@ -801,6 +807,15 @@ func parseRTimeOrdinal*[NNode](nnode: NNode): RTimeOrdinal =
     else:
       raiseAssert(&"Unexpected node kind for parsing RTimeOrdinal: {kind}")
 
+func makeRTOrdinal*(ival: int): RTimeOrdinal =
+  RTimeOrdinal(kind: rtokInt, intval: BiggestInt(ival))
+
+func makeRTOrdinal*(ival: BiggestInt): RTimeOrdinal =
+  RTimeOrdinal(kind: rtokInt, intval: ival)
+
+func makeRTOrdinal*(cval: char): RTimeOrdinal =
+  RTimeOrdinal(kind: rtokChar, charVal: cval)
+
 # func parseEnumField*[NNode](enval: NNode): EnumField[NNode] =
 #   let kind = nnode.kind.toNNK()
 #   case kind:
@@ -859,9 +874,19 @@ func toNNode*[NNode](en: Enum[NNode], standalone: bool = false): NNode =
     for val in en.values:
       toNNode(val)
 
+  let head =
+    if en.exported:
+      newNTree[NNode](nnkPostfix,
+        newNIdent[NNode]("*"),
+        newNIdent[NNode](en.name)
+      )
+    else:
+      newNIdent[NNode](en.name)
+
+
   result = newNTree[NNode](
     nnkTypeDef,
-    newNIdent[NNode](en.name),
+    head,
     newEmptyNNode[NNode](),
     newNTree[NNode](nnkEnumTy, @[ newEmptyNNode[NNode]() ] & flds))
 
@@ -955,6 +980,8 @@ type
     comment*: string ## Documentation string
     genParams*: seq[NType[NNode]] ## Generic parameters for proc
     impl*: NNode ## Implementation body
+
+  PProcDecl* = ProcDecl[PNode]
 
 
 # ~~~~ proc declaration ~~~~ #
