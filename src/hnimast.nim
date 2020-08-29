@@ -316,25 +316,25 @@ func getElem*(optPragma: Option[NPragma], name: string): Option[NimNode] =
     return optPragma.get().getElem(name)
 
 #============================  constructors  =============================#
-func mkNNPragma*[NNode](): Pragma[NNode] = discard
+func newNNPragma*[NNode](): Pragma[NNode] = discard
 
-func mkNPragma*(names: varargs[string]): NPragma =
+func newNPragma*(names: varargs[string]): NPragma =
   ## Create pragma using each string as separate name.
   ## `{.<<name1>, <name2>, ...>.}`
   NPragma(elements: names.mapIt(ident it))
 
-func mkPPragma*(names: varargs[string]): PPragma =
+func newPPragma*(names: varargs[string]): PPragma =
   ## Create pragma using each string as separate name.
   ## `{.<<name1>, <name2>, ...>.}`
   PPragma(elements: names.mapIt(newPIdent(it)))
 
 
-func mkNPragma*(names: varargs[NimNode]): NPragma =
+func newNPragma*(names: varargs[NimNode]): NPragma =
   ## Create pragma using each node in `name` as separate name
   NPragma(elements: names.mapIt(it))
 
 
-func mkPPragma*(names: varargs[PNode]): PPragma =
+func newPPragma*(names: varargs[PNode]): PPragma =
   ## Create pragma using each node in `name` as separate name
   PPragma(elements: names.mapIt(it))
 
@@ -414,10 +414,10 @@ func `==`*(l, r: NType): bool =
   )
 
 func `rType=`*[NNode](t: var NType[NNode], val: NType[NNode]): void =
-    t.rtype = some(mkIt(val))
+    t.rtype = some(newIt(val))
 
 func setRType*[NNode](t: var NType[NNode], val: NType[NNode]): void =
-  t.rtype = some(mkIt(val))
+  t.rtype = some(newIt(val))
 
 #============================  Constructors  =============================#
 func toNIdentDefs*[NNode](
@@ -509,31 +509,31 @@ func toFormalParam*(nident: NIdentDefs[NimNode]): NimNode =
   toNFormalParam[NimNode](nident)
 
 
-func mkNType*(name: string, gparams: seq[string] = @[]): NType[NimNode] =
+func newNType*(name: string, gparams: seq[string] = @[]): NType[NimNode] =
   ## Make `NType` with `name` as string and `gparams` as generic
   ## parameters
   NType[NimNode](
-    kind: ntkIdent, head: name, genParams: gparams.mapIt(mkNType(it, @[])))
+    kind: ntkIdent, head: name, genParams: gparams.mapIt(newNType(it, @[])))
 
-func mkPType*(name: string, gparams: seq[string] = @[]): NType[PNode] =
+func newPType*(name: string, gparams: seq[string] = @[]): NType[PNode] =
   ## Make `NType` with `name` as string and `gparams` as generic
   ## parameters
   NType[PNode](
-    kind: ntkIdent, head: name, genParams: gparams.mapIt(mkPType(it, @[])))
+    kind: ntkIdent, head: name, genParams: gparams.mapIt(newPType(it, @[])))
 
-func mkNNType*[NNode](
+func newNNType*[NNode](
   name: string, gparams: seq[string] = @[]): NType[NNode] =
   when NNode is NimNode:
-    mkNType(name, gparams)
+    newNType(name, gparams)
   else:
-    mkPType(name, gparams)
+    newPType(name, gparams)
 
-func mkNType*[NNode](
+func newNType*[NNode](
   name: string, gparams: openarray[NType[NNode]]): NType[NNode] =
   ## Make `NType`
   NType[NNode](kind: ntkIdent, head: name, genParams: toSeq(gparams))
 
-func mkProcNType*[NNode](
+func newProcNType*[NNode](
   args: seq[NType[NNode]],
   rtype: NType[NNode], pragma: Pragma[NNode]): NType[NNode] =
 
@@ -541,35 +541,35 @@ func mkProcNType*[NNode](
     kind: ntkProc,
     arguments: toNIdentDefs[NNode](args.mapIt(("", it))),
     pragma: pragma,
-    rType: some(mkIt(rtype)))
+    rType: some(newIt(rtype)))
 
 
-func mkProcNType*[NNode](args: seq[NType[NNode]]): NType[NNode] =
+func newProcNType*[NNode](args: seq[NType[NNode]]): NType[NNode] =
   ## CRreate procedure type with arguments types `args`, no return type and
   ## no pragma annotations.
   NType[NNode](
     kind: ntkProc,
     arguments: toNIdentDefs[NNode](args.mapIt(("", it))),
     rtype: none(SingleIt[NType[NNode]]),
-    pragma: mkNNPragma[NNode]()
+    pragma: newNNPragma[NNode]()
   )
 
-func mkNTypeNNode*[NNode](impl: NNode): NType[NNode] =
+func newNTypeNNode*[NNode](impl: NNode): NType[NNode] =
   ## Convert type described in `NimNode` into `NType`
   case impl.kind.toNNK():
     of nnkBracketExpr:
       let head = impl[0].strVal
       when NNode is PNode:
-        mkNType(head, impl.sons[1..^1].mapIt(mkNTypeNNode(it)))
+        newNType(head, impl.sons[1..^1].mapIt(newNTypeNNode(it)))
       else:
-        mkNType(head, impl[1..^1].mapIt(mkNTypeNNode(it)))
+        newNType(head, impl[1..^1].mapIt(newNTypeNNode(it)))
     of nnkSym:
-      mkNNType[NNode](impl.strVal)
+      newNNType[NNode](impl.strVal)
     of nnkIdent:
       when NNode is PNode:
-        mkPType(impl.ident.s)
+        newPType(impl.ident.s)
       else:
-        mkNType(impl.strVal)
+        newNType(impl.strVal)
     else:
       # debugecho impl.treeRepr
       raiseAssert("#[ IMPLEMENT ]#")
@@ -578,15 +578,15 @@ template `[]`*(node: PNode, slice: HSLice[int, BackwardsIndex]): untyped =
   ## Get range of subnodes from `PNode`
   `[]`(node.sons, slice)
 
-func mkNType*(impl: NimNode): NType[NimNode] =
+func newNType*(impl: NimNode): NType[NimNode] =
   ## Convert type described in `NimNode` into `NType`
-  mkNTypeNNode(impl)
+  newNTypeNNode(impl)
 
-func mkNType*(impl: PNode): NType[PNode] =
+func newNType*(impl: PNode): NType[PNode] =
   ## Convert type described in `NimNode` into `NType`
-  mkNTypeNNode(impl)
+  newNTypeNNode(impl)
 
-func mkVarDecl*(name: string, vtype: NType,
+func newVarDecl*(name: string, vtype: NType,
                 kind: NVarDeclKind = nvdLet): NIdentDefs[NimNode] =
   ## Declare varaible `name` of type `vtype`
   # TODO initalization value, pragma annotations and `isGensym`
@@ -599,23 +599,23 @@ func newVarStmt*(varname: string, vtype: NType, val: NimNode): NimNode =
       ident varname, vtype.toNimNode(), val))
 
 
-func mkVarDeclNode*(name: string, vtype: NType,
+func newVarDeclNode*(name: string, vtype: NType,
                     kind: NVarDeclKind = nvdLet): NimNode =
   ## Create variable declaration `name` of type `vtype`
-  mkVarDecl(name, vtype, kind).toFormalParam()
+  newVarDecl(name, vtype, kind).toFormalParam()
 
 
-func mkNTypeNode*(name: string, gparams: seq[string]): NimNode =
+func newNTypeNode*(name: string, gparams: seq[string]): NimNode =
   ## Create `NimNode` for type `name[@gparams]`
-  mkNType(name, gparams).toNimNode()
+  newNType(name, gparams).toNimNode()
 
-func mkNTypeNode*[NNode](
+func newNTypeNode*[NNode](
   name: string, gparams: varargs[NType[NNode]]): NNode =
   ## Create `NimNode` for type `name[@gparams]`
-  mkNType(name, gparams).toNNode()
+  newNType(name, gparams).toNNode()
 
 
-func mkCallNode*(
+func newCallNode*(
   dotHead: NimNode, name: string,
   args: seq[NimNode], genParams: seq[NType[NimNode]] = @[]): NimNode =
   ## Create node `dotHead.name[@genParams](genParams)`
@@ -630,7 +630,7 @@ func mkCallNode*(
   for arg in args:
     result.add arg
 
-func mkCallNode*(
+func newCallNode*(
   name: string,
   args: seq[NimNode],
   genParams: seq[NType[NimNode]] = @[]): NimNode =
@@ -647,27 +647,27 @@ func mkCallNode*(
     result.add node
 
 
-func mkCallNode*(name: string,
+func newCallNode*(name: string,
                  gentypes: openarray[NType],
                  args: varargs[NimNode]): NimNode =
   ## Create node `name[@gentypes](@args)`. Overload with more
   ## convinient syntax if you have predefined number of genric
-  ## parameters - `mkCallNode("name", [<param>](arg1, arg2))` looks
+  ## parameters - `newCallNode("name", [<param>](arg1, arg2))` looks
   ## almost like regular `quote do` interpolation.
-  mkCallNode(name, toSeq(args), toSeq(genTypes))
+  newCallNode(name, toSeq(args), toSeq(genTypes))
 
-func mkCallNode*(
+func newCallNode*(
   arg: NimNode, name: string,
   gentypes: openarray[NType[NimNode]] = @[]): NimNode =
   ## Create call node `name[@gentypes](arg)`
-  mkCallNode(name, @[arg], toSeq(genTypes))
+  newCallNode(name, @[arg], toSeq(genTypes))
 
-func mkCallNode*(
+func newCallNode*(
   dotHead: NimNode, name: string,
   gentypes: openarray[NType],
   args: seq[NimNode]): NimNode =
   ## Create call node `dotHead.name[@gentypes](@args)`
-  mkCallNode(dotHead, name, toSeq(args), toSeq(genTypes))
+  newCallNode(dotHead, name, toSeq(args), toSeq(genTypes))
 
 
 #========================  Other implementation  =========================#
@@ -1026,7 +1026,7 @@ func createProcType*(p, b: NimNode, annots: NPragma): NimNode =
 
 macro `~>`*(a, b: untyped): untyped =
   ## Construct proc type with `noSideEffect` annotation.
-  result = createProcType(a, b, mkNPragma("noSideEffect"))
+  result = createProcType(a, b, newNPragma("noSideEffect"))
 
 
 func toNNode*[NNode](pr: ProcDecl[NNode]): NNode =
@@ -1088,7 +1088,7 @@ func toNNode*[NNode](pr: ProcDecl[NNode]): NNode =
 
 
 
-func mkProcDeclNNode*[NNode](
+func newProcDeclNNode*[NNode](
   procHead: NNode,
   rtype: Option[NType[NNode]],
   args: seq[NIdentDefs[NNode]],
@@ -1149,31 +1149,31 @@ func mkProcDeclNNode*[NNode](
 
 
 
-func mkProcDeclNode*(
+func newProcDeclNode*(
   head: NimNode, rtype: Option[NType[NimNode]], args: seq[NIdentDefs[NimNode]],
   impl: NimNode, pragma: NPragma = NPragma(), exported: bool = true,
   comment: string = ""): NimNode =
 
-  mkProcDeclNNode[NimNode](
+  newProcDeclNNode[NimNode](
     head, rtype, args, impl, pragma, exported, comment)
 
 
-func mkProcDeclNode*(
+func newProcDeclNode*(
   head: PNode, rtype: Option[NType[PNode]], args: seq[PIdentDefs],
   impl: PNode, pragma: Pragma[PNode] = Pragma[PNode](),
   exported: bool = true, comment: string = ""): PNode =
 
-  mkProcDeclNNode[PNode](
+  newProcDeclNNode[PNode](
     head, rtype, args, impl, pragma, exported, comment)
 
-func mkProcDeclNode*[NNode](
+func newProcDeclNode*[NNode](
   head: NNode,
   args: openarray[tuple[name: string, atype: NType[NNode]]],
   impl: NNode,
   pragma: Pragma[NNode] = Pragma[NNode](),
   exported: bool = true,
   comment: string = ""): NNode =
-  mkProcDeclNNode(
+  newProcDeclNNode(
     head,
     none(NType[NNode]),
     toNIdentDefs[NNode](args),
@@ -1184,7 +1184,7 @@ func mkProcDeclNode*[NNode](
   )
 
 
-func mkProcDeclNode*[NNode](
+func newProcDeclNode*[NNode](
   accq: openarray[NNode],
   rtype: NType,
   args: openarray[tuple[name: string, atype: NType[NNode]]],
@@ -1192,7 +1192,7 @@ func mkProcDeclNode*[NNode](
   pragma: Pragma[NNode] = Pragma[NNode](),
   exported: bool = true,
   comment: string = ""): NNode =
-  mkProcDeclNNode(
+  newProcDeclNNode(
     newNTree[NNode](nnkAccQuoted, accq),
     some(rtype),
     toNIdentDefs[NNode](args),
@@ -1203,14 +1203,14 @@ func mkProcDeclNode*[NNode](
   )
 
 
-func mkProcDeclNode*[NNode](
+func newProcDeclNode*[NNode](
   accq: openarray[NNode],
   args: openarray[tuple[name: string, atype: NType[NNode]]],
   impl: NNode,
   pragma: Pragma[NNode] = Pragma[NNode](),
   exported: bool = true,
   comment: string = ""): NNode =
-  mkProcDeclNNode(
+  newProcDeclNNode(
     newNTree[NNode](nnkAccQuoted, accq),
     none(NType[NNode]),
     toNIdentDefs[NNode](args),
@@ -1221,7 +1221,7 @@ func mkProcDeclNode*[NNode](
   )
 
 
-func mkProcDeclNode*[NNode](
+func newProcDeclNode*[NNode](
   head: NNode,
   rtype: NType[NNode],
   args: openarray[tuple[name: string, atype: NType[NNode]]],
@@ -1229,7 +1229,7 @@ func mkProcDeclNode*[NNode](
   pragma: Pragma[NNode] = Pragma[NNode](),
   exported: bool = true,
   comment: string = ""): NNode =
-  mkProcDeclNNode(
+  newProcDeclNNode(
     head,
     some(rtype),
     toNIdentDefs[NNode](args),
@@ -1239,7 +1239,7 @@ func mkProcDeclNode*[NNode](
     comment
   )
 
-func mkProcDeclNode*[NNode](
+func newProcDeclNode*[NNode](
   head: NNode,
   args: openarray[tuple[
     name: string,
@@ -1250,7 +1250,7 @@ func mkProcDeclNode*[NNode](
   pragma: Pragma[NNode] = Pragma[NNode](),
   exported: bool = true,
   comment: string = ""): NNode =
-  mkProcDeclNNode(
+  newProcDeclNNode(
     head,
     none(NType[NNode]),
     toNIdentDefs[NNode](args),
@@ -1820,11 +1820,11 @@ type
   ValFieldBranch* = ObjectBranch[ObjTree, void]
 
 
-func mkOType*(name: string, gparams: seq[string] = @[]): NType[ObjTree] =
+func newOType*(name: string, gparams: seq[string] = @[]): NType[ObjTree] =
   NType[ObjTree](
     kind: ntkIdent,
     head: name,
-    genParams: gparams.mapIt(mkOType(it, @[]))
+    genParams: gparams.mapIt(newOType(it, @[]))
   )
 
 proc prettyPrintConverter*(val: PNode, path: seq[int] = @[0]): ObjTree =

@@ -109,12 +109,12 @@ suite "HNimAst":
         Type {.zz(C), ee: "333", ee.} = object
           f1 {.check(it < 2).}: float = 32.0
 
-  test "{mkProcDeclNode}":
+  test "{newProcDeclNode}":
     macro mcr(): untyped =
       result = newStmtList()
-      result.add mkProcDeclNode(
+      result.add newProcDeclNode(
         ident "hello",
-        { "world" : mkNType("int") },
+        { "world" : newNType("int") },
         newCall(
           "echo", newLit("value is: "), ident "world"
         ),
@@ -175,10 +175,10 @@ suite "HNimAst":
             return false
 
 
-      let eqcmp = [ident "=="].mkProcDeclNode(
-        mkNType("bool"),
+      let eqcmp = [ident "=="].newProcDeclNode(
+        newNType("bool"),
         { "lhs" : obj.name, "rhs" : obj.name },
-        pragma = mkNPragma("noSideEffect"),
+        pragma = newNPragma("noSideEffect"),
         impl = (
           quote do:
             `impl`
@@ -231,25 +231,25 @@ suite "working with PNode":
     echo newPIdent("hello")
     echo newReturn(newPIdent("qqqq"))
     echo newPrefix("!", newPIdent("eee"))
-    echo mkProcDeclNNode(
+    echo newProcDeclNNode(
       newPIdent("hello"), none(NType[PNode]), @[], newPIdent("impl"))
 
-    echo mkProcDeclNode(newPIdent("nice"), {
-      "arg1" : mkPType("HHH")
+    echo newProcDeclNode(newPIdent("nice"), {
+      "arg1" : newPType("HHH")
     }, newPIdent("implementation"), comment = "some documentation")
 
     block:
-      var decl = mkProcDeclNode(newPIdent("nice"), [
-        ("arg1", mkPType("HHH"), nvdVar)
+      var decl = newProcDeclNode(newPIdent("nice"), [
+        ("arg1", newPType("HHH"), nvdVar)
       ], newPIdent("implementation"))
 
 
-      echo mkProcDeclNode(
-        newPIdent("noimpl"), {"arg1" : mkPType("HHH")}, newEmptyPNode())
+      echo newProcDeclNode(
+        newPIdent("noimpl"), {"arg1" : newPType("HHH")}, newEmptyPNode())
 
       var procdef: ProcDecl[PNode]
       procdef.name = "Hello"
-      procdef.signature = mkProcNType[PNode](@[])
+      procdef.signature = newProcNType[PNode](@[])
       procdef.comment = "werqwre"
       echo procdef.toNNode()
 

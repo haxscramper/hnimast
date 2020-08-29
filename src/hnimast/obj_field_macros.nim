@@ -82,7 +82,7 @@ proc getFieldDescription[NNode](
 
       result = (
         name: name,
-        fldType: mkNType[NNode](node[1]),
+        fldType: newNType[NNode](node[1]),
         exported: exported
       )
       # debugecho node[0].idxTreeRepr
@@ -290,15 +290,15 @@ proc parseObject*[NNode, A](node: NNode, cb: ParseCb[NNode, A]): Object[NNode, A
     of nnkPragmaExpr:
       case node[0][0].kind.toNNK():
         of nnkPostfix:
-          result.name = mkNNType[NNode](node[0][0][1].getStrVal)
+          result.name = newNNType[NNode](node[0][0][1].getStrVal)
           result.exported = true
         else:
-          result.name = mkNNType[NNode](node[0][0].getStrVal)
+          result.name = newNNType[NNode](node[0][0].getStrVal)
     of nnkPostfix:
-      result.name = mkNNType[NNode](node[0][1].getStrVal())
+      result.name = newNNType[NNode](node[0][1].getStrVal())
       result.exported = true
     else:
-      result.name = mkNNType[NNode](node[0].getStrVal())
+      result.name = newNNType[NNode](node[0].getStrVal())
 
   when not (A is void):
     if node[0].kind.toNNK() == nnkPragmaExpr and cb != nil:
