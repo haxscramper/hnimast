@@ -168,6 +168,11 @@ func newPLit*(i: string): PNode =
   ## Create new string literal `PNode`
   newStrNode(nkStrLit, i)
 
+
+func newPIdentColonString*(key, value: string): PNode =
+  nnkExprColonExpr.newPTree(newPIdent(key), newPLit(value))
+
+
 template newNNLit[NNode](val: untyped): untyped =
   when NNode is PNode:
     newPLit(val)
@@ -322,6 +327,7 @@ func mkPPragma*(names: varargs[string]): PPragma =
   ## Create pragma using each string as separate name.
   ## `{.<<name1>, <name2>, ...>.}`
   PPragma(elements: names.mapIt(newPIdent(it)))
+
 
 func mkNPragma*(names: varargs[NimNode]): NPragma =
   ## Create pragma using each node in `name` as separate name
@@ -982,6 +988,7 @@ type
     impl*: NNode ## Implementation body
 
   PProcDecl* = ProcDecl[PNode]
+  NProcDecl* = ProcDecl[NimNode]
 
 
 # ~~~~ proc declaration ~~~~ #
@@ -1628,12 +1635,20 @@ func toNNode*[NNode, A](
     else:
       newNIdent[NNode](fld.name)
 
+  let fieldName =
+    if fld.annotation.isSome():
+      let pragma = annotConv(fld.annotation.get())
+      newNTree[NNode](nnkPragmaExpr, head, pragma)
+    else:
+      head
+
+
   let selector = newNTree[NNode](
     nnkIdentDefs,
-    head,
+    fieldName,
     toNNode[NNode](fld.fldType),
-    fld.annotation.isSome().tern(
-      annotConv(fld.annotation.get()), newEmptyNNode[NNode]()))
+    newEmptyNNode[NNode]()
+  )
 
   if fld.isKind:
     return nnkRecCase.newTree(

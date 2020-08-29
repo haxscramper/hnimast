@@ -73,16 +73,20 @@ proc getFieldDescription[NNode](
             exported = true
             $node[0][1]
           of nnkPragmaExpr:
-            $node[0][0]
+            if node[0][0].kind.toNNK() == nnkPostfix:
+              $node[0][0][1]
+            else:
+              $node[0][0]
           else:
             $node[0]
 
-      return (
+      result = (
         name: name,
         fldType: mkNType[NNode](node[1]),
         exported: exported
       )
-
+      # debugecho node[0].idxTreeRepr
+      # debugecho result
     of nnkRecCase:
       return getFieldDescription(node[0])
     else:
