@@ -44,6 +44,15 @@ func dropStmtList*(p: PNode): PNode =
     else:
       p
 
+func toString*(n: NimNode): string =
+  ## Convert any node to string without side effects
+  n.toStrLit().strVal()
+
+func toString*(p: PNode): string =
+  ## Convert any node to string without side effects
+  {.noSideEffect.}:
+    $p
+
 func subnodes*(p: PNode): seq[PNode] =
   ## Get subnodes as a sequence
   p.sons
@@ -315,6 +324,9 @@ func getElem*(optPragma: Option[NPragma], name: string): Option[NimNode] =
   if optPragma.isSome():
     return optPragma.get().getElem(name)
 
+func len*[NNode](pragma: Pragma[NNode]): int =
+  pragma.elements.len
+
 #============================  constructors  =============================#
 func newNNPragma*[NNode](): Pragma[NNode] = discard
 
@@ -400,6 +412,12 @@ type
     value*: Option[NNode] ## Optional initialization value
 
   PIdentDefs* = NIdentDefs[PNode]
+
+#==============================  Accessors  ==============================#
+func arg*[NNode](t: NType[NNode], idx: int): NIdentDefs[NNode] =
+  assert t.kind == ntkProc
+  t.arguments[idx]
+
 
 #=============================  Predicates  ==============================#
 func `==`*(l, r: NType): bool =
@@ -679,12 +697,35 @@ func toNTypeAst*[T](): NType =
   let expr = parseExpr(str)
 
 #===========================  Pretty-printing  ===========================#
-func `$`*(nt: NType): string =
+func `$`*[NNode](nt: NType[NNode]): string =
   ## Convert `NType` to texual representation
-  if nt.genParams.len > 0:
-    nt.head & "[" & nt.genParams.mapIt($it).join(", ") & "]"
-  else:
-    nt.head
+  case nt.kind:
+    of ntkIdent:
+      if nt.genParams.len > 0:
+        nt.head & "[" & nt.genParams.mapIt($it).join(", ") & "]"
+      else:
+        nt.head
+
+    of ntkGenericSpec:
+      if nt.genParams.len > 0:
+        nt.head & ": " & nt.genParams.mapIt($it).join(" | ")
+      else:
+        nt.head
+
+    of ntkProc:
+      {.noSideEffect.}:
+        let rtype: string = nt.rtype.getSomeIt($it & ": ", "")
+        let pragma: string =
+          if nt.pragma.len == 0:
+            ""
+          else:
+            toString(nt.pragma.toNNode()) & " "
+
+        let args: string = nt.arguments.mapIt($it).join(", ")
+        &"proc ({args}){pragma}{rtype}"
+
+    of ntkRange:
+      raiseAssert("#[ IMPLEMENT ]#")
 
 
 #*************************************************************************#
@@ -737,6 +778,7 @@ type
     name*: string
     values*: seq[EnumField[NNode]]
     exported*: bool
+    pragma*: Pragma[NNode]
 
   NEnum* = Enum[NimNode]
   PEnum* = Enum[PNode]
