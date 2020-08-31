@@ -18,7 +18,7 @@ Provides logical structure for objects/fields - you can set/get type,
 check if field is a switch for case statement or not. Visit
 ~eachField~ in the object, map object to some code structure.
 
-#+begin_src nim
+#+begin_src nim :exports both
   import hnimast, hnimast/obj_field_macros
   import hpprint
 
