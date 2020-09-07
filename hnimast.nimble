@@ -1,6 +1,6 @@
 # Package
 
-version       = "0.3.1"
+version       = "0.3.2"
 author        = "haxscramper"
 description   = "User-friendly wrapper for nim ast"
 license       = "Apache-2.0"
@@ -25,22 +25,27 @@ template canImport(x: untyped): untyped =
 
 when canImport(hmisc/other/nimbleutils):
   import hmisc/other/nimbleutils
-  let develCmd = makeLocalDevel(testDir, localDevel)
 
   task dockertestDevel, "Test in docker container with local packages":
-    ## Run unit test in new docker container. Only download
-    ## dependencies that are not listed in `localDevel` list.
-    let cmd = develCmd && ("cd " & "/project/main") && "nimble test"
-
-    runDockerTest(thisDir(), testDir, cmd) do:
-      writeTestConfig("""
-        --verbosity:0
-        --hints:off
-        --warnings:off
-      """)
+    runDockerTestDevel(
+      thisDir(), testDir, localDevel, "nimble test") do:
+        writeTestConfig("""
+          --verbosity:0
+          --hints:off
+          --warnings:off
+        """)
 
     rmDir testDir
 
+
+  task dockertestAllDevel, "Test in docker container with local packages":
+    runDockerTestDevel(
+      thisDir(), testDir, localDevel, "nimble testallTask") do:
+        writeTestConfig("""
+          --verbosity:0
+          --hints:off
+          --warnings:off
+        """)
 
   task dockertest, "Test in new docker container":
     ## Run unit tests in new docker conatiner; download all
@@ -52,26 +57,8 @@ when canImport(hmisc/other/nimbleutils):
     runDockerTest(thisDir(), testDir, "nimble install")
 
   task testall, "Run full test suite in all variations":
-    runDockerTest(thisDir(), testDir, "nimble testallTask")
+    runDockerTest(
+      thisDir(), testDir, "nimble install hmisc@#head && nimble testallTask")
 
   task testallTask, "~~~ testall implementation ~~~":
-    try:
-      exec("choosenim stable")
-      exec("nimble test")
-      info "Stable test passed"
-    except:
-      err "Stable test failed"
-
-    try:
-      exec("choosenim devel")
-      exec("nimble test")
-      info "Devel test passed"
-    except:
-      exec("choosenim devel")
-      err "Devel test failed"
-
-    try:
-      exec("nimble install")
-      info "Installation OK"
-    except:
-      err "Installation failed"
+    testAllImpl()
