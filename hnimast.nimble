@@ -9,13 +9,14 @@ srcDir        = "src"
 # Dependencies
 
 requires "nim >= 1.2.6"
-requires "hmisc >= 0.4.2"
+requires "hmisc >= 0.4.3"
 requires "compiler"
 
 # Test configuration
 
-let testDir = "/tmp/docker-hinimast"
-let localDevel = @["hmisc"]
+let
+  testDir = "/tmp/docker-hnimast"
+  localDevel = @["hmisc"]
 
 template canImport(x: untyped): untyped =
   compiles:
@@ -24,17 +25,22 @@ template canImport(x: untyped): untyped =
 
 when canImport(hmisc/other/nimbleutils):
   import hmisc/other/nimbleutils
-  let develCmd = makeLocalDevelCmd(testDir, localDevel)
+  let develCmd = makeLocalDevel(testDir, localDevel)
 
   task dockertestDevel, "Test in docker container with local packages":
     ## Run unit test in new docker container. Only download
     ## dependencies that are not listed in `localDevel` list.
-    runDockerTest(thisDir(), testDir, develCmd && "nimble test") do:
-      "tests/nim.cfg".writeFile("""
---verbosity:0
---hints:off
---warnings:off
-""")
+    let cmd = develCmd && ("cd " & "/project/main") && "nimble test"
+
+    runDockerTest(thisDir(), testDir, cmd) do:
+      writeTestConfig("""
+        --verbosity:0
+        --hints:off
+        --warnings:off
+      """)
+
+    rmDir testDir
+
 
   task dockertest, "Test in new docker container":
     ## Run unit tests in new docker conatiner; download all
