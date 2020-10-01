@@ -11,7 +11,7 @@ import sequtils, colors, macros, tables, strutils,
 import compiler/[ast, idents, lineinfos, renderer]
 
 import hnimast/pnode_parse
-export pnode_parse
+export pnode_parse, options
 
 # type NNode = NimNode | PNode
 
@@ -139,9 +139,24 @@ func newNTree*[NNode](
   else:
     newTree(kind.toNK(), subnodes)
 
+const
+  NkStrNodes* = { nkStrLit .. nkTripleStrLit }
+  NkIntNodes* = { nkCharLit .. nkUInt64Lit }
+  NkFloatNodes* = { nkFloatLit .. nkFloat128Lit }
+
+  NNkStrNodes* = { nnkStrLit .. nnkTripleStrLit }
+  NNkIntNodes* = { nnkCharLit .. nnkUInt64Lit }
+  NNkFloatNodes* = { nnkFloatLit .. nnkFloat128Lit }
+
 func newPTree*(kind: NimNodeKind, subnodes: varargs[PNode]): PNode =
   ## Create new `PNode` tree
-  newTree(kind.toNK(), subnodes)
+  if kind in NNkStrNodes + NNkIntNodes + NNkFloatNodes:
+    if subnodes.len > 0:
+      raiseAssert(&"Cannot create node of kind {kind} with subnodes")
+    else:
+      newNode(kind.toNK())
+  else:
+    newTree(kind.toNK(), subnodes)
 
 func newCommentStmtNNode*[NNode](comment: string): NNode =
   ## Create new `nnkCommentStmt` node
@@ -177,10 +192,17 @@ func newPLit*(i: string): PNode =
   ## Create new string literal `PNode`
   newStrNode(nkStrLit, i)
 
+func newRStrLit*(st: string): PNode =
+  result = nnkRStrLit.newPTree()
+  result.strVal = st
+
 
 func newPIdentColonString*(key, value: string): PNode =
   nnkExprColonExpr.newPTree(newPIdent(key), newPLit(value))
 
+
+func newExprColonExpr*(key, value: PNode): PNode =
+  nnkExprColonExpr.newPTree(key, value)
 
 template newNNLit[NNode](val: untyped): untyped =
   when NNode is PNode:
@@ -1032,6 +1054,13 @@ type
   PProcDecl* = ProcDecl[PNode]
   NProcDecl* = ProcDecl[NimNode]
 
+# ~~~~ Predicates ~~~~ #
+
+func `==`*[NNode](lhs, rhs: ProcDecl[NNode]): bool =
+  lhs.name == rhs.name and
+  lhs.exported == rhs.exported and
+  lhs.signature == rhs.signature
+
 
 # ~~~~ proc declaration ~~~~ #
 
@@ -1698,17 +1727,30 @@ func toNNode*[NNode, A](
   else:
     return selector
 
-func toNNode*[NNode, A](obj: Object[NNode, A], annotConv: A ~> NNode): NNode =
-  let head =
-    if obj.exported:
+func toExported*[NNode](ntype: NType[NNode], exported: bool): tuple[
+  head, genparams: NNode] =
+  result.head =
+    if exported:
       newNTree[NNode](
         nnkPostfix,
         newNIdent[NNode]("*"),
-        newNIdent[NNode](obj.name.head)
+        newNIdent[NNode](ntype.head)
       )
     else:
-      newNIdent[NNode](obj.name.head)
+      newNIdent[NNode](ntype.head)
 
+  result.genparams =
+    block:
+      let maps = ntype.genParams.mapIt(toNNode[NNode](it))
+      if maps.len == 0:
+        newEmptyNNode[NNode]()
+      else:
+        newNTree[NNode](nnkGenericParams, maps)
+
+
+
+func toNNode*[NNode, A](obj: Object[NNode, A], annotConv: A ~> NNode): NNode =
+  let (head, genparams) = obj.name.toExported(obj.exported)
   let header =
     if obj.annotation.isSome():
       let node = annotConv obj.annotation.get()
@@ -1718,14 +1760,6 @@ func toNNode*[NNode, A](obj: Object[NNode, A], annotConv: A ~> NNode): NNode =
         head
     else:
       head
-
-  let genparams: NNode =
-    block:
-      let maps = obj.name.genParams.mapIt(toNNode[NNode](it))
-      if maps.len == 0:
-        newEmptyNNode[NNode]()
-      else:
-        newNTree[NNode](nnkGenericParams, maps)
 
   result = newNTree[NNode](
     nnkTypeDef,
@@ -1743,8 +1777,11 @@ func toNNode*[NNode, A](obj: Object[NNode, A], annotConv: A ~> NNode): NNode =
 
 func toNNode*[NNode](
   obj: Object[NNode, PRagma[NNode]], standalone: bool = false): NNode =
-  result = toNNode[NNode](obj) do(pr: Pragma[NNode]) -> NNode:
-    toNNode[NNode](pr)
+  result = toNNode[NNode](
+    obj, annotConv =
+      proc(pr: Pragma[NNode]): NNode {.closure.} =
+        return toNNode[NNode](pr)
+  )
 
   if standalone:
     result = newNTree[NNode](
