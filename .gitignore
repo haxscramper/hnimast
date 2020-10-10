@@ -14,6 +14,9 @@ nimcache/
 **/*.html
 **/*.css
 
+tests/*
+!tests/*.*
+
 /scripts/.circuit
 /scripts/.latex
 callgrind.out.*
