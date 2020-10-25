@@ -75,3 +75,10 @@ when canImport(hmisc/other/nimbleutils):
     conf.testRun = false
     conf.configureCI()
     runDocgen(conf)
+
+  task dockerDockGen, "Test documentation generation in docker":
+    runDockerTest(
+      AbsDir thisDir(),
+      AbsDir testDir,
+      "nimble install -y hmisc@#master && nimble docgen"
+    )

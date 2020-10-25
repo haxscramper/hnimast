@@ -17,7 +17,7 @@ jobs:
       - name: Build docs
         run: |
           export PATH=$HOME/.nimble/bin:$PATH
-          nimble install hmisc
+          nimble install -y hmisc@#master
           nimble docgen
       - name: Publish docs
         uses: crazy-max/ghaction-github-pages@v1

@@ -5,6 +5,7 @@ import ../src/hnimast/obj_field_macros
 
 import compiler/ast
 import hmisc/types/colorstring
+# import ../src/hnimast/hnim_ast
 # import hpprint
 
 
