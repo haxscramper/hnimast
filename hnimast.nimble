@@ -9,7 +9,8 @@ srcDir        = "src"
 # Dependencies
 
 requires "nim >= 1.2.6"
-requires "hmisc >= 0.4.3"
+requires "hmisc >= 0.8.0"
+requires "macroutils"
 requires "compiler"
 
 # Test configuration
@@ -18,6 +19,7 @@ let
   testDir = "/tmp/docker-hnimast"
   localDevel = @["hmisc"]
 
+from os import `/`
 template canImport(x: untyped): untyped =
   compiles:
     import x
@@ -28,7 +30,9 @@ when canImport(hmisc/other/nimbleutils):
 
   task dockertestDevel, "Test in docker container with local packages":
     runDockerTestDevel(
-      thisDir(), testDir, localDevel, "nimble test") do:
+      AbsDir thisDir(),
+      AbsDir testDir,
+      localDevel, "nimble test") do:
         writeTestConfig("""
           --verbosity:0
           --hints:off
@@ -40,7 +44,9 @@ when canImport(hmisc/other/nimbleutils):
 
   task dockertestAllDevel, "Test in docker container with local packages":
     runDockerTestDevel(
-      thisDir(), testDir, localDevel, "nimble testallTask") do:
+      AbsDir thisDir(),
+      AbsDir testDir,
+      localDevel, "nimble testallTask") do:
         writeTestConfig("""
           --verbosity:0
           --hints:off
@@ -50,15 +56,22 @@ when canImport(hmisc/other/nimbleutils):
   task dockertest, "Test in new docker container":
     ## Run unit tests in new docker conatiner; download all
     ## dependencies using nimble.
-    runDockerTest(thisDir(), testDir, "nimble test") do:
+    runDockerTest(AbsDir thisDir(), AbsDir testDir, "nimble test") do:
       discard
 
   task installtest, "Test installation from cloned repo":
-    runDockerTest(thisDir(), testDir, "nimble install")
+    runDockerTest(AbsDir thisDir(), AbsDir testDir, "nimble install")
 
   task testall, "Run full test suite in all variations":
     runDockerTest(
-      thisDir(), testDir, "nimble install hmisc@#head && nimble testallTask")
+      AbsDir thisDir(),
+      AbsDir testDir, "nimble install hmisc@#head && nimble testallTask")
 
   task testallTask, "~~~ testall implementation ~~~":
     testAllImpl()
+
+  task docgen, "Generate documentation":
+    var conf = initBuildConf()
+    conf.testRun = false
+    conf.configureCI()
+    runDocgen(conf)

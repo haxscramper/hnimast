@@ -4,7 +4,7 @@ import compiler/[ast]
 proc parsePNodeStr*(str: string): PNode =
   let cache: IdentCache = newIdentCache()
   let config: ConfigRef = newConfigRef()
-  var pars: TParser
+  var pars: Parser
 
   openParser(
     p = pars,

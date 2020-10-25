@@ -140,17 +140,29 @@ func newNTree*[NNode](
     newTree(kind.toNK(), subnodes)
 
 const
-  NkStrNodes* = { nkStrLit .. nkTripleStrLit }
-  NkIntNodes* = { nkCharLit .. nkUInt64Lit }
-  NkFloatNodes* = { nkFloatLit .. nkFloat128Lit }
+  nnkStrKinds* = { nnkStrLit .. nnkTripleStrLit }
+  nnkIntKinds* = { nnkCharLit .. nnkUInt64Lit }
+  nnkFloatKinds* = { nnkFloatLit .. nnkFloat128Lit }
 
-  NNkStrNodes* = { nnkStrLit .. nnkTripleStrLit }
-  NNkIntNodes* = { nnkCharLit .. nnkUInt64Lit }
-  NNkFloatNodes* = { nnkFloatLit .. nnkFloat128Lit }
+  nnkTokenKinds* = nnkStrKinds + nnkIntKinds + nnkFloatKinds + {
+    nnkIdent,
+    nnkSym
+  }
+
+
+  nkStrKinds* = { nkStrLit .. nkTripleStrLit }
+  nkIntKinds* = { nkCharLit .. nkUInt64Lit }
+  nkFloatKinds* = { nkFloatLit .. nkFloat128Lit }
+
+  nkTokenKinds* = nkStrKinds + nkIntKinds + nkFloatKinds + {
+    nkIdent,
+    nkSym
+  }
+
 
 func newPTree*(kind: NimNodeKind, subnodes: varargs[PNode]): PNode =
   ## Create new `PNode` tree
-  if kind in NNkStrNodes + NNkIntNodes + NNkFloatNodes:
+  if kind in nnkTokenKinds:
     if subnodes.len > 0:
       raiseAssert(&"Cannot create node of kind {kind} with subnodes")
     else:
@@ -209,6 +221,47 @@ template newNNLit[NNode](val: untyped): untyped =
     newPLit(val)
   else:
     newLit(val)
+
+
+
+func newPTree*(kind: NimNodeKind, val: string): PNode =
+  result = PNode(kind: kind.toNk())
+  result.strVal = val
+
+func newPTree*(kind: NimNodeKind, val: SomeInteger): PNode =
+  result = PNode(kind: kind.toNK())
+  result.intVal = BiggestInt(val)
+
+macro pquote*(mainBody: untyped): untyped =
+  ## `quote` macro to generate `PNode` builder
+  func aux(body: NimNode): NimNode =
+    result = newCall("newPTree", ident $body.kind)
+    case body.kind:
+      of nnkAccQuoted:
+        if body[0].kind == nnkIdent and
+           not body[0].strVal().validIdentifier(): # Special case
+           # operators `[]` - most of the time you would want to
+           # declare `` proc `[]` `` rather than interpolate `[]`
+           # (which is not valid variable name even)
+          let bodyLit = newLit body[0].strVal()
+          return quote do:
+            newPTree(nnkAccQuoted, newPIdent(`bodyLit`))
+        else:
+          return body[0]
+      of nnkStrKinds:
+        result.add newLit body.strVal
+      of nnkFloatKinds:
+        result.add newLit body.floatVal
+      of nnkIntKinds:
+        result.add newLit body.intVal
+      of nnkIdent, nnkSym:
+        result = newCall("newPIdent", newLit(body.strVal))
+      else:
+        for subnode in body:
+          result.add aux(subnode)
+
+  result = aux(mainBody)
+
 
 type
   ObjectAnnotKind* = enum
@@ -522,7 +575,6 @@ func toNimNode*(ntype: NType): NimNode =
 func toPNode*(ntype: NType): PNode =
   ## Convert `NType` to `PNode`
   toNNode[PNode](ntype)
-
 
 
 func toNFormalParam*[NNode](nident: NIdentDefs[NNode]): NNode =
@@ -1156,6 +1208,27 @@ func toNNode*[NNode](pr: ProcDecl[NNode]): NNode =
 
   when NNode is PNode:
     result.comment = pr.comment
+
+func newPProcDecl*(
+  name: string,
+  args: openarray[(string, NType[PNode])] = @[],
+  rtyp: Option[NType[PNode]] = none(NType[PNode]),
+  impl: PNode = nil,
+  exported: bool = true,
+  pragma: PPragma = PPRagma()
+     ): ProcDecl[PNode] =
+  result.name = name
+  result.exported = exported
+  result.signature = NType[PNode](
+    kind: ntkProc,
+    arguments: toNIdentDefs(args)
+  )
+
+  result.signature.pragma = pragma
+  if rtyp.isSome():
+    result.signature.setRtype rtyp.get()
+
+  result.impl = impl
 
 
 
