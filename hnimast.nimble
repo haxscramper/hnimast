@@ -76,9 +76,15 @@ when canImport(hmisc/other/nimbleutils):
     conf.configureCI()
     runDocgen(conf)
 
-  task dockerDockGen, "Test documentation generation in docker":
+  task dockerDocGen, "Test documentation generation in docker":
     runDockerTest(
       AbsDir thisDir(),
       AbsDir testDir,
-      "nimble install -y hmisc@#master && nimble docgen"
+      "nimble ciDocGen"
     )
+
+task ciDocGen, "Generate documentation in CI":
+  exec "nimble install  -y hmisc@#master"
+  "file.nim".writeFile("import hmisc/other/nimbleutils")
+  exec "nim c file.nim"
+  exec "nimble docgen"
