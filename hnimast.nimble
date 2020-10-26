@@ -25,7 +25,7 @@ template canImport(x: untyped): untyped =
     import x
 
 
-when canImport(hmisc/other/nimbleutils):
+when canImport("hmisc/other/nimbleutils"):
   import hmisc/other/nimbleutils
 
   task dockertestDevel, "Test in docker container with local packages":
@@ -70,11 +70,6 @@ when canImport(hmisc/other/nimbleutils):
   task testallTask, "~~~ testall implementation ~~~":
     testAllImpl()
 
-  task docgen, "Generate documentation":
-    var conf = initBuildConf()
-    conf.testRun = false
-    conf.configureCI()
-    runDocgen(conf)
 
   task dockerDocGen, "Test documentation generation in docker":
     runDockerTest(
@@ -83,8 +78,29 @@ when canImport(hmisc/other/nimbleutils):
       "nimble ciDocGen"
     )
 
+
+  task docgen, "Generate documentation":
+    var conf = initBuildConf()
+    conf.testRun = false
+    conf.configureCI()
+    runDocgen(conf)
+
+
 task ciDocGen, "Generate documentation in CI":
-  exec "nimble install  -y hmisc@#master"
-  "file.nim".writeFile("import hmisc/other/nimbleutils")
-  exec "nim c file.nim"
-  exec "nimble docgen"
+  exec "nimble install -y hmisc@#master"
+  "file.nims".writeFile("""
+template canImport(x: untyped): untyped =
+  compiles:
+    import x
+
+when canImport("hmisc/other/nimbleutils"):
+  import hmisc/other/nimbleutils
+  echo "!!!!!! Can import !!!!!!"
+else:
+  echo "Cannot import"
+""")
+
+  exec "nim e file.nims"
+
+  exec "nimble tasks"
+  exec "nimble --debug --verbose docgen"
