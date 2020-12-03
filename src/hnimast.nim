@@ -564,9 +564,29 @@ func toNNode*[NNode](ntype: NType[NNode]): NNode =
       if ntype.genParams.len == 0:
         return newNIdent[NNode](ntype.head)
       else:
-        result = newNTree[NNode](nnkBracketExpr, newNIdent[NNode](ntype.head))
-        for param in ntype.genParams:
-          result.add toNNode[NNode](param)
+        if ntype.head in ["ref", "ptr", "var"]:
+          # TODO handle `lent`, `sink` and other things like that
+          assert ntype.genParams.len == 1,
+           "Expected single generic parameter for `ref/ptr` type"
+
+          let ty = 
+            case ntype.head:
+              of "ref": nnkRefTy
+              of "ptr": nnkPtrTy
+              of "var": nnkVarTy
+              else:
+                raiseAssert("#[ IMPLEMENT ]#")
+
+          result = newNTree[NNode](
+            ty,
+            toNNode[NNode](ntype.genParams[0])
+          )
+
+        else:
+          result = newNTree[NNode](
+            nnkBracketExpr, newNIdent[NNode](ntype.head))
+          for param in ntype.genParams:
+            result.add toNNode[NNode](param)
 
 func toNimNode*(ntype: NType): NimNode =
   ## Convert `NType` to nim node
@@ -1215,7 +1235,7 @@ func newPProcDecl*(
   rtyp: Option[NType[PNode]] = none(NType[PNode]),
   impl: PNode = nil,
   exported: bool = true,
-  pragma: PPragma = PPRagma()
+  pragma: Pragma[PNode] = Pragma[PNode]()
      ): ProcDecl[PNode] =
   result.name = name
   result.exported = exported
@@ -1230,6 +1250,26 @@ func newPProcDecl*(
 
   result.impl = impl
 
+func newNProcDecl*(
+  name: string,
+  args: openarray[(string, NType[NimNode])] = @[],
+  rtyp: Option[NType[NimNode]] = none(NType[NimNode]),
+  impl: NimNode = nil,
+  exported: bool = true,
+  pragma: Pragma[NimNode] = Pragma[NimNode]()
+     ): ProcDecl[NimNode] =
+  result.name = name
+  result.exported = exported
+  result.signature = NType[NimNode](
+    kind: ntkProc,
+    arguments: toNIdentDefs(args)
+  )
+
+  result.signature.pragma = pragma
+  if rtyp.isSome():
+    result.signature.setRtype rtyp.get()
+
+  result.impl = impl
 
 
 func newProcDeclNNode*[NNode](
@@ -1927,7 +1967,6 @@ type
     isPrimitive*: bool ## Whether or not value can be considered primitive
     annotation*: string ## String annotation for object
     styling* {.requiresinit.}: PrintStyling ## Print styling for object
-    # NOTE styling is currently unused
     case kind*: ObjKind
       of okConstant:
         constType*: string ## Type of the value
@@ -1936,6 +1975,7 @@ type
         itemType*: string ## Type of the sequence item
         valItems*: seq[ObjTree] ## List of values
       of okTable:
+        keyStyling* {.requiresinit.}: PrintStyling
         keyType*: string ## Type of table key
         valType*: string ## TYpe of value key
         valPairs*: seq[tuple[key: string, val: ObjTree]] ## List of
