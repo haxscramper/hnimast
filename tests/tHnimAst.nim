@@ -130,7 +130,9 @@ suite "HNimAst":
     macro mcr(body: untyped): untyped =
       let obj = body[0][0].parseObject(parseNimPragma)
       let objid = ident "hjhh"
-      let impl = objid.eachCase(obj) do(fld: NField[NPragma]) -> NimNode:
+      let impl = objid.eachCase(obj) do(
+        fld: NObjectField[NPragma]
+      ) -> NimNode:
         let fld = ident fld.name
         quote do:
           echo `objid`.`fld`
@@ -169,7 +171,7 @@ suite "HNimAst":
         rhs = ident "rhs"
 
       let impl = (lhs, rhs).eachParallelCase(obj) do(
-        fld: NField[NPragma]) -> NimNode:
+        fld: NObjectField[NPragma]) -> NimNode:
         let fld = ident fld.name
         quote do:
           if `lhs`.`fld` != `rhs`.`fld`:
@@ -211,7 +213,9 @@ suite "HNimAst":
       let obj = body[0][0].parseObject(parseNimPragma)
       let self = ident "self"
       let impl = self.eachPath(obj) do(
-        path: NPath[NPragma], flds: seq[NField[NPragma]]) -> NimNode:
+        path: NObjectPath[NPragma],
+        flds: seq[NObjectField[NPragma]]
+      ) -> NimNode:
         discard
 
     mcr:
@@ -258,7 +262,7 @@ suite "working with PNode":
       echo decl
 
     block:
-      var en = PEnum(name: "Eee").withIt do:
+      var en = PEnumDecl(name: "Eee").withIt do:
         it.values.add makeEnumField(
           name = "Hello",
           value = some(newPIdent("EEE")),

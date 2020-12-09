@@ -278,7 +278,11 @@ func parsePPragma*(node: PNode, position: ObjectAnnotKind): Pragma[PNode] =
   parsePragma(node, position)
 
 
-proc parseObject*[NNode, A](node: NNode, cb: ParseCb[NNode, A]): Object[NNode, A] =
+proc parseObject*[NNode, A](
+    node: NNode,
+    cb: ParseCb[NNode, A]
+  ): ObjectDecl[NNode, A] =
+
   let node =
     if node.kind == nnkStmtList:
       node[0].expectKind nnkTypeSection
@@ -287,7 +291,7 @@ proc parseObject*[NNode, A](node: NNode, cb: ParseCb[NNode, A]): Object[NNode, A
       node
 
   node.expectKind nnkTypeDef
-  result = Object[NNode, A](
+  result = ObjectDecl[NNode, A](
     flds: node[2].getFields(cb)
   )
 

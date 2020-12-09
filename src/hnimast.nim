@@ -866,7 +866,7 @@ type
         ordStr*: tuple[ordVal: RtimeOrdinal, strval: string]
 
 
-  Enum*[NNode] = object
+  EnumDecl*[NNode] = object
     ## Enum declaration wrapper
     comment*: string
     name*: string
@@ -874,8 +874,8 @@ type
     exported*: bool
     pragma*: Pragma[NNode]
 
-  NEnum* = Enum[NimNode]
-  PEnum* = Enum[PNode]
+  NEnumDecl* = EnumDecl[NimNode]
+  PEnumDecl* = EnumDecl[PNode]
 
 #=============================  Predicates  ==============================#
 func isEnum*(en: NimNode): bool =
@@ -1009,7 +1009,7 @@ func toNNode*[NNode](fld: EnumField[NNode]): NNode =
       ident(fld.name)
 
 
-func toNNode*[NNode](en: Enum[NNode], standalone: bool = false): NNode =
+func toNNode*[NNode](en: EnumDecl[NNode], standalone: bool = false): NNode =
   ## Convert enum definition to `NNode`. If `standalone` is true wrap
   ## result in `nnkTypeSection`, otherwise generate `nnkTypeDef` only.
   let flds = collect(newSeq):
@@ -1043,7 +1043,7 @@ func toNNode*[NNode](en: Enum[NNode], standalone: bool = false): NNode =
 
 
 
-func parseEnumImpl*[NNode](en: NNode): Enum[NNode] =
+func parseEnumImpl*[NNode](en: NNode): EnumDecl[NNode] =
   # echov en.kind
   # debugecho en.treeRepr()
   case en.kind.toNNK():
@@ -1490,7 +1490,7 @@ type
       of false:
         discard
 
-  Object*[NNode, Annot] = object
+  ObjectDecl*[NNode, Annot] = object
     # TODO:DOC
     # TODO `flatFields` iterator to get all values with corresponding
     # parent `ofValue` branches. `for fld, ofValues in obj.flatFields()`
@@ -1516,14 +1516,14 @@ type
         ofValue*: NNode
 
 
-  NBranch*[A] = ObjectBranch[NimNode, A]
-  NPathElem*[A] = ObjectPathElem[NimNode, A]
-  NField*[A] = ObjectField[NimNode, A]
-  NObject*[A] = Object[NimNode, A]
-  NPath*[A] = seq[NPathElem[A]]
+  NObjectBranch*[A] = ObjectBranch[NimNode, A]
+  NObjectPathElem*[A] = ObjectPathElem[NimNode, A]
+  NObjectField*[A] = ObjectField[NimNode, A]
+  NObjectDecl*[A] = ObjectDecl[NimNode, A]
+  NObjectPath*[A] = seq[NObjectPathElem[A]]
 
-  PObject* = Object[PNode, Pragma[PNode]]
-  PField* = ObjectField[PNode, Pragma[PNode]]
+  PObjectDecl* = ObjectDecl[PNode, Pragma[PNode]]
+  PObjectField* = ObjectField[PNode, Pragma[PNode]]
 
   # PragmaField*[Node] = ObjectField[Node, Pragma[Node]]
   # NPragmaField* = PragmaField[NimNode]
@@ -1534,7 +1534,7 @@ const noParseCbPNode*: ParseCb[PNode, void] = nil
 
 
 #=============================  Predicates  ==============================#
-func markedAs*(fld: NField[NPragma], str: string): bool =
+func markedAs*(fld: NObjectField[NPragma], str: string): bool =
   fld.annotation.getElem(str).isSome()
 
 #===============================  Getters  ===============================#
@@ -1542,7 +1542,7 @@ func markedAs*(fld: NField[NPragma], str: string): bool =
 # ~~~~ each field mutable ~~~~ #
 
 func eachFieldMut*[NNode, A](
-  obj: var Object[NNode, A],
+  obj: var ObjectDecl[NNode, A],
   cb: (var ObjectField[NNode, A] ~> void)): void
 
 func eachFieldMut*[NNode, A](
@@ -1558,7 +1558,7 @@ func eachFieldMut*[NNode, A](
 
 
 func eachFieldMut*[NNode, A](
-  obj: var Object[NNode, A],
+  obj: var ObjectDecl[NNode, A],
   cb: (var ObjectField[NNode, A] ~> void)): void =
   ## Execute callback on each field in mutable object, recursively.
   for fld in mitems(obj.flds):
@@ -1580,7 +1580,7 @@ func eachAnnotMut*[NNode, A](
         eachAnnotMut(branch, cb)
 
 func eachAnnotMut*[NNode, A](
-  obj: var Object[NNode, A], cb: (var Option[A] ~> void)): void =
+  obj: var ObjectDecl[NNode, A], cb: (var Option[A] ~> void)): void =
   ## Execute callback on each annotation in mutable object,
   ## recurisively - all fields and subfields are visited. Callback
   ## runs on both kind and non-kind fields. Annotation is not
@@ -1599,7 +1599,7 @@ func eachAnnotMut*[NNode, A](
 # ~~~~ each field immutable ~~~~ #
 
 func eachField*[NNode, A](
-  obj: Object[NNode, A],
+  obj: ObjectDecl[NNode, A],
   cb: (ObjectField[NNode, A] ~> void)): void
 
 func eachField*[NNode, A](
@@ -1614,7 +1614,7 @@ func eachField*[NNode, A](
 
 
 func eachField*[NNode, A](
-  obj: Object[NNode, A],
+  obj: ObjectDecl[NNode, A],
   cb: (ObjectField[NNode, A] ~> void)): void =
   ## Execute callback on each field in object, recurisively.
   for fld in items(obj.flds):
@@ -1626,7 +1626,7 @@ func eachField*[NNode, A](
 # ~~~~ each alternative in case object ~~~~ #
 
 func eachCase*[A](
-  fld: NField[A], objId: NimNode, cb: (NField[A] ~> NimNode)): NimNode =
+  fld: NObjectField[A], objId: NimNode, cb: (NObjectField[A] ~> NimNode)): NimNode =
   if fld.isKind:
     result = nnkCaseStmt.newTree(newDotExpr(objId, ident fld.name))
     for branch in fld.branches:
@@ -1648,7 +1648,7 @@ func eachCase*[A](
     result = newStmtList(cb(fld))
 
 func eachCase*[A](
-  objId: NimNode, obj: NObject[A], cb: (NField[A] ~> NimNode)): NimNode =
+  objId: NimNode, obj: NObjectDecl[A], cb: (NObjectField[A] ~> NimNode)): NimNode =
   ## Recursively generate case statement for object. `objid` is and
   ## identifier for object - case statement will use `<objid>.<fldId>`.
   ## `obj` is a description for structure. Callback `cb` will be executed
@@ -1659,8 +1659,8 @@ func eachCase*[A](
     result.add fld.eachCase(objid, cb)
 
 func eachParallelCase*[A](
-  fld: NField[A], objId: (NimNode, NimNode),
-  cb: (NField[A] ~> NimNode)): NimNode =
+  fld: NObjectField[A], objId: (NimNode, NimNode),
+  cb: (NObjectField[A] ~> NimNode)): NimNode =
   if fld.isKind:
     result = nnkCaseStmt.newTree(newDotExpr(objId[0], ident fld.name))
     for branch in fld.branches:
@@ -1690,7 +1690,7 @@ func eachParallelCase*[A](
     result = newStmtList(cb(fld))
 
 func eachParallelCase*[A](
-  objid: (NimNode, NimNode), obj: NObject[A], cb: (NField[A] ~> NimNode)): NimNode =
+  objid: (NimNode, NimNode), obj: NObjectDecl[A], cb: (NObjectField[A] ~> NimNode)): NimNode =
   ## Generate parallel case statement for two objects in `objid`. Run
   ## callback on each field. Generated case statement will have form
   ## `if lhs.fld == rhs.fld: case lhs.fld`
@@ -1711,7 +1711,7 @@ func eachAnnot*[Node, A](
         eachAnnot(branch, cb)
 
 func eachAnnot*[Node, A](
-  obj: Object[Node, A], cb: (Option[A] ~> void)): void =
+  obj: ObjectDecl[Node, A], cb: (Option[A] ~> void)): void =
 
   cb(obj.annotation)
 
@@ -1724,8 +1724,8 @@ func eachAnnot*[Node, A](
 
 # ~~~~ Each path in case object ~~~~ #
 func eachPath*[A](
-  fld: NField[A], self: NimNode, parent: NPath[A],
-  cb: ((NPath[A], seq[NField[A]]) ~> NimNode)): NimNode =
+  fld: NObjectField[A], self: NimNode, parent: NObjectPath[A],
+  cb: ((NObjectPath[A], seq[NObjectField[A]]) ~> NimNode)): NimNode =
 
   if fld.isKind:
     result = nnkCaseStmt.newTree(newDotExpr(self, ident fld.name))
@@ -1734,10 +1734,10 @@ func eachPath*[A](
       let nobranch = (fld.withIt do: it.branches = @[])
       let thisPath =
         if branch.isElse:
-          parent & @[NPathElem[A](
+          parent & @[NObjectPathElem[A](
             isElse: true, kindField: nobranch, notOfValue: branch.notOfValue)]
         else:
-          parent & @[NPathElem[A](
+          parent & @[NObjectPathElem[A](
             isElse: false, kindField: nobranch, ofValue: branch.ofValue)]
 
       let cbRes = cb(thisPath, branch.flds).nilToDiscard()
@@ -1752,10 +1752,10 @@ func eachPath*[A](
 
 func eachPath*[A](
   self: NimNode,
-  obj: NObject[A], cb: ((NPath[A], seq[NField[A]]) ~> NimNode)): NimNode =
+  obj: NObjectDecl[A], cb: ((NObjectPath[A], seq[NObjectField[A]]) ~> NimNode)): NimNode =
   ## Visit each group of fields in object described by `obj` and
   ## generate case statement with all possible object paths. Arguments
-  ## for callback - `NPath[A]` is a sequence of kind field values that
+  ## for callback - `NObjectPath[A]` is a sequence of kind field values that
   ## *must be active in order for execution to reach this path* in
   ## case statement. Second argument is a list of fields that can be
   ## accessed at that path.
@@ -1767,7 +1767,7 @@ func eachPath*[A](
       result.add fld.eachPath(self, @[], cb)
 
 
-func onPath*[A](self: NimNode, path: NPath[A]): NimNode =
+func onPath*[A](self: NimNode, path: NObjectPath[A]): NimNode =
   ## Generate check for object `self` to check if it is currently on
   ## path.
   var checks: seq[NimNode]
@@ -1862,7 +1862,7 @@ func toExported*[NNode](ntype: NType[NNode], exported: bool): tuple[
 
 
 
-func toNNode*[NNode, A](obj: Object[NNode, A], annotConv: A ~> NNode): NNode =
+func toNNode*[NNode, A](obj: ObjectDecl[NNode, A], annotConv: A ~> NNode): NNode =
   let (head, genparams) = obj.name.toExported(obj.exported)
   let header =
     if obj.annotation.isSome():
@@ -1889,7 +1889,7 @@ func toNNode*[NNode, A](obj: Object[NNode, A], annotConv: A ~> NNode): NNode =
   # echov result.treeRepr()
 
 func toNNode*[NNode](
-  obj: Object[NNode, PRagma[NNode]], standalone: bool = false): NNode =
+  obj: ObjectDecl[NNode, PRagma[NNode]], standalone: bool = false): NNode =
   result = toNNode[NNode](
     obj, annotConv =
       proc(pr: Pragma[NNode]): NNode {.closure.} =
@@ -1902,7 +1902,7 @@ func toNNode*[NNode](
       result
     )
 
-func toNimNode*(obj: NObject[NPragma]): NimNode =
+func toNimNode*(obj: NObjectDecl[NPragma]): NimNode =
   # static: echo typeof obj
   toNNode[NimNode](obj)
 
@@ -2269,6 +2269,180 @@ proc pprintCalls*(node: NimNode, level: int): void =
     else:
       echo ($node.toStrLit()).indent(level * 2)
 
+
 #*************************************************************************#
-#***********************  Helper proc procedures  ************************#
+#***********************  Common declaration type  ***********************#
 #*************************************************************************#
+type
+  NimEntryKind* = enum
+    nekProcDecl
+    nekObjectDecl
+    nekEnumDecl
+    nekAliasDecl
+    nekPasstroughCode
+
+  AliasDecl*[N] = object
+    isStandalone*: bool
+    isDistinct*: bool
+    isExported*: bool
+    newType*: Ntype[N]
+    oldType*: Ntype[N]
+
+
+  NimDecl*[N] = object
+    case kind*: NimEntryKind
+      of nekProcDecl:
+        procdecl*: ProcDecl[N]
+      of nekEnumDecl:
+        enumdecl*: EnumDecl[N]
+      of nekObjectDecl:
+        objectdecl*: ObjectDecl[N, Pragma[N]]
+      of nekAliasDecl:
+        aliasDecl*: AliasDecl[N]
+      of nekPasstroughCode:
+        passthrough*: N
+
+  PNimDecl* = NimDecl[Pnode]
+  PAliasDecl* = NimDecl[PNode]
+  NAliasDecl* = NimDecl[NimNode]
+
+  AnyNimDecl[N] =
+          ProcDecl[N] |
+          AliasDecl[N] |
+          ProcDecl[N] |
+          ObjectDecl[N, Pragma[N]] |
+          EnumDecl[N] |
+          AliasDecl[N]
+
+func `==`*[N, A](a, b: ObjectBranch[N, A]): bool =
+  a.isElse == b.isElse and
+  a.flds == b.flds and
+  a.annotation == b.annotation and
+  (
+    case a.isElse:
+      of true: a.notOfValue == b.notOfValue
+      of false: a.ofValue == b.ofValue
+  )
+
+func `==`*[N](a, b: EnumField[N]): bool =
+  a.kind == b.kind and
+  a.comment == b.comment and
+  a.name == b.name and
+  a.value == b.value and
+  (
+    case a.kind:
+      of efvNone: true
+      of efvIdent: a.ident == b.ident
+      of efvOrdinal: a.ordVal == b.ordVal
+      of efvString: a.strval == b.strval
+      of efvOrdString: a.ordStr == b.ordStr
+  )
+
+func `==`*(a, b: RTimeOrdinal): bool =
+  a.kind == b.kind and
+  (
+    case a.kind:
+      of rtokInt: a.intVal == b.intVal
+      of rtokBool: a.boolVal == b.boolVal
+      of rtokChar: a.charVal == b.charVal
+  )
+
+
+func `==`*[N](a, b: NimDecl[N]): bool =
+  a.kind == b.kind and (
+    case a.kind:
+      of nekProcDecl: a.procdecl == b.procdecl
+      of nekEnumDecl: a.enumdecl == b.enumdecl
+      of nekObjectDecl: a.objectdecl == b.objectdecl
+      of nekAliasDecl: a.aliasdecl == b.aliasdecl
+      of nekPasstroughCode: a.passthrough == b.passthrough
+  )
+
+
+func toNNode*[N](entry: NimDecl[N], standalone: bool = true): N =
+  case entry.kind:
+    of nekProcDecl:
+      toNNode[N](entry.procdecl)
+    of nekEnumDecl:
+      toNNode[N](entry.enumdecl, standalone = standalone)
+    of nekObjectDecl:
+      toNNode[N](entry.objectdecl, standalone = standalone)
+    of nekAliasDecl:
+      toNNode[N](entry.aliasDecl)
+    of nekPasstroughCode:
+      entry.passthrough
+
+func toNimDecl*[N](prd: ProcDecl[N]): NimDecl[N] =
+  NimDecl[N](kind: nekProcDecl, procdecl: prd)
+
+func toNimDecl*[N](odc: ObjectDecl[N, Pragma[N]]): NimDecl[N] =
+  NimDecl[N](kind: nekObjectDecl, objectdecl: odc)
+
+func toNimDecl*[N](adc: AliasDecl[N]): NimDecl[N] =
+  NimDecl[N](kind: nekAliasDecl, aliasDecl: adc)
+
+func toNimDecl*[N](edc: EnumDecl[N]): NimDecl[N] =
+  NimDecl[N](kind: nekEnumDecl, enumdecl: edc)
+
+
+func toNimDecl*[N](decl: N): NimDecl[N] =
+  NimDecl[N](kind: nekPasstroughCode, passthrough: decl)
+
+func add*[N](declSeq: var seq[NimDecl[N]], decl: AnyNimDecl[N]) =
+  declSeq.add toNimDecl(decl)
+
+# func add*[N](declSeq: var seq[NimDecl[N]], decl: N) =
+#   declSeq.add NimDecl(kind: nekPasstroughCode, passthrough: decl)
+
+func newAliasDecl*[N](
+    t1, t2: NType[N], isDistinct: bool = true, isExported: bool = true,
+  ): AliasDecl[N] =
+  AliasDecl[N](
+    oldType: t2,
+    newType: t1,
+    isExported: isExported,
+    isDistinct: isDistinct
+  )
+
+func `$`*[N](nd: NimDecl[N]): string =
+  {.cast(noSideEffect).}:
+    when N is NimNode:
+      $toNNode(nd)
+    else:
+      hnimast.`$`(toNNode(nd))
+
+func `$`*[N](nd: seq[NimDecl[N]]): string =
+  mapIt(nd, $it).join("\n")
+
+func toNNode*[N](alias: AliasDecl[N]): N =
+  let pr = (alias.isDistinct, alias.isExported)
+  let
+    aType = toNNode[N](alias.newType)
+    bType = toNNode[N](alias.oldType)
+
+  if pr == (false, false):
+    result = newNTree[N](nnkTypeDef, aType, newEmptyNNode[N](), bType)
+  elif pr == (false, true):
+    result = newNTree[N](
+      nnkTypeDef,
+      aType,
+      newEmptyNNode[N](),
+      newNTree[N](nnkDistinctTy, bType)
+    )
+  elif pr == (true, false):
+    result = newNTree[N](
+      nnkTypeDef,
+      newNTree[N](nnkPostfix, newNIdent[N]("*"), aType),
+      newEmptyNNode[N](),
+      bType
+    )
+  elif pr == (true, true):
+    result = newNTree[N](
+      nnkTypeDef,
+      newNTree[N](nnkPostfix, newNIdent[N]("*"), aType),
+      newEmptyNNode[N](),
+      newNTree[N](nnkDistinctTy, bType)
+    )
+
+  if alias.isStandalone:
+    result = newNTree[N](nnkTypeSection, result)
