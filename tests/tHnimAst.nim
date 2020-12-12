@@ -304,3 +304,28 @@ type Type = object
       dropStmtList().
       parseEnumImpl().
       toNNode()
+
+import hnimast/pprint
+
+suite "Pretty printing":
+  test "Proc declaration":
+    let pr = newPProcDecl(
+      name = "hello",
+      args = {
+        "similarityTreshold" : newPType("ScoreCmpProc"),
+        "secondArgument" : newPType("StdCxx11BasicStringSizeType"),
+      },
+      impl = newEmptyPNode(),
+      genParams = @[newPType("CharT")],
+      pragma = newPPragma(
+        newPident("cdecl"),
+        nnkExprColonExpr.newPTree(
+          newPIdent("importcpp"),
+          newRStrLit("std::__cxx11::basic_string<'0, '1, '2>::size_type")
+        )
+      )
+    )
+
+    echo pr.toNNode()
+    startHax()
+    echo pr.toNNode().toPString()

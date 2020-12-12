@@ -20,9 +20,17 @@ func `$!`*(n: NimNode): string =
   ## 'invalid node kind'
   n.toStrLit().strVal()
 
+
+func `$!`*(n: PNode): string =
+  ## PNode stringification that does not blow up in your face on
+  ## 'invalid node kind'
+  {.cast(noSideEffect).}:
+    renderer.`$`(n)
+
 proc `$`*(n: PNode): string =
   ## Convert `PNode` back to code.
-  renderer.`$`(n)
+  {.cast(noSideEffect).}:
+    renderer.`$`(n)
 
 func getStrVal*(n: NimNode): string =
   ## Get string value from `NimNode` that can have it - e.g. strings,
@@ -538,6 +546,16 @@ func toNIdentDefs*[NNode](
 
 func toNFormalParam*[NNode](nident: NIdentDefs[NNode]): NNode
 
+func add*[NNode](ntype: var NType[NNode], nt: NType[NNode]) =
+  if ntype.head in ["ref", "ptr", "var"]:
+    ntype.genParams[0].add nt
+  else:
+    ntype.genParams.add nt
+
+func add*[NNode](ntype: var NType[NNode], nt: varargs[NType[NNode]]) =
+  for arg in nt:
+    ntype.add arg
+
 func toNNode*[NNode](ntype: NType[NNode]): NNode =
   ## Convert to NNode
   case ntype.kind:
@@ -567,9 +585,12 @@ func toNNode*[NNode](ntype: NType[NNode]): NNode =
         if ntype.head in ["ref", "ptr", "var"]:
           # TODO handle `lent`, `sink` and other things like that
           assert ntype.genParams.len == 1,
-           "Expected single generic parameter for `ref/ptr` type"
+           "Expected single generic parameter for `ref/ptr` type, but got [" & join(
+             ntype.genParams.mapIt($!toNNode[NNode](it)),
+             " ",
+           ) & "]"
 
-          let ty = 
+          let ty =
             case ntype.head:
               of "ref": nnkRefTy
               of "ptr": nnkPtrTy
@@ -1235,7 +1256,8 @@ func newPProcDecl*(
   rtyp: Option[NType[PNode]] = none(NType[PNode]),
   impl: PNode = nil,
   exported: bool = true,
-  pragma: Pragma[PNode] = Pragma[PNode]()
+  pragma: Pragma[PNode] = Pragma[PNode](),
+  genParams: seq[NType[PNode]] = @[]
      ): ProcDecl[PNode] =
   result.name = name
   result.exported = exported
@@ -1245,6 +1267,7 @@ func newPProcDecl*(
   )
 
   result.signature.pragma = pragma
+  result.genParams = genParams
   if rtyp.isSome():
     result.signature.setRtype rtyp.get()
 
