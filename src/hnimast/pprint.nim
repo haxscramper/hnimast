@@ -1,6 +1,6 @@
 import hmisc/other/blockfmt
 import hmisc/helpers
-import std/[options, strutils, strformat, sequtils]
+import std/[options, strutils, strformat, sequtils, streams]
 import compiler/[ast, idents, lineinfos, renderer]
 
 proc str(n: PNode): string = renderer.`$`(n)
@@ -12,15 +12,6 @@ let
   ind = makeIndentBlock
   choice = makeChoiceBlock
 
-type
-  BuilderKind = enum
-    blkLine
-    blkStack
-    blkText
-    blkIndent
-    blkSpace
-    blkChoice
-
 const
   H = blkLine
   V = blkStack
@@ -29,36 +20,7 @@ const
   S = blkSpace
   C = blkChoice
 
-proc `[]`(b: static[BuilderKind], s: seq[Block]): Block =
-  static: assert b in {blkLine, blkStack, blkChoice}
 
-  case b:
-    of blkLine: makeLineBlock(s)
-    of blkStack: makeStackBlock(s)
-    of blkChoice: makeChoiceBlock(s)
-    else:
-      raiseAssert("#[ IMPLEMENT ]#")
-
-
-proc `[]`(b: static[BuilderKind], bl: Block, args: varargs[Block]): Block =
-  b[@[ bl ] & toSeq(args)]
-
-proc `[]`(b: static[BuilderKind], a: string): Block =
-  static: assert b == blkText
-  return makeTextBlock(a)
-
-proc `[]`(b: static[BuilderKind], tlen: int = 1): Block =
-  static: assert b == blkSpace
-  return makeTextBlock(" ".repeat(tlen))
-
-proc `[]`(b: static[BuilderKind], i: int, bl: Block): Block =
-  static: assert b == blkIndent
-  return makeIndentBlock(bl, i)
-
-func `&?`(bl: Block, added: tuple[condOk: bool, bl: Block]): Block =
-  result = bl
-  if added.condOk:
-    result.add added.bl
 
 func `[]`(n: ast.PNode, sl: HSlice[int, BackwardsIndex]): seq[PNode] =
   var idx = sl.a
@@ -67,43 +29,110 @@ func `[]`(n: ast.PNode, sl: HSlice[int, BackwardsIndex]): seq[PNode] =
     result.add n[idx]
     inc idx
 
-func high(n: PNode): int = n.len - 1
 
-import hpprint
+
+func high(n: PNode): int = n.len - 1
 
 proc toBlock(n: PNode): Block =
   case n.kind:
     of nkProcDef:
-      var alts: seq[Block]
+
+      var vertArgsLyt: Block
 
       block:
         var buf: seq[Block]
-        buf.add H[T["proc"], S[], T[$n[0]], T["("]]
         let argPad = n[3][1..^1].maxIt(len($it[0]) + 2)
         for idx, arg in n[3][1..^1]:
-          var hor = H[T[alignLeft($arg[0] & ": ", argPad)], T[arg[1].str]]
+          var hor = H[T[alignLeft($arg[0] & ": ", argPad)], T[$arg[1]]]
           if idx < n[3].high - 1:
             hor &= T[","]
 
           buf.add I[4, hor]
 
-        buf.add H[
-          T[")"],
-          if n[3][0].kind == nkEmpty:
-            T[" ="]
-          else:
-            echov n[3][0].kind
-            H[T[": "], toBlock(n[3][0]), T[" ="]]
+        vertArgsLyt = V[buf]
+
+      var horizArgsLyt: Block
+      block:
+        var buf: seq[Block]
+        for idx, arg in n[3][1..^1]:
+          var hor = H[T[$arg[0]], T[": "], T[$arg[1]]]
+          if idx < n[3].high - 1:
+            hor &= T[", "]
+
+          buf.add hor
+
+        horizArgsLyt = H[buf]
+
+      let (retLyt, hasRett) =
+        if n[3][0].kind == nkEmpty:
+          (T[""], false)
+        else:
+          (H[toBlock(n[3][0])], true)
+
+      let pragmaLyt = toBlock(n[4])
+
+      let headLyt = H[T["proc"], S[], T[$n[0]], T[$n[2]], T["("]]
+      let implLyt = toBlock(n[6])
+      let postArgs = if hasRett: T["): "] else: T[")"]
+      let eq = if n[6].kind == nkEmpty: T[""] else: T[" = "]
+
+      result = C[
+        # proc q*(a: B): C {.d.} = e
+        H[headLyt, horizArgsLyt, postArgs, retLyt, pragmaLyt, eq, implLyt],
+
+        # proc q*(a: B): C {.d.} =
+        #   e
+        V[H[headLyt, horizArgsLyt, postArgs, retLyt, pragmaLyt, eq], implLyt],
+
+        # proc q*(a: B):
+        #     C {.d.} =
+        #   e
+        V[H[headLyt, horizArgsLyt, postArgs],
+          I[2, H[retLyt, pragmaLyt, eq]], implLyt],
+
+
+        # proc q*(
+        #     a: B
+        #   ): C {.d.} =
+        #     e
+        V[
+          headLyt,
+          vertArgsLyt,
+          H[postArgs, retLyt, pragmaLyt, eq],
+          implLyt
+        ],
+
+        # proc q*(
+        #     a: B
+        #   ):
+        #       C {.d.} =
+        #     e
+        V[
+          headLyt,
+          vertArgsLyt,
+          postArgs,
+          I[2, H[retLyt, pragmaLyt, eq]],
+          implLyt
+        ],
+
+        # proc q*(
+        #       a: B
+        #   ):
+        #     C
+        #     {.d.} =
+        #   e
+        V[
+          headLyt,
+          vertArgsLyt,
+          postArgs,
+          I[2, retLyt],
+          I[2, H[pragmaLyt, eq]],
+          implLyt
         ]
+      ]
 
-        alts.add V[buf]
-
-      result = C[alts]
-
-      # result.add txb(")")
-
-      # pprint result
-      # result.add choice(argAlts)
+    of nkStmtList:
+      result = V[n.mapIt(toBlock(it))]
     else:
       return makeTextBlock(n.str)
 
@@ -117,48 +146,20 @@ proc lyt(bl: Block): string =
   sln.layouts[0].printOn(c)
   return c.text
 
-func codegenRepr*(inBl: Block): string =
-  func aux(bl: Block, level: int): string =
-    let pref = repeat("  ", level)
-    let name =
-      case bl.kind:
-        of bkLine: "hsb"
-        of bkChoice: "choice"
-        of bkText: "txb"
-        of bkWrap: "wrap"
-        of bkStack: "vsb"
-        of bkVerb: "verb"
+proc layoutBlockRepr*(n: PNode): Layout =
+  var blocks = if n.isNil(): T[""] else: n.toBlock()
 
-    case bl.kind:
-      of bkLine, bkChoice, bkStack, bkWrap:
-        result = pref & name & "([\n"
-        for isLast, elem in itemsIsLast(bl.elements):
-          result &= elem.aux(level + 1) & (if isLast: "\n" else: ",\n")
-
-        result &= pref & "])"
-      of bkText:
-        result = &"{pref}txb(\"{bl.text}\")"
-      of bkVerb:
-        result = pref & name & "([\n"
-        for isLast, line in itemsIsLast(bl.textLines):
-          result &= &"{pref}  \"{line}\"" & (if isLast: "\n" else: ",\n")
-
-        result &= pref & "])"
-
-  return "str(" & aux(inBl, 0) & ")"
-
-
-proc toPString*(n: PNode): string =
-  var blocks = n.toBlock()
-  # echo blocks
-  # echo blocks.codegenRepr()
   let sln = none(Solution).withResIt do:
     blocks.doOptLayout(it, defaultFormatOpts).get()
 
-  var c = Console()
-  sln.layouts[0].printOn(c)
-  return c.text
-    # echo c.text
+  return sln.layouts[0]
 
-# echo hsb(@["a".txb, "b".txb, nl(), "b".txb]).lyt
-# echo hsb(@["a".txb, "b".txb, "b".txb]).lyt
+proc pprintWrite*(s: Stream | File, n: PNode) =
+  s.write(layoutBlockRepr(n))
+
+
+proc toPString*(n: PNode): string =
+  var blc = layoutBlockRepr(n)
+  var c = Console()
+  blc.printOn(c)
+  return c.text

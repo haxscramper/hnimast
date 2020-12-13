@@ -5,12 +5,14 @@
 
 import hmisc/helpers
 import hmisc/types/colorstring
-import sequtils, colors, macros, tables, strutils,
-       terminal, options, parseutils, sets, strformat, sugar
+import std/[
+  sequtils, colors, macros, tables, strutils, streams,
+  terminal, options, parseutils, sets, strformat, sugar
+]
 
 import compiler/[ast, idents, lineinfos, renderer]
 
-import hnimast/pnode_parse
+import hnimast/[pnode_parse, pprint]
 export pnode_parse, options
 
 # type NNode = NimNode | PNode
@@ -409,6 +411,9 @@ func getElem*(optPragma: Option[NPragma], name: string): Option[NimNode] =
 
 func len*[NNode](pragma: Pragma[NNode]): int =
   pragma.elements.len
+
+func add*[NNode](pragma: var Pragma[NNode], node: NNode) =
+  pragma.elements.add node
 
 #============================  constructors  =============================#
 func newNNPragma*[NNode](): Pragma[NNode] = discard
@@ -848,6 +853,12 @@ func `$`*[NNode](nt: NType[NNode]): string =
 #*************************************************************************#
 #===========================  Type definition  ===========================#
 type
+  DeclMetainfo = object
+    iinfo*: LineInfo
+    docComment*: string
+    comment*: string
+
+
   EnumFieldVal* = enum
     efvNone
     efvIdent
@@ -870,7 +881,8 @@ type
         charVal*: char
 
   EnumField*[NNode] = object
-    comment*: string
+    docComment*: string
+    codeComment*: string
     name*: string
     value*: Option[NNode]
 
@@ -888,8 +900,13 @@ type
 
 
   EnumDecl*[NNode] = object
+    iinfo*: LineInfo
+    docComment*: string
+    codeComment*: string
+
     ## Enum declaration wrapper
-    comment*: string
+    meta*: DeclMetainfo
+
     name*: string
     values*: seq[EnumField[NNode]]
     exported*: bool
@@ -909,7 +926,7 @@ func makeEnumField*[NNode](
   name: string,
   value: Option[NNode] = none(NNode),
   comment: string = ""): EnumField[NNode] =
-  EnumField[NNode](name: name, value: value, comment: comment)
+  EnumField[NNode](name: name, value: value, docComment: comment)
 
 
 
@@ -1020,11 +1037,11 @@ func toNNode*[NNode](fld: EnumField[NNode]): NNode =
       newNIdent[NNode](fld.name),
       fldVal.get()).withIt do:
         when NNode is PNode:
-          it.comment = fld.comment
+          it.comment = fld.docComment
   else:
     when NNode is PNode:
       newPIdent(fld.name).withIt do:
-        it.comment = fld.comment
+        it.comment = fld.docComment
     else:
       # TODO generate documentation comments for NimNode
       ident(fld.name)
@@ -1054,14 +1071,13 @@ func toNNode*[NNode](en: EnumDecl[NNode], standalone: bool = false): NNode =
     newNTree[NNode](nnkEnumTy, @[ newEmptyNNode[NNode]() ] & flds))
 
   when NNode is PNode:
-    result.comment = en.comment
+    result.comment = en.docComment
 
   if standalone:
     result = newNTree[NNode](
       nnkTypeSection,
       result
     )
-
 
 
 func parseEnumImpl*[NNode](en: NNode): EnumDecl[NNode] =
@@ -1119,11 +1135,24 @@ macro enumNames*(en: typed): seq[string] =
   ## Generate list of enum names
   newLit en.getEnumNames()
 
+proc write*(s: Stream, ed: EnumDecl[PNode], pprint: bool = true) =
+  if pprint:
+    s.pprintWrite(ed.toNNode())
+  else:
+    s.write($ed.toNNode())
+
+
 
 #*************************************************************************#
 #***************  Procedure declaration & implementation  ****************#
 #*************************************************************************#
 #==========================  Type definitions  ===========================#
+
+template currIInfo*(): untyped =
+  let (file, line, col) = instantiationInfo()
+  LineInfo(filename: file, line: line, column: col)
+
+const defaultIInfo* = LineInfo()
 
 type
   # TODO different keyword types: `method`, `iterator`, `proc`,
@@ -1136,11 +1165,14 @@ type
     pkAssgn ## Assignment proc `field=`
 
   ProcDecl*[NNode] = object
+    iinfo*: LineInfo
+    docComment*: string
+    codeComment*: string
+
     exported*: bool
     name*: string
     kind*: ProcKind
     signature*: NType[NNode] ## Signature of the proc as `ntProc` NType
-    comment*: string ## Documentation string
     genParams*: seq[NType[NNode]] ## Generic parameters for proc
     impl*: NNode ## Implementation body
 
@@ -1153,6 +1185,7 @@ func `==`*[NNode](lhs, rhs: ProcDecl[NNode]): bool =
   lhs.name == rhs.name and
   lhs.exported == rhs.exported and
   lhs.signature == rhs.signature
+
 
 
 # ~~~~ proc declaration ~~~~ #
@@ -1193,7 +1226,11 @@ macro `~>`*(a, b: untyped): untyped =
   result = createProcType(a, b, newNPragma("noSideEffect"))
 
 
-func toNNode*[NNode](pr: ProcDecl[NNode]): NNode =
+func toNNode*[NNode](
+  pr: ProcDecl[NNode], standalone: bool = true): NNode =
+  assert pr.signature.kind == ntkProc, $pr.iinfo
+
+
   let headSym = case pr.kind:
     of pkRegular: newNIdent[NNode](pr.name)
     of pkHook: newNTree[NNode](
@@ -1248,17 +1285,22 @@ func toNNode*[NNode](pr: ProcDecl[NNode]): NNode =
   )
 
   when NNode is PNode:
-    result.comment = pr.comment
+    result.comment = pr.docComment
+
 
 func newPProcDecl*(
-  name: string,
-  args: openarray[(string, NType[PNode])] = @[],
-  rtyp: Option[NType[PNode]] = none(NType[PNode]),
-  impl: PNode = nil,
-  exported: bool = true,
-  pragma: Pragma[PNode] = Pragma[PNode](),
-  genParams: seq[NType[PNode]] = @[]
-     ): ProcDecl[PNode] =
+    name:      string,
+    args:      openarray[(string, NType[PNode])] = @[],
+    rtyp:      Option[NType[PNode]]              = none(NType[PNode]),
+    impl:      PNode                             = nil,
+    exported:  bool                              = true,
+    pragma:    Pragma[PNode]                     = Pragma[PNode](),
+    genParams: seq[NType[PNode]]                 = @[],
+    iinfo:     LineInfo                          = defaultIInfo,
+    docComment: string = "",
+    codeComment: string = "",
+  ): ProcDecl[PNode] =
+
   result.name = name
   result.exported = exported
   result.signature = NType[PNode](
@@ -1267,22 +1309,36 @@ func newPProcDecl*(
   )
 
   result.signature.pragma = pragma
-  result.genParams = genParams
+  result.genParams        = genParams
+  result.docComment       = docComment
+  result.codeComment      = codeComment
+  result.iinfo            = iinfo
+
   if rtyp.isSome():
     result.signature.setRtype rtyp.get()
 
   result.impl = impl
 
 func newNProcDecl*(
-  name: string,
-  args: openarray[(string, NType[NimNode])] = @[],
-  rtyp: Option[NType[NimNode]] = none(NType[NimNode]),
-  impl: NimNode = nil,
-  exported: bool = true,
-  pragma: Pragma[NimNode] = Pragma[NimNode]()
-     ): ProcDecl[NimNode] =
-  result.name = name
-  result.exported = exported
+    name:     string,
+    args:     openarray[(string, NType[NimNode])] = @[],
+    rtyp:     Option[NType[NimNode]]              = none(NType[NimNode]),
+    impl:     NimNode                             = nil,
+    exported: bool                                = true,
+    pragma:   Pragma[NimNode]                     = Pragma[NimNode](),
+    iinfo:     LineInfo                          = defaultIInfo,
+    docComment: string = "",
+    codeComment: string = "",
+
+  ): ProcDecl[NimNode] =
+
+  result.name        = name
+  result.exported    = exported
+  result.docComment  = docComment
+  result.codeComment = codeComment
+  result.iinfo       = iinfo
+
+
   result.signature = NType[NimNode](
     kind: ntkProc,
     arguments: toNIdentDefs(args)
@@ -1490,6 +1546,9 @@ type
 
 
   ObjectField*[NNode, Annot] = object
+    docComment*: string
+    codeComment*: string
+
     # TODO:DOC
     ## More complex representation of object's field - supports
     ## recursive fields with case objects.
@@ -1514,6 +1573,10 @@ type
         discard
 
   ObjectDecl*[NNode, Annot] = object
+    iinfo*: LineInfo
+    docComment*: string
+    codeComment*: string
+
     # TODO:DOC
     # TODO `flatFields` iterator to get all values with corresponding
     # parent `ofValue` branches. `for fld, ofValues in obj.flatFields()`
@@ -2298,14 +2361,17 @@ proc pprintCalls*(node: NimNode, level: int): void =
 #*************************************************************************#
 type
   NimEntryKind* = enum
+    nekPasstroughCode
     nekProcDecl
     nekObjectDecl
     nekEnumDecl
     nekAliasDecl
-    nekPasstroughCode
 
   AliasDecl*[N] = object
-    isStandalone*: bool
+    iinfo*: LineInfo
+    docComment*: string
+    codeComment*: string
+
     isDistinct*: bool
     isExported*: bool
     newType*: Ntype[N]
@@ -2348,10 +2414,11 @@ func `==`*[N, A](a, b: ObjectBranch[N, A]): bool =
   )
 
 func `==`*[N](a, b: EnumField[N]): bool =
-  a.kind == b.kind and
-  a.comment == b.comment and
-  a.name == b.name and
-  a.value == b.value and
+  a.kind        == b.kind        and
+  a.docComment  == b.docComment  and
+  a.codeComment == b.codeComment and
+  a.name        == b.name        and
+  a.value       == b.value       and
   (
     case a.kind:
       of efvNone: true
@@ -2418,14 +2485,24 @@ func add*[N](declSeq: var seq[NimDecl[N]], decl: AnyNimDecl[N]) =
 #   declSeq.add NimDecl(kind: nekPasstroughCode, passthrough: decl)
 
 func newAliasDecl*[N](
-    t1, t2: NType[N], isDistinct: bool = true, isExported: bool = true,
+    t1, t2: NType[N],
+    isDistinct: bool = true,
+    isExported: bool = true,
+    iinfo:     LineInfo                          = defaultIInfo,
+    docComment: string = "",
+    codeComment: string = "",
   ): AliasDecl[N] =
+
   AliasDecl[N](
     oldType: t2,
     newType: t1,
     isExported: isExported,
-    isDistinct: isDistinct
+    isDistinct: isDistinct,
+    iinfo: iinfo,
+    docComment: docComment,
+    codeComment: codeComment
   )
+
 
 func `$`*[N](nd: NimDecl[N]): string =
   {.cast(noSideEffect).}:
@@ -2434,10 +2511,7 @@ func `$`*[N](nd: NimDecl[N]): string =
     else:
       hnimast.`$`(toNNode(nd))
 
-func `$`*[N](nd: seq[NimDecl[N]]): string =
-  mapIt(nd, $it).join("\n")
-
-func toNNode*[N](alias: AliasDecl[N]): N =
+func toNNode*[N](alias: AliasDecl[N], standalone: bool = true): N =
   let pr = (alias.isDistinct, alias.isExported)
   let
     aType = toNNode[N](alias.newType)
@@ -2467,5 +2541,73 @@ func toNNode*[N](alias: AliasDecl[N]): N =
       newNTree[N](nnkDistinctTy, bType)
     )
 
-  if alias.isStandalone:
+  if standalone:
     result = newNTree[N](nnkTypeSection, result)
+
+
+func `$`*[N](nd: seq[NimDecl[N]]): string =
+  mapIt(nd, $it).join("\n")
+
+proc write*(
+    s: Stream | File, pd: AnyNimDecl[PNode],
+    pprint: bool = true, standalone: bool = true
+  ) =
+
+  s.writeLine(&"\n\n# Declaration created in: {pd.iinfo}\n")
+  if pd.codeComment.len > 0:
+    for line in split(pd.codeComment, "\n"):
+      s.writeLine(&"# {line}")
+
+  if pprint:
+    s.pprintWrite(pd.toNNode(standalone = standalone))
+  else:
+    s.writeLine(pd.toNNode(standalone = standalone))
+  s.write("\n\n")
+
+proc write*(
+    s: Stream | File, nd: NimDecl[PNode],
+    standalone: bool = true,
+    pprint: bool = true
+  ) =
+
+  case nd.kind:
+    of nekProcDecl:
+      s.write(nd.procdecl, pprint = pprint)
+
+    of nekEnumDecl:
+      s.write(nd.enumdecl, pprint = pprint, standalone = standalone)
+
+    of nekObjectDecl:
+      s.write(nd.objectdecl, pprint = pprint, standalone = standalone)
+
+    of nekAliasDecl:
+      s.write(nd.aliasdecl, pprint = pprint, standalone = standalone)
+
+    of nekPasstroughCode:
+      if pprint:
+        s.pprintWrite(nd.passthrough)
+      else:
+        s.writeLine($nd)
+
+      s.write("\n\n")
+
+
+proc `iinfo=`*[N](nd: var NimDecl[N], iinfo: LineInfo) =
+  case nd.kind:
+    of nekProcDecl:       nd.procdecl.iinfo = iinfo
+    of nekEnumDecl:       nd.enumdecl.iinfo = iinfo
+    of nekObjectDecl:     nd.objectdecl.iinfo = iinfo
+    of nekAliasDecl:      nd.aliasdecl.iinfo = iinfo
+    of nekPasstroughCode: discard
+
+
+proc addCodeComment*[N](nd: var AnyNimDecl[N], comm: string) =
+  nd.codeComment &= comm
+
+proc addCodeComment*[N](nd: var NimDecl[N], comm: string) =
+  case nd.kind:
+    of nekProcDecl:       nd.procdecl.codeComment &= comm
+    of nekEnumDecl:       nd.enumdecl.codeComment &= comm
+    of nekObjectDecl:     nd.objectdecl.codeComment &= comm
+    of nekAliasDecl:      nd.aliasdecl.codeComment &= comm
+    of nekPasstroughCode: discard

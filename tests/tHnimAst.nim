@@ -255,7 +255,7 @@ suite "working with PNode":
       var procdef: ProcDecl[PNode]
       procdef.name = "Hello"
       procdef.signature = newProcNType[PNode](@[])
-      procdef.comment = "werqwre"
+      procdef.docComment = "werqwre"
       echo procdef.toNNode()
 
       decl.comment = "hello world"
@@ -278,7 +278,7 @@ suite "working with PNode":
         # }
       # )
 
-      en.comment = """
+      en.meta.docComment = """
 Aliquam erat volutpat. Nunc eleifend leo vitae magna. In id erat non
 orci commodo lobortis. Proin neque massa, cursus ut, gravida ut,
 lobortis eget, lacus. Sed diam. Praesent fermentum tempor tellus.
