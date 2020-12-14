@@ -256,7 +256,12 @@ suite "working with PNode":
       procdef.name = "Hello"
       procdef.signature = newProcNType[PNode](@[])
       procdef.docComment = "werqwre"
-      echo procdef.toNNode()
+      let pd = procdef.toNNode()
+      echo pd
+
+      let node = parsePNodeStr($pd)
+      echo node.treeRepr()
+      # echo node.treeRepr()
 
       decl.comment = "hello world"
       echo decl

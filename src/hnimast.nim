@@ -281,6 +281,42 @@ type
     oakObjectField ## Annotation for object field
 
 
+proc treeRepr*(
+    pnode: PNode, colored: bool = true, indexed: bool = false
+  ): string =
+
+  proc aux(n: PNode, level: int, idx: seq[int]): string =
+    let pref =
+      if indexed:
+        idx.join("", ("[", "]")) & "    "
+      else:
+        "  ".repeat(level)
+
+    result &= pref & ($n.kind)[2..^1]
+    case n.kind:
+      of nkStrKinds:
+        result &= " \"" & toYellow(n.getStrVal(), colored) & "\"\""
+
+      of nkIntKinds:
+        result &= " " & toBlue(n.getStrVal(), colored)
+
+      of nkFloatKinds:
+        result &= " " & toMagenta(n.getStrVal(), colored)
+
+      of nkIdent, nkSym:
+        result &= " " & toGreen(n.getStrVal(), colored)
+
+      else:
+        if n.len > 0:
+          result &= "\n"
+
+        for newIdx, subn in n:
+          result &= aux(subn, level + 1, idx & newIdx)
+          if newIdx < n.len - 1:
+            result &= "\n"
+
+  return aux(pnode, 0, @[0])
+
 
 #*************************************************************************#
 #****************************  Ast reparsing  ****************************#
@@ -1164,11 +1200,21 @@ type
     pkHook ## Destructor/sink (etc.) hook: `=destroy`
     pkAssgn ## Assignment proc `field=`
 
+  ProcDeclType* = enum
+    ptkProc
+    ptkFunc
+    ptkIterator
+    ptkConverter
+    ptkMethod
+    ptkTemplate
+    ptkMacro
+
   ProcDecl*[NNode] = object
     iinfo*: LineInfo
     docComment*: string
     codeComment*: string
 
+    declType*: ProcDeclType
     exported*: bool
     name*: string
     kind*: ProcKind
@@ -1269,9 +1315,20 @@ func toNNode*[NNode](
     else:
       pr.impl
 
+  # if
+
+  let prdecl =
+    case pr.declType:
+      of ptkProc: nnkProcDef
+      of ptkFunc: nnkFuncDef
+      of ptkIterator: nnkIteratorDef
+      of ptkConverter: nnkConverterDef
+      of ptkMethod: nnkMethodDef
+      of ptkTemplate: nnkTemplateDef
+      of ptkMacro: nnkMacroDef
 
   result = newNTree[NNode](
-    nnkProcDef,
+    prdecl,
     head,
     newEmptyNNode[NNode](),
     genParams,
@@ -1286,19 +1343,21 @@ func toNNode*[NNode](
 
   when NNode is PNode:
     result.comment = pr.docComment
+    # debugecho result.comment
 
 
 func newPProcDecl*(
-    name:      string,
-    args:      openarray[(string, NType[PNode])] = @[],
-    rtyp:      Option[NType[PNode]]              = none(NType[PNode]),
-    impl:      PNode                             = nil,
-    exported:  bool                              = true,
-    pragma:    Pragma[PNode]                     = Pragma[PNode](),
-    genParams: seq[NType[PNode]]                 = @[],
-    iinfo:     LineInfo                          = defaultIInfo,
-    docComment: string = "",
-    codeComment: string = "",
+    name:        string,
+    args:        openarray[(string, NType[PNode])] = @[],
+    rtyp:        Option[NType[PNode]]              = none(NType[PNode]),
+    impl:        PNode                             = nil,
+    exported:    bool                              = true,
+    pragma:      Pragma[PNode]                     = Pragma[PNode](),
+    genParams:   seq[NType[PNode]]                 = @[],
+    iinfo:       LineInfo                          = defaultIInfo,
+    declType:    ProcDeclType                      = ptkProc,
+    docComment:  string                            = "",
+    codeComment: string                            = "",
   ): ProcDecl[PNode] =
 
   result.name = name
@@ -1308,6 +1367,7 @@ func newPProcDecl*(
     arguments: toNIdentDefs(args)
   )
 
+  result.declType         = declType
   result.signature.pragma = pragma
   result.genParams        = genParams
   result.docComment       = docComment
@@ -1321,17 +1381,18 @@ func newPProcDecl*(
 
 func newNProcDecl*(
     name:     string,
-    args:     openarray[(string, NType[NimNode])] = @[],
-    rtyp:     Option[NType[NimNode]]              = none(NType[NimNode]),
-    impl:     NimNode                             = nil,
-    exported: bool                                = true,
-    pragma:   Pragma[NimNode]                     = Pragma[NimNode](),
-    iinfo:     LineInfo                          = defaultIInfo,
-    docComment: string = "",
-    codeComment: string = "",
-
+    args:        openarray[(string, NType[NimNode])] = @[],
+    rtyp:        Option[NType[NimNode]]              = none(NType[NimNode]),
+    impl:        NimNode                             = nil,
+    exported:    bool                                = true,
+    pragma:      Pragma[NimNode]                     = Pragma[NimNode](),
+    iinfo:       LineInfo                            = defaultIInfo,
+    declType:    ProcDeclType                        = ptkProc,
+    docComment:  string                              = "",
+    codeComment: string                              = "",
   ): ProcDecl[NimNode] =
 
+  result.declType    = declType
   result.name        = name
   result.exported    = exported
   result.docComment  = docComment
@@ -2519,14 +2580,14 @@ func toNNode*[N](alias: AliasDecl[N], standalone: bool = true): N =
 
   if pr == (false, false):
     result = newNTree[N](nnkTypeDef, aType, newEmptyNNode[N](), bType)
-  elif pr == (false, true):
+  elif pr == (true, false):
     result = newNTree[N](
       nnkTypeDef,
       aType,
       newEmptyNNode[N](),
       newNTree[N](nnkDistinctTy, bType)
     )
-  elif pr == (true, false):
+  elif pr == (false, true):
     result = newNTree[N](
       nnkTypeDef,
       newNTree[N](nnkPostfix, newNIdent[N]("*"), aType),

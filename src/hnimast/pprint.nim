@@ -1,6 +1,6 @@
 import hmisc/other/blockfmt
 import hmisc/helpers
-import std/[options, strutils, strformat, sequtils, streams]
+import std/[options, strutils, strformat, sequtils, streams, sugar]
 import compiler/[ast, idents, lineinfos, renderer]
 
 proc str(n: PNode): string = renderer.`$`(n)
@@ -71,8 +71,14 @@ proc toBlock(n: PNode): Block =
 
       let pragmaLyt = toBlock(n[4])
 
+      let comment = n.comment.split('\n').
+        mapIt("  ## " & it).
+        join("\n")
+
+      # n.comment.split("\n").mapIt("")
+
       let headLyt = H[T["proc"], S[], T[$n[0]], T[$n[2]], T["("]]
-      let implLyt = toBlock(n[6])
+      let implLyt = V[toBlock(n[6]), T[comment]]
       let postArgs = if hasRett: T["): "] else: T[")"]
       let eq = if n[6].kind == nkEmpty: T[""] else: T[" = "]
 
