@@ -310,6 +310,19 @@ type Type = object
       parseEnumImpl().
       toNNode()
 
+  test "NimDecl API":
+    let pproc = newPProcDecl(name = "hello")
+    let pdecl = pproc.toNimDecl()
+
+    let pnode = pdecl.toNNode()
+    hnimast.write(stdout, pdecl)
+
+    var decls: seq[NimTypeDecl[PNode]]
+
+    decls.add toNimTypeDecl(newPEnumDecl("Test", iinfo = currIInfo()))
+
+    hnimast.write(stdout, decls.toNimDecl())
+
 import hnimast/pprint
 
 suite "Pretty printing":

@@ -71,9 +71,11 @@ proc toBlock(n: PNode): Block =
 
       let pragmaLyt = toBlock(n[4])
 
-      let comment = n.comment.split('\n').
-        mapIt("  ## " & it).
-        join("\n")
+      let comment =
+        if n.comment.len == 0:
+          ""
+        else:
+          n.comment.split('\n').mapIt("  ## " & it).join("\n")
 
       # n.comment.split("\n").mapIt("")
 
@@ -96,6 +98,16 @@ proc toBlock(n: PNode): Block =
         V[H[headLyt, horizArgsLyt, postArgs],
           I[2, H[retLyt, pragmaLyt, eq]], implLyt],
 
+
+        # proc q*(a: B):
+        #     C
+        #     {.d.} =
+        #   e
+        V[H[headLyt, horizArgsLyt, postArgs],
+          I[2, retLyt],
+          I[2, H[pragmaLyt, eq]],
+          implLyt
+        ],
 
         # proc q*(
         #     a: B
@@ -160,8 +172,8 @@ proc layoutBlockRepr*(n: PNode): Layout =
 
   return sln.layouts[0]
 
-proc pprintWrite*(s: Stream | File, n: PNode) =
-  s.write(layoutBlockRepr(n))
+proc pprintWrite*(s: Stream | File, n: PNode, indent: int = 0) =
+  s.write(layoutBlockRepr(n), indent = indent)
 
 
 proc toPString*(n: PNode): string =

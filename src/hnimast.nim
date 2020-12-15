@@ -15,7 +15,17 @@ import compiler/[ast, idents, lineinfos, renderer]
 import hnimast/[pnode_parse, pprint]
 export pnode_parse, options
 
+export PNode
+
 # type NNode = NimNode | PNode
+
+template currIInfo*(): untyped =
+  let (file, line, col) = instantiationInfo()
+  LineInfo(filename: file, line: line, column: col)
+
+const defaultIInfo* = LineInfo()
+
+
 
 func `$!`*(n: NimNode): string =
   ## NimNode stringification that does not blow up in your face on
@@ -964,6 +974,31 @@ func makeEnumField*[NNode](
   comment: string = ""): EnumField[NNode] =
   EnumField[NNode](name: name, value: value, docComment: comment)
 
+func newPEnumDecl*(
+    name:        string,
+    docComment:  string        = "",
+    codeComment: string        = "",
+    exported:    bool          = true,
+    pragma:      Pragma[PNode] = Pragma[PNode](),
+    iinfo:       LineInfo      = defaultIInfo
+  ): EnumDecl[PNode] =
+
+  result.name = name
+  result.docComment = docComment
+  result.codeComment = codeComment
+  result.exported = exported
+  result.pragma = pragma
+  result.iinfo = iinfo
+
+func addField*[N](
+    en: var EnumDecl[N], 
+    name: string,
+    value: Option[N] = none(N),
+    docComment: string = ""
+  ) =
+
+  en.values.add makeEnumField(name, value, docComment)
+
 
 
 func parseEnumField*[NNode](fld: NNode): EnumField[NNode] =
@@ -1183,12 +1218,6 @@ proc write*(s: Stream, ed: EnumDecl[PNode], pprint: bool = true) =
 #***************  Procedure declaration & implementation  ****************#
 #*************************************************************************#
 #==========================  Type definitions  ===========================#
-
-template currIInfo*(): untyped =
-  let (file, line, col) = instantiationInfo()
-  LineInfo(filename: file, line: line, column: col)
-
-const defaultIInfo* = LineInfo()
 
 type
   # TODO different keyword types: `method`, `iterator`, `proc`,
@@ -2421,12 +2450,13 @@ proc pprintCalls*(node: NimNode, level: int): void =
 #***********************  Common declaration type  ***********************#
 #*************************************************************************#
 type
-  NimEntryKind* = enum
+  NimDeclKind* = enum
     nekPasstroughCode
     nekProcDecl
     nekObjectDecl
     nekEnumDecl
     nekAliasDecl
+    nekMultitype
 
   AliasDecl*[N] = object
     iinfo*: LineInfo
@@ -2438,9 +2468,22 @@ type
     newType*: Ntype[N]
     oldType*: Ntype[N]
 
+  NimTypeDeclKind = enum
+    ntdkEnumDecl
+    ntdkObjectDecl
+    ntdkAliasDecl
+
+  NimTypeDecl*[N] = object
+    case kind*: NimTypeDeclKind:
+      of ntdkEnumDecl:
+        enumDecl*: EnumDecl[N]
+      of ntdkObjectDecl:
+        objectDecl*: ObjectDecl[N, Pragma[N]]
+      of ntdkAliasDecl:
+        aliasDecl*: AliasDecl[N]
 
   NimDecl*[N] = object
-    case kind*: NimEntryKind
+    case kind*: NimDeclKind
       of nekProcDecl:
         procdecl*: ProcDecl[N]
       of nekEnumDecl:
@@ -2451,6 +2494,10 @@ type
         aliasDecl*: AliasDecl[N]
       of nekPasstroughCode:
         passthrough*: N
+      of nekMultitype:
+        typedecls*: seq[NimTypeDecl[N]]
+
+  PNimTypeDecl* = NimTypeDecl[Pnode]
 
   PNimDecl* = NimDecl[Pnode]
   PAliasDecl* = NimDecl[PNode]
@@ -2462,7 +2509,8 @@ type
           ProcDecl[N] |
           ObjectDecl[N, Pragma[N]] |
           EnumDecl[N] |
-          AliasDecl[N]
+          AliasDecl[N] |
+          NimTypeDecl[N]
 
 func `==`*[N, A](a, b: ObjectBranch[N, A]): bool =
   a.isElse == b.isElse and
@@ -2499,6 +2547,14 @@ func `==`*(a, b: RTimeOrdinal): bool =
   )
 
 
+func `==`*[N](a, b: NimTypeDecl[N]): bool =
+  a.kind == b.kind and (
+    case a.kind:
+      of ntdkEnumDecl: a.enumDecl == b.enumDecl
+      of ntdkObjectDecl: a.objectDecl == b.objectDecl
+      of ntdkAliasDecl: a.aliasDecl == b.aliasDecl
+  )
+
 func `==`*[N](a, b: NimDecl[N]): bool =
   a.kind == b.kind and (
     case a.kind:
@@ -2507,21 +2563,56 @@ func `==`*[N](a, b: NimDecl[N]): bool =
       of nekObjectDecl: a.objectdecl == b.objectdecl
       of nekAliasDecl: a.aliasdecl == b.aliasdecl
       of nekPasstroughCode: a.passthrough == b.passthrough
+      of nekMultitype:
+        a.typedecls.len == b.typedecls.len and
+        zip(a.typedecls, b.typedecls).allOfIt(it[0] == it[1])
   )
 
 
 func toNNode*[N](entry: NimDecl[N], standalone: bool = true): N =
   case entry.kind:
     of nekProcDecl:
-      toNNode[N](entry.procdecl)
+      return toNNode[N](entry.procdecl)
     of nekEnumDecl:
-      toNNode[N](entry.enumdecl, standalone = standalone)
+      return toNNode[N](entry.enumdecl, standalone = standalone)
     of nekObjectDecl:
-      toNNode[N](entry.objectdecl, standalone = standalone)
+      return toNNode[N](entry.objectdecl, standalone = standalone)
     of nekAliasDecl:
-      toNNode[N](entry.aliasDecl)
+      return toNNode[N](entry.aliasDecl)
     of nekPasstroughCode:
-      entry.passthrough
+      return entry.passthrough
+    of nekMultitype:
+      result = newNTree[N](nnkTypeSection)
+      for elem in entry.typedecls:
+        case elem.kind:
+          of ntdkEnumDecl:
+            result.add toNNode[N](elem.enumDecl, standalone = false)
+          of ntdkObjectDecl:
+            result.add toNNode[N](elem.objectDecl, standalone = false)
+          of ntdkAliasDecl:
+            result.add toNNode[N](elem.aliasDecl, standalone = false)
+
+
+
+func toNimTypeDecl*[N](odc: ObjectDecl[N, Pragma[N]]): NimTypeDecl[N] =
+  NimTypeDecl[N](kind: ntdkObjectDecl, objectdecl: odc)
+
+func toNimTypeDecl*[N](adc: AliasDecl[N]): NimTypeDecl[N] =
+  NimTypeDecl[N](kind: ntdkAliasDecl, aliasDecl: adc)
+
+func toNimTypeDecl*[N](edc: EnumDecl[N]): NimTypeDecl[N] =
+  NimTypeDecl[N](kind: ntdkEnumDecl, enumdecl: edc)
+
+func toNimTypeDecl*[N](entry: NimDecl[N]): NimTypeDecl[N] =
+  case entry.kind:
+    of nekEnumDecl:
+      return toNimTypeDecl[N](entry.enumdecl)
+    of nekObjectDecl:
+      return toNimTypeDecl[N](entry.objectdecl)
+    of nekAliasDecl:
+      return toNimTypeDecl[N](entry.aliasDecl)
+    else:
+     raiseAssert(&"Cannot convert to NimTypeDecl for kind {entry.kind}") 
 
 func toNimDecl*[N](prd: ProcDecl[N]): NimDecl[N] =
   NimDecl[N](kind: nekProcDecl, procdecl: prd)
@@ -2535,9 +2626,11 @@ func toNimDecl*[N](adc: AliasDecl[N]): NimDecl[N] =
 func toNimDecl*[N](edc: EnumDecl[N]): NimDecl[N] =
   NimDecl[N](kind: nekEnumDecl, enumdecl: edc)
 
-
 func toNimDecl*[N](decl: N): NimDecl[N] =
   NimDecl[N](kind: nekPasstroughCode, passthrough: decl)
+
+func toNimDecl*[N](decl: seq[NimTypeDecl[N]]): NimDecl[N] =
+  NimDecl[N](kind: nekMultitype, typedecls: decl)
 
 func add*[N](declSeq: var seq[NimDecl[N]], decl: AnyNimDecl[N]) =
   declSeq.add toNimDecl(decl)
@@ -2611,19 +2704,23 @@ func `$`*[N](nd: seq[NimDecl[N]]): string =
 
 proc write*(
     s: Stream | File, pd: AnyNimDecl[PNode],
-    pprint: bool = true, standalone: bool = true
+    pprint: bool = true,
+    standalone: bool = true,
+    indent: int = 0
   ) =
 
-  s.writeLine(&"\n\n# Declaration created in: {pd.iinfo}\n")
+  let pref = " ".repeat(indent)
+  s.writeLine(&"\n\n{pref}# Declaration created in: {pd.iinfo}\n")
   if pd.codeComment.len > 0:
     for line in split(pd.codeComment, "\n"):
-      s.writeLine(&"# {line}")
+      s.writeLine(&"{pref}# {line}")
 
   if pprint:
-    s.pprintWrite(pd.toNNode(standalone = standalone))
+    s.pprintWrite(pd.toNNode(standalone = standalone), indent = indent)
   else:
     s.writeLine(pd.toNNode(standalone = standalone))
-  s.write("\n\n")
+
+  s.write("\n")
 
 proc write*(
     s: Stream | File, nd: NimDecl[PNode],
@@ -2652,6 +2749,30 @@ proc write*(
 
       s.write("\n\n")
 
+    of nekMultitype:
+      s.write("\ntype")
+      for elem in nd.typedecls:
+        case elem.kind:
+          of ntdkEnumDecl:
+            s.write(
+              elem.enumDecl, standalone = false,
+              pprint = pprint, indent = 2
+            )
+
+          of ntdkObjectDecl:
+            s.write(
+              elem.objectDecl, standalone = false,
+              pprint = pprint, indent = 2
+            )
+
+          of ntdkAliasDecl:
+            s.write(
+              elem.aliasDecl, standalone = false,
+              pprint = pprint, indent = 2
+            )
+
+      s.write("\n\n")
+
 
 proc `iinfo=`*[N](nd: var NimDecl[N], iinfo: LineInfo) =
   case nd.kind:
@@ -2659,6 +2780,7 @@ proc `iinfo=`*[N](nd: var NimDecl[N], iinfo: LineInfo) =
     of nekEnumDecl:       nd.enumdecl.iinfo = iinfo
     of nekObjectDecl:     nd.objectdecl.iinfo = iinfo
     of nekAliasDecl:      nd.aliasdecl.iinfo = iinfo
+    of nekMultitype:      discard
     of nekPasstroughCode: discard
 
 
@@ -2671,4 +2793,5 @@ proc addCodeComment*[N](nd: var NimDecl[N], comm: string) =
     of nekEnumDecl:       nd.enumdecl.codeComment &= comm
     of nekObjectDecl:     nd.objectdecl.codeComment &= comm
     of nekAliasDecl:      nd.aliasdecl.codeComment &= comm
+    of nekMultitype:      discard
     of nekPasstroughCode: discard
