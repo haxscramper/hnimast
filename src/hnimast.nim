@@ -13,7 +13,7 @@ import std/[
 import compiler/[ast, idents, lineinfos, renderer]
 
 import hnimast/[pnode_parse, pprint]
-export pnode_parse, options
+export pnode_parse, options, NimNodeKind
 
 export PNode
 
@@ -267,7 +267,11 @@ macro pquote*(mainBody: untyped): untyped =
           return quote do:
             newPTree(nnkAccQuoted, newPIdent(`bodyLit`))
         else:
-          return body[0]
+          var res: string
+          for node in body:
+            res.add node.repr
+
+          return parseExpr(res)
       of nnkStrKinds:
         result.add newLit body.strVal
       of nnkFloatKinds:
@@ -917,7 +921,7 @@ type
     rtokBool
     rtokChar
 
-  RTimeOrdinal = object
+  RTimeOrdinal* = object
     case kind*: RTimeOrdinalKind
       of rtokInt:
         intVal*: BiggestInt
@@ -1086,7 +1090,7 @@ func toNNode*[NNode](ro: RTimeOrdinal): NNode =
 
 
 func toNNode*[NNode](fld: EnumField[NNode]): NNode =
-  let fldVal: Option[NNode] = case fld.kind:
+  var fldVal: Option[NNode] = case fld.kind:
     of efvNone:
       none(NNode)
     of efvIdent:
@@ -1101,6 +1105,9 @@ func toNNode*[NNode](fld: EnumField[NNode]): NNode =
         toNNode[NNode](fld.ordStr.ordVal),
         newNNLit[NNode](fld.ordStr.strVal)
       )
+
+  if fldVal.isNone():
+    fldVal = fld.value
 
   if fldVal.isSome():
     newNTree[NNode](
@@ -1125,7 +1132,7 @@ func toNNode*[NNode](en: EnumDecl[NNode], standalone: bool = false): NNode =
     for val in en.values:
       toNNode(val)
 
-  let head =
+  var head =
     if en.exported:
       newNTree[NNode](nnkPostfix,
         newNIdent[NNode]("*"),
@@ -1134,6 +1141,16 @@ func toNNode*[NNode](en: EnumDecl[NNode], standalone: bool = false): NNode =
     else:
       newNIdent[NNode](en.name)
 
+  if en.pragma.len > 0:
+    head = newNTree[NNode](
+      nnkPragmaExpr,
+      head,
+      toNNode[NNode](en.pragma)
+    )
+
+  # echov en.pragma.len
+  # echov toNNode[NNode](en.pragma)
+  # echov head
 
   result = newNTree[NNode](
     nnkTypeDef,

@@ -33,7 +33,7 @@ func `[]`(n: ast.PNode, sl: HSlice[int, BackwardsIndex]): seq[PNode] =
 
 func high(n: PNode): int = n.len - 1
 
-proc toBlock(n: PNode): Block =
+proc toBlock(n: PNode, level: int): Block =
   case n.kind:
     of nkProcDef:
 
@@ -67,9 +67,9 @@ proc toBlock(n: PNode): Block =
         if n[3][0].kind == nkEmpty:
           (T[""], false)
         else:
-          (H[toBlock(n[3][0])], true)
+          (H[toBlock(n[3][0], level + 1)], true)
 
-      let pragmaLyt = toBlock(n[4])
+      let pragmaLyt = toBlock(n[4], level + 1)
 
       let comment =
         if n.comment.len == 0:
@@ -80,7 +80,7 @@ proc toBlock(n: PNode): Block =
       # n.comment.split("\n").mapIt("")
 
       let headLyt = H[T["proc"], S[], T[$n[0]], T[$n[2]], T["("]]
-      let implLyt = V[toBlock(n[6]), T[comment]]
+      let implLyt = V[I[2, toBlock(n[6], level + 1)], T[comment]]
       let postArgs = if hasRett: T["): "] else: T[")"]
       let eq = if n[6].kind == nkEmpty: T[""] else: T[" = "]
 
@@ -150,7 +150,10 @@ proc toBlock(n: PNode): Block =
       ]
 
     of nkStmtList:
-      result = V[n.mapIt(toBlock(it))]
+      result = V[n.mapIt(toBlock(it, level + 1))]
+
+      # echov result
+
     else:
       return makeTextBlock(n.str)
 
@@ -165,7 +168,7 @@ proc lyt(bl: Block): string =
   return c.text
 
 proc layoutBlockRepr*(n: PNode): Layout =
-  var blocks = if n.isNil(): T[""] else: n.toBlock()
+  var blocks = if n.isNil(): T[""] else: n.toBlock(0)
 
   let sln = none(Solution).withResIt do:
     blocks.doOptLayout(it, defaultFormatOpts).get()
