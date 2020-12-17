@@ -67,9 +67,9 @@ proc toBlock(n: PNode, level: int): Block =
         if n[3][0].kind == nkEmpty:
           (T[""], false)
         else:
-          (H[toBlock(n[3][0], level + 1)], true)
+          (H[toBlock(n[3][0], 0)], true)
 
-      let pragmaLyt = toBlock(n[4], level + 1)
+      let pragmaLyt = toBlock(n[4], 0)
 
       let comment =
         if n.comment.len == 0:
@@ -80,7 +80,7 @@ proc toBlock(n: PNode, level: int): Block =
       # n.comment.split("\n").mapIt("")
 
       let headLyt = H[T["proc"], S[], T[$n[0]], T[$n[2]], T["("]]
-      let implLyt = V[I[2, toBlock(n[6], level + 1)], T[comment]]
+      let implLyt = V[toBlock(n[6], level + 1), T[comment]]
       let postArgs = if hasRett: T["): "] else: T[")"]
       let eq = if n[6].kind == nkEmpty: T[""] else: T[" = "]
 
@@ -150,12 +150,47 @@ proc toBlock(n: PNode, level: int): Block =
       ]
 
     of nkStmtList:
-      result = V[n.mapIt(toBlock(it, level + 1))]
+      result = V[n.mapIt(toBlock(it, level))]
 
-      # echov result
+    of nkForStmt:
+      result = V[
+        I[level * 2, H[
+          T["for "], toBlock(n[0], 0),
+          T[" in "], toBlock(n[^2], 0),
+          T[":"]
+        ]],
+        toBlock(n[^1], level + 1)
+      ]
+
+      # echo result.ptreeRepr()
+
+    of nkIfStmt:
+      result = makeStackBlock()
+      for isFirst, branch in itemsIsFirst(n):
+        if branch.kind == nkElse:
+          result.add V[
+            I[level * 2, T["else: "]],
+            toBlock(branch[0], level + 1),
+            T[""]
+          ]
+
+        else:
+          result.add V[
+            I[
+              level * 2,
+              H[
+                T[if isFirst: "if " else: "elif "],
+                toBlock(branch[0], 0),
+                T[":"]
+              ]
+            ],
+            toBlock(branch[1], level + 1),
+            T[""]
+          ]
 
     else:
-      return makeTextBlock(n.str)
+      result = I[level * 2, T[n.str]]
+      # echov level, result
 
 
 proc lyt(bl: Block): string =
@@ -167,8 +202,8 @@ proc lyt(bl: Block): string =
   sln.layouts[0].printOn(c)
   return c.text
 
-proc layoutBlockRepr*(n: PNode): Layout =
-  var blocks = if n.isNil(): T[""] else: n.toBlock(0)
+proc layoutBlockRepr*(n: PNode, indent: int = 0): Layout =
+  var blocks = if n.isNil(): T[""] else: n.toBlock(indent)
 
   let sln = none(Solution).withResIt do:
     blocks.doOptLayout(it, defaultFormatOpts).get()
@@ -179,8 +214,8 @@ proc pprintWrite*(s: Stream | File, n: PNode, indent: int = 0) =
   s.write(layoutBlockRepr(n), indent = indent)
 
 
-proc toPString*(n: PNode): string =
-  var blc = layoutBlockRepr(n)
+proc toPString*(n: PNode, indent: int = 0): string =
+  var blc = layoutBlockRepr(n, indent = indent)
   var c = Console()
   blc.printOn(c)
   return c.text

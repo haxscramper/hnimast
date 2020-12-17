@@ -333,7 +333,6 @@ suite "Pretty printing":
         "similarityTreshold" : newPType("ScoreCmpProc"),
         "secondArgument" : newPType("StdCxx11BasicStringSizeType"),
       },
-      impl = newEmptyPNode(),
       genParams = @[newPType("CharT")],
       pragma = newPPragma(
         newPident("cdecl"),
@@ -341,9 +340,28 @@ suite "Pretty printing":
           newPIdent("importcpp"),
           newRStrLit("std::__cxx11::basic_string<'0, '1, '2>::size_type")
         )
-      )
+      ),
+      impl = ((
+        pquote do:
+          for a in b:
+            echo a
+
+          if b == 12:
+            echo 123
+      ))
     )
 
     echo pr.toNNode()
     startHax()
     echo pr.toNNode().toPString()
+
+    echo toPString((
+      pquote do:
+      const
+        arrCxxSCmapping: array[CxxSC, tuple[name: string, cEnum: CxxSC_Impl,
+                                            cName: string, value: int]] = [
+          (name: "World", cEnum: cxxSC_World, cName: "cxx::S::C::World", value: 12),
+          (name: "Nice", cEnum: cxxSC_Nice, cName: "cxx::S::C::Nice", value: 13),
+          (name: "HHHZ", cEnum: cxxSC_HHHZ, cName: "cxx::S::C::HHHZ", value: 14),
+          (name: "Hello", cEnum: cxxSC_Hello, cName: "cxx::S::C::Hello", value: 33)]
+    ))

@@ -15,6 +15,7 @@ import compiler/[ast, idents, lineinfos, renderer]
 import hnimast/[pnode_parse, pprint]
 export pnode_parse, options, NimNodeKind
 
+export ast
 export PNode
 
 # type NNode = NimNode | PNode
@@ -464,6 +465,9 @@ func len*[NNode](pragma: Pragma[NNode]): int =
 
 func add*[NNode](pragma: var Pragma[NNode], node: NNode) =
   pragma.elements.add node
+
+func clear*[N](pragma: var PRagma[N]) =
+  pragma.elements = @[]
 
 #============================  constructors  =============================#
 func newNNPragma*[NNode](): Pragma[NNode] = discard
@@ -995,7 +999,7 @@ func newPEnumDecl*(
   result.iinfo = iinfo
 
 func addField*[N](
-    en: var EnumDecl[N], 
+    en: var EnumDecl[N],
     name: string,
     value: Option[N] = none(N),
     docComment: string = ""
@@ -2629,7 +2633,7 @@ func toNimTypeDecl*[N](entry: NimDecl[N]): NimTypeDecl[N] =
     of nekAliasDecl:
       return toNimTypeDecl[N](entry.aliasDecl)
     else:
-     raiseAssert(&"Cannot convert to NimTypeDecl for kind {entry.kind}") 
+     raiseAssert(&"Cannot convert to NimTypeDecl for kind {entry.kind}")
 
 func toNimDecl*[N](prd: ProcDecl[N]): NimDecl[N] =
   NimDecl[N](kind: nekProcDecl, procdecl: prd)
