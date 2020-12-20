@@ -34,6 +34,7 @@ func `[]`(n: ast.PNode, sl: HSlice[int, BackwardsIndex]): seq[PNode] =
 func high(n: PNode): int = n.len - 1
 
 proc toBlock(n: PNode, level: int): Block =
+  let ind = level * 2
   case n.kind:
     of nkProcDef:
 
@@ -84,54 +85,61 @@ proc toBlock(n: PNode, level: int): Block =
       let postArgs = if hasRett: T["): "] else: T[")"]
       let eq = if n[6].kind == nkEmpty: T[""] else: T[" = "]
 
-      result = C[
-        # proc q*(a: B): C {.d.} = e
-        H[headLyt, horizArgsLyt, postArgs, retLyt, pragmaLyt, eq, implLyt],
 
-        # proc q*(a: B): C {.d.} =
-        #   e
-        V[H[headLyt, horizArgsLyt, postArgs, retLyt, pragmaLyt, eq], implLyt],
+      result = makeChoiceBlock()
 
-        # proc q*(a: B):
-        #     C {.d.} =
-        #   e
-        V[H[headLyt, horizArgsLyt, postArgs],
-          I[2, H[retLyt, pragmaLyt, eq]], implLyt],
+      # proc q*(a: B): C {.d.} = e
+      result.add I[ind,
+        H[headLyt, horizArgsLyt, postArgs, retLyt, pragmaLyt, eq, implLyt]]
+
+      # proc q*(a: B): C {.d.} =
+      #   e
+      result.add V[
+        I[ind,
+          H[headLyt, horizArgsLyt, postArgs, retLyt, pragmaLyt, eq]],
+        implLyt]
+
+      # proc q*(a: B):
+      #     C {.d.} =
+      #   e
+      result.add V[I[ind, H[headLyt, horizArgsLyt, postArgs]],
+        I[ind + 2, H[retLyt, pragmaLyt, eq]], implLyt]
 
 
-        # proc q*(a: B):
-        #     C
-        #     {.d.} =
-        #   e
-        V[H[headLyt, horizArgsLyt, postArgs],
-          I[2, retLyt],
-          I[2, H[pragmaLyt, eq]],
-          implLyt
-        ],
+      # proc q*(a: B):
+      #     C
+      #     {.d.} =
+      #   e
+      result.add V[I[ind, H[headLyt, horizArgsLyt, postArgs]],
+        I[ind + 2, retLyt],
+        I[ind + 2, H[pragmaLyt, eq]],
+        implLyt
+      ]
 
+      if vertArgsLyt.len > 0:
         # proc q*(
         #     a: B
         #   ): C {.d.} =
         #     e
-        V[
-          headLyt,
-          vertArgsLyt,
-          H[postArgs, retLyt, pragmaLyt, eq],
-          implLyt
-        ],
+        result.add V[
+          I[ind, headLyt],
+          I[ind, vertArgsLyt],
+          I[ind, H[postArgs, retLyt, pragmaLyt, eq]],
+          I[ind, implLyt]
+        ]
 
         # proc q*(
         #     a: B
         #   ):
         #       C {.d.} =
         #     e
-        V[
-          headLyt,
-          vertArgsLyt,
-          postArgs,
-          I[2, H[retLyt, pragmaLyt, eq]],
-          implLyt
-        ],
+        result.add V[
+          I[ind, headLyt],
+          I[ind, vertArgsLyt],
+          I[ind, postArgs],
+          I[ind + 2, H[retLyt, pragmaLyt, eq]],
+          I[ind,implLyt]
+        ]
 
         # proc q*(
         #       a: B
@@ -139,22 +147,21 @@ proc toBlock(n: PNode, level: int): Block =
         #     C
         #     {.d.} =
         #   e
-        V[
-          headLyt,
-          vertArgsLyt,
-          postArgs,
-          I[2, retLyt],
-          I[2, H[pragmaLyt, eq]],
-          implLyt
+        result.add V[
+          I[ind, headLyt],
+          tern(vertArgsLyt.len == 0, T[""], I[ind, vertArgsLyt]),
+          I[ind, postArgs],
+          I[ind + 2, retLyt],
+          I[ind + 2, H[pragmaLyt, eq]],
+          I[ind, implLyt]
         ]
-      ]
 
     of nkStmtList:
       result = V[n.mapIt(toBlock(it, level))]
 
     of nkForStmt:
       result = V[
-        I[level * 2, H[
+        I[ind, H[
           T["for "], toBlock(n[0], 0),
           T[" in "], toBlock(n[^2], 0),
           T[":"]
@@ -169,7 +176,7 @@ proc toBlock(n: PNode, level: int): Block =
       for isFirst, branch in itemsIsFirst(n):
         if branch.kind == nkElse:
           result.add V[
-            I[level * 2, T["else: "]],
+            I[ind, T["else: "]],
             toBlock(branch[0], level + 1),
             T[""]
           ]
@@ -177,7 +184,7 @@ proc toBlock(n: PNode, level: int): Block =
         else:
           result.add V[
             I[
-              level * 2,
+              ind,
               H[
                 T[if isFirst: "if " else: "elif "],
                 toBlock(branch[0], 0),
@@ -189,7 +196,7 @@ proc toBlock(n: PNode, level: int): Block =
           ]
 
     else:
-      result = I[level * 2, T[n.str]]
+      result = I[ind, T[n.str]]
       # echov level, result
 
 

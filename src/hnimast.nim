@@ -181,6 +181,38 @@ const
   }
 
 
+proc pprintCalls*(node: NimNode, level: int): void =
+  # TODO:DOC
+  let pref = "  ".repeat(level)
+  let pprintKinds = {nnkCall, nnkPrefix, nnkBracket}
+  case node.kind:
+    of nnkCall:
+      if ($node[0].toStrLit()).startsWith("make"):
+        echo pref, "make", (($node[0].toStrLit())[4..^1]).toGreen()
+      else:
+        echo pref, $node[0].toStrLit()
+
+      if node[1..^1].noneOfIt(it.kind in pprintKinds):
+        echo pref, "  ",
+          node[1..^1].mapIt($it.toStrLit()).join(", ").toYellow()
+      else:
+        for arg in node[1..^1]:
+          pprintCalls(arg, level + 1)
+    of nnkPrefix:
+      echo pref, node[0]
+      pprintCalls(node[1], level)
+    of nnkBracket:
+      for subn in node:
+        pprintCalls(subn, level + 1)
+    of nnkIdent:
+      echo pref, ($node).toGreen()
+    else:
+      echo ($node.toStrLit()).indent(level * 2)
+
+
+
+
+
 func newPTree*(kind: NimNodeKind, subnodes: varargs[PNode]): PNode =
   ## Create new `PNode` tree
   if kind in nnkTokenKinds:
@@ -257,6 +289,7 @@ macro pquote*(mainBody: untyped): untyped =
   ## `quote` macro to generate `PNode` builder
   func aux(body: NimNode): NimNode =
     result = newCall("newPTree", ident $body.kind)
+
     case body.kind:
       of nnkAccQuoted:
         if body[0].kind == nnkIdent and
@@ -269,23 +302,102 @@ macro pquote*(mainBody: untyped): untyped =
             newPTree(nnkAccQuoted, newPIdent(`bodyLit`))
         else:
           var res: string
-          for node in body:
-            res.add node.repr
+
+          # for idx in 0 ..< body.len:
+
+          var idx = 0
+          while idx < body.len:
+            if idx < body.len - 2 and
+               body[idx].strVal().endsWith("$$$"):
+              let other = body[idx].strVal()[0 .. ^4]
+              res.add other
+              res.add " \"" & body[idx + 1].repr & "\""
+              inc idx
+            else:
+              res.add body[idx].repr
+
+            inc idx
+
+          # for idx, node in body:
+          #   if idx < body.len - 2 and
+          #      node.eqIdent("$$$"):
+
+          #   res.add node.repr
 
           return parseExpr(res)
       of nnkStrKinds:
         result.add newLit body.strVal
+
       of nnkFloatKinds:
         result.add newLit body.floatVal
+
       of nnkIntKinds:
         result.add newLit body.intVal
+
       of nnkIdent, nnkSym:
         result = newCall("newPIdent", newLit(body.strVal))
+
       else:
+        var impl: NimNode = newEmptyNode()
         for subnode in body:
-          result.add aux(subnode)
+          block addSubnodes:
+            for node in subnode:
+              if node.kind == nnkPrefix and
+                 node[0].eqIdent("@@@^"):
+
+                # IdentDefs     <- subnode
+                #   Ident "arg" <- node
+                #   Prefix      <- necessary prefix
+                #     Ident "@@@^"
+                #     Ident "nArgList"
+                #   Empty
+
+                impl = node[1]
+                break addSubnodes
+
+
+        if impl.kind != nnkEmpty:
+          let kind = ident $body.kind
+          result = newStmtList()
+
+          var tree = ident "tree"
+
+          result.add quote do:
+            var `tree` = newPTree(`kind`)
+
+          for subnode in body:
+            block addDirectly:
+              for node in subnode:
+                if node.kind == nnkPrefix and
+                   node[0].eqIdent("@@@^"):
+                  let impl = node[1]
+
+                  result.add quote do:
+                    for val in `impl`:
+                      `tree`.add val
+
+                  break addDirectly
+
+              let builder = aux(subnode)
+              result.add quote do:
+                `tree`.add `builder`
+
+          result.add quote do:
+            `tree`
+
+          result = quote do:
+            ((
+              block:
+                `result`
+            ))
+
+        else:
+          for subnode in body:
+            result.add aux(subnode)
 
   result = aux(mainBody)
+
+  # result.pprintCalls(0)
 
 
 type
@@ -623,7 +735,8 @@ func toNNode*[NNode](ntype: NType[NNode]): NNode =
 
       let renamed: seq[NIdentDefs[NNode]] = ntype.arguments.mapPairs:
         rhs.withIt do:
-          it.varname = "a" & $idx
+          if it.varname.len == 0:
+            it.varname = "a" & $idx
 
       result.add newNTree[NNode](
         nnkFormalParams,
@@ -707,7 +820,7 @@ func newNType*(name: string, gparams: seq[string] = @[]): NType[NimNode] =
   NType[NimNode](
     kind: ntkIdent, head: name, genParams: gparams.mapIt(newNType(it, @[])))
 
-func newPType*(name: string, gparams: seq[string] = @[]): NType[PNode] =
+func newPType*(name: string, gparams: openarray[string] = @[]): NType[PNode] =
   ## Make `NType` with `name` as string and `gparams` as generic
   ## parameters
   NType[PNode](
@@ -725,6 +838,17 @@ func newNType*[NNode](
   ## Make `NType`
   NType[NNode](kind: ntkIdent, head: name, genParams: toSeq(gparams))
 
+
+func newProcNType*[NNode](
+  args: seq[(string, NType[NNode])],
+  rtype: NType[NNode], pragma: Pragma[NNode]): NType[NNode] =
+
+  NType[NNode](
+    kind: ntkProc,
+    arguments: toNIdentDefs[NNode](args),
+    pragma: pragma,
+    rType: some(newIt(rtype)))
+
 func newProcNType*[NNode](
   args: seq[NType[NNode]],
   rtype: NType[NNode], pragma: Pragma[NNode]): NType[NNode] =
@@ -734,6 +858,8 @@ func newProcNType*[NNode](
     arguments: toNIdentDefs[NNode](args.mapIt(("", it))),
     pragma: pragma,
     rType: some(newIt(rtype)))
+
+
 
 
 func newProcNType*[NNode](args: seq[NType[NNode]]): NType[NNode] =
@@ -1728,7 +1854,46 @@ type
 const noParseCb*: ParseCb[NimNode, void] = nil
 const noParseCbPNode*: ParseCb[PNode, void] = nil
 
+import std/with
 
+proc newPObjectDecl*(
+  name: string,
+  flds: seq[tuple[name: string, ftype: NType[PNode]]] = @[],
+  exported: bool = true,
+  annotate: PPragma = PPragma(),
+  docComment: string = "",
+  codeComment: string = "",
+  genParams: seq[NType[PNode]] = @[],
+  iinfo: LineInfo = defaultIInfo,
+): PObjectDecl =
+
+
+  result.name = newNType[PNode](name, genParams)
+  result.docComment = docComment
+  result.codeComment = codeComment
+  result.iinfo = iinfo
+  result.annotation = some annotate
+  result.exported = exported
+
+
+func addField*[N](
+    obj: var ObjectDecl[N, Pragma[N]],
+    name: string,
+    cxtype: NType[N],
+    docComment: string = "",
+    codeComment: string = "",
+    exported: bool = true
+  ) =
+
+  obj.flds.add PObjectField(
+    isTuple: false,
+    isKind: false,
+    name: name,
+    fldType: cxtype,
+    docComment: codeComment,
+    codeComment: codeComment,
+    exported: exported
+  )
 
 #=============================  Predicates  ==============================#
 func markedAs*(fld: NObjectField[NPragma], str: string): bool =
@@ -2437,36 +2602,6 @@ func makeInitCalls*[A](hset: HashSet[A]): NimNode =
     result.add val.makeInitCalls()
 
   result = newCall("toHashSet", result)
-
-proc pprintCalls*(node: NimNode, level: int): void =
-  # TODO:DOC
-  let pref = "  ".repeat(level)
-  let pprintKinds = {nnkCall, nnkPrefix, nnkBracket}
-  case node.kind:
-    of nnkCall:
-      if ($node[0].toStrLit()).startsWith("make"):
-        echo pref, "make", (($node[0].toStrLit())[4..^1]).toGreen()
-      else:
-        echo pref, $node[0].toStrLit()
-
-      if node[1..^1].noneOfIt(it.kind in pprintKinds):
-        echo pref, "  ",
-          node[1..^1].mapIt($it.toStrLit()).join(", ").toYellow()
-      else:
-        for arg in node[1..^1]:
-          pprintCalls(arg, level + 1)
-    of nnkPrefix:
-      echo pref, node[0]
-      pprintCalls(node[1], level)
-    of nnkBracket:
-      for subn in node:
-        pprintCalls(subn, level + 1)
-    of nnkIdent:
-      echo pref, ($node).toGreen()
-    else:
-      echo ($node.toStrLit()).indent(level * 2)
-
-
 #*************************************************************************#
 #***********************  Common declaration type  ***********************#
 #*************************************************************************#
@@ -2771,6 +2906,9 @@ proc write*(
       s.write("\n\n")
 
     of nekMultitype:
+      if nd.typedecls.len == 0:
+        return
+
       s.write("\ntype")
       for elem in nd.typedecls:
         case elem.kind:

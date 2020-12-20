@@ -231,6 +231,25 @@ suite "HNimAst":
             else:
               hello: seq[seq[int]]
 
+suite "PQuote do":
+  let hello = "hello"
+  let code = pquote do:
+    `newPIdent(hello & $$$"World")`
+
+  echo code
+
+  let args = @[nnkExprColonExpr.newPTree(
+    newPIdent("arg"),
+    newPIdent("int")
+  )]
+
+  let code2 = pquote do:
+    proc zzz(arg1: float, arg2: @@@^args) =
+      discard
+
+  echo code2
+  
+
 suite "working with PNode":
   test "Core":
     echo newPIdent("hello")
@@ -365,3 +384,4 @@ suite "Pretty printing":
           (name: "HHHZ", cEnum: cxxSC_HHHZ, cName: "cxx::S::C::HHHZ", value: 14),
           (name: "Hello", cEnum: cxxSC_Hello, cName: "cxx::S::C::Hello", value: 33)]
     ))
+
