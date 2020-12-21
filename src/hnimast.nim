@@ -285,6 +285,119 @@ func newPTree*(kind: NimNodeKind, val: SomeInteger): PNode =
   result = PNode(kind: kind.toNK())
   result.intVal = BiggestInt(val)
 
+
+func quoteAux(body: NimNode, resCall: string): NimNode =
+  if body.kind == nnkPrefix and
+     body[0].eqIdent("@@@!"):
+    return body[1]
+
+  result = newCall(resCall, ident $body.kind)
+
+  case body.kind:
+    of nnkAccQuoted:
+      if body[0].kind == nnkIdent and
+         not body[0].strVal().validIdentifier(): # Special case
+         # operators `[]` - most of the time you would want to
+         # declare `` proc `[]` `` rather than interpolate `[]`
+         # (which is not valid variable name even)
+        let bodyLit = newLit body[0].strVal()
+        return quote do:
+          newPTree(nnkAccQuoted, newPIdent(`bodyLit`))
+      else:
+        var res: string
+        for node in body:
+          res &= node.repr
+
+        return parseExpr(res)
+    of nnkStrKinds:
+      result.add newLit body.strVal
+
+    of nnkFloatKinds:
+      result.add newLit body.floatVal
+
+    of nnkIntKinds:
+      result.add newLit body.intVal
+
+    of nnkIdent, nnkSym:
+      result = newCall("newPIdent", newLit(body.strVal))
+
+    else:
+      var hasSplices = false
+
+      block findSplices:
+        for subnode in body:
+          if subnode.kind == nnkPrefix and
+             subnode[0].eqIdent("@@@"):
+
+             hasSplices = true
+             break findSplices
+
+          for node in subnode:
+            if node.kind == nnkPrefix and
+               node[0].eqIdent("@@@^"):
+
+              # IdentDefs     <- subnode
+              #   Ident "arg" <- node
+              #   Prefix      <- necessary prefix
+              #     Ident "@@@^"
+              #     Ident "nArgList"
+              #   Empty
+
+              hasSplices = true
+              break findSplices
+
+
+      if hasSplices:
+        let kind = ident $body.kind
+        result = newStmtList()
+
+        var tree = ident "tree"
+
+        result.add quote do:
+          var `tree` = newPTree(`kind`)
+
+        for subnode in body:
+          var splice = false
+
+          for node in subnode:
+            if node.kind == nnkPrefix and
+               node[0].eqIdent("@@@^"):
+              let impl = node[1]
+
+              result.add quote do:
+                for val in `impl`:
+                  `tree`.add val
+
+              splice = true
+              break
+
+
+          if not splice:
+            if subnode.kind == nnkPrefix and
+               subnode[0].eqIdent("@@@"):
+              let impl = subnode[1]
+              result.add quote do:
+                for val in `impl`:
+                  `tree`.add val
+            else:
+              let builder = quoteAux(subnode, resCall)
+              result.add quote do:
+                `tree`.add `builder`
+
+        result.add quote do:
+          `tree`
+
+        result = quote do:
+          ((
+            block:
+              `result`
+          ))
+
+      else:
+        for subnode in body:
+          result.add quoteAux(subnode, resCall)
+
+
 macro pquote*(mainBody: untyped): untyped =
   ## `quote` macro to generate `PNode` builder. Similarly to `superquote`
   ## from `macroutils` allows to use any expressions for interpolation.
@@ -303,140 +416,19 @@ macro pquote*(mainBody: untyped): untyped =
   ##   `proc(a: int, b: @@@^(moreArgs))` to append to argument list. `b` in
   ##   this case only used as dummy node, since `proc(a: int, @@@(args))`
   ##   is not a valid syntax.
-
-  func aux(body: NimNode): NimNode =
-    if body.kind == nnkPrefix and
-       body[0].eqIdent("@@@!"):
-      return body[1]
-
-    result = newCall("newPTree", ident $body.kind)
-
-    case body.kind:
-      of nnkAccQuoted:
-        if body[0].kind == nnkIdent and
-           not body[0].strVal().validIdentifier(): # Special case
-           # operators `[]` - most of the time you would want to
-           # declare `` proc `[]` `` rather than interpolate `[]`
-           # (which is not valid variable name even)
-          let bodyLit = newLit body[0].strVal()
-          return quote do:
-            newPTree(nnkAccQuoted, newPIdent(`bodyLit`))
-        else:
-          var res: string
-
-          # for idx in 0 ..< body.len:
-
-          var idx = 0
-          while idx < body.len:
-            if idx < body.len - 2 and
-               body[idx].strVal().endsWith("$$$"):
-              let other = body[idx].strVal()[0 .. ^4]
-              res.add other
-              res.add " \"" & body[idx + 1].repr & "\""
-              inc idx
-            else:
-              res.add body[idx].repr
-
-            inc idx
-
-          # for idx, node in body:
-          #   if idx < body.len - 2 and
-          #      node.eqIdent("$$$"):
-
-          #   res.add node.repr
-
-          return parseExpr(res)
-      of nnkStrKinds:
-        result.add newLit body.strVal
-
-      of nnkFloatKinds:
-        result.add newLit body.floatVal
-
-      of nnkIntKinds:
-        result.add newLit body.intVal
-
-      of nnkIdent, nnkSym:
-        result = newCall("newPIdent", newLit(body.strVal))
-
-      else:
-        var hasSplices = false
-
-        block findSplices:
-          for subnode in body:
-            if subnode.kind == nnkPrefix and
-               subnode[0].eqIdent("@@@"):
-
-               hasSplices = true
-               break findSplices
-
-            for node in subnode:
-              if node.kind == nnkPrefix and
-                 node[0].eqIdent("@@@^"):
-
-                # IdentDefs     <- subnode
-                #   Ident "arg" <- node
-                #   Prefix      <- necessary prefix
-                #     Ident "@@@^"
-                #     Ident "nArgList"
-                #   Empty
-
-                hasSplices = true
-                break findSplices
+  ##
+  ## NOTE - recommended way of using intrinsic DSL prefixes is
+  ## `@@@(argument)` and not `@@@argument`. It clearly distinguishes
+  ## between prefix and what should be spliced. Also allows for things like
+  ## `@@@([arg1, arg2])` if needed.
 
 
-        if hasSplices:
-          let kind = ident $body.kind
-          result = newStmtList()
+  result = quoteAux(mainBody, "newPTree")
 
-          var tree = ident "tree"
-
-          result.add quote do:
-            var `tree` = newPTree(`kind`)
-
-          for subnode in body:
-            var splice = false
-
-            for node in subnode:
-              if node.kind == nnkPrefix and
-                 node[0].eqIdent("@@@^"):
-                let impl = node[1]
-
-                result.add quote do:
-                  for val in `impl`:
-                    `tree`.add val
-
-                splice = true
-                break
-
-
-            if not splice:
-              if subnode.kind == nnkPrefix and
-                 subnode[0].eqIdent("@@@"):
-                let impl = subnode[1]
-                result.add quote do:
-                  for val in `impl`:
-                    `tree`.add val
-              else:
-                let builder = aux(subnode)
-                result.add quote do:
-                  `tree`.add `builder`
-
-          result.add quote do:
-            `tree`
-
-          result = quote do:
-            ((
-              block:
-                `result`
-            ))
-
-        else:
-          for subnode in body:
-            result.add aux(subnode)
-
-  result = aux(mainBody)
-
-  # result.pprintCalls(0)
+macro nquote*(mainBody: untyped): untyped =
+  ## DSL and set of features is identical to `pquote`, but generates
+  ## `NimNode` instead of `PNode`.
+  result = quoteAux(mainBody, "newTree")
 
 
 type

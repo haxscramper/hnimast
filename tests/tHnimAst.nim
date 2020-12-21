@@ -235,7 +235,7 @@ suite "PQuote do":
   test "1":
     let hello = "hello"
     let code = pquote do:
-      `newPIdent(hello & $$$"World")`
+      @@@!(newPIdent(hello & "World"))
 
     echo code
 
