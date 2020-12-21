@@ -232,23 +232,52 @@ suite "HNimAst":
               hello: seq[seq[int]]
 
 suite "PQuote do":
-  let hello = "hello"
-  let code = pquote do:
-    `newPIdent(hello & $$$"World")`
+  test "1":
+    let hello = "hello"
+    let code = pquote do:
+      `newPIdent(hello & $$$"World")`
 
-  echo code
+    echo code
 
-  let args = @[nnkExprColonExpr.newPTree(
-    newPIdent("arg"),
-    newPIdent("int")
-  )]
+  test "2":
+    let args = @[nnkExprColonExpr.newPTree(
+      newPIdent("arg"),
+      newPIdent("int")
+    )]
 
-  let code2 = pquote do:
-    proc zzz(arg1: float, arg2: @@@^args) =
-      discard
+    let code2 = pquote do:
+      proc zzz(arg1: float, arg2: @@@^args) =
+        discard
 
-  echo code2
-  
+    echo code2
+
+  test "3":
+    let vals = @[newPLit("3"), newPLit("4")]
+
+    let code3 = pquote do:
+      let vals = @["1", "2", @@@vals]
+
+    echo code3
+
+  test "4":
+    let code3 = pquote do:
+      let vals = @[@@@!(newPLit("123"))]
+
+    echo code3
+
+  test "5":
+    let subfields = @[
+      nnkIdentDefs.newPTree(newPIdent "f2", newPIdent "int", newEmptyPNode()),
+      nnkIdentDefs.newPTree(newPIdent "f3", newPIdent "int", newEmptyPNode()),
+      nnkIdentDefs.newPTree(newPIdent "f4", newPIdent "int", newEmptyPNode()),
+    ]
+
+    let code = pquote do:
+      type
+        E = object
+          f1: int
+          _: @@@^(subfields)
+
 
 suite "working with PNode":
   test "Core":
@@ -384,4 +413,3 @@ suite "Pretty printing":
           (name: "HHHZ", cEnum: cxxSC_HHHZ, cName: "cxx::S::C::HHHZ", value: 14),
           (name: "Hello", cEnum: cxxSC_Hello, cName: "cxx::S::C::Hello", value: 33)]
     ))
-

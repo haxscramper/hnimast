@@ -286,8 +286,29 @@ func newPTree*(kind: NimNodeKind, val: SomeInteger): PNode =
   result.intVal = BiggestInt(val)
 
 macro pquote*(mainBody: untyped): untyped =
-  ## `quote` macro to generate `PNode` builder
+  ## `quote` macro to generate `PNode` builder. Similarly to `superquote`
+  ## from `macroutils` allows to use any expressions for interpolation.
+  ## Additionally, to circumvent some limitations of how AccQuoted is
+  ## parsed, you can use `@@@`, `@@@!` and `@@@^` prefixes for
+  ## interpolation of the arguments directly.
+  ##
+  ## - `@@@!` - interpolate arguments directly. This is what you should
+  ##    use instead of backticks
+  ## - `@@@` - *splice* arguments into list. Adding more than one subnode
+  ##   to generated code - `[1, 2, 3, @@@(moreArgs)]` - will insert result
+  ##   of evaluation for `moreArgs` into `nnkBracketExpr` subnodes.
+  ## - `@@@^` - splice arguments into *parent* list. This should be used in
+  ##   cases where arbitrary expressions are not allowed, namely function
+  ##   parameter list, field declarations etc. You now can do
+  ##   `proc(a: int, b: @@@^(moreArgs))` to append to argument list. `b` in
+  ##   this case only used as dummy node, since `proc(a: int, @@@(args))`
+  ##   is not a valid syntax.
+
   func aux(body: NimNode): NimNode =
+    if body.kind == nnkPrefix and
+       body[0].eqIdent("@@@!"):
+      return body[1]
+
     result = newCall("newPTree", ident $body.kind)
 
     case body.kind:
@@ -338,9 +359,16 @@ macro pquote*(mainBody: untyped): untyped =
         result = newCall("newPIdent", newLit(body.strVal))
 
       else:
-        var impl: NimNode = newEmptyNode()
-        for subnode in body:
-          block addSubnodes:
+        var hasSplices = false
+
+        block findSplices:
+          for subnode in body:
+            if subnode.kind == nnkPrefix and
+               subnode[0].eqIdent("@@@"):
+
+               hasSplices = true
+               break findSplices
+
             for node in subnode:
               if node.kind == nnkPrefix and
                  node[0].eqIdent("@@@^"):
@@ -352,11 +380,11 @@ macro pquote*(mainBody: untyped): untyped =
                 #     Ident "nArgList"
                 #   Empty
 
-                impl = node[1]
-                break addSubnodes
+                hasSplices = true
+                break findSplices
 
 
-        if impl.kind != nnkEmpty:
+        if hasSplices:
           let kind = ident $body.kind
           result = newStmtList()
 
@@ -366,21 +394,32 @@ macro pquote*(mainBody: untyped): untyped =
             var `tree` = newPTree(`kind`)
 
           for subnode in body:
-            block addDirectly:
-              for node in subnode:
-                if node.kind == nnkPrefix and
-                   node[0].eqIdent("@@@^"):
-                  let impl = node[1]
+            var splice = false
 
-                  result.add quote do:
-                    for val in `impl`:
-                      `tree`.add val
+            for node in subnode:
+              if node.kind == nnkPrefix and
+                 node[0].eqIdent("@@@^"):
+                let impl = node[1]
 
-                  break addDirectly
+                result.add quote do:
+                  for val in `impl`:
+                    `tree`.add val
 
-              let builder = aux(subnode)
-              result.add quote do:
-                `tree`.add `builder`
+                splice = true
+                break
+
+
+            if not splice:
+              if subnode.kind == nnkPrefix and
+                 subnode[0].eqIdent("@@@"):
+                let impl = subnode[1]
+                result.add quote do:
+                  for val in `impl`:
+                    `tree`.add val
+              else:
+                let builder = aux(subnode)
+                result.add quote do:
+                  `tree`.add `builder`
 
           result.add quote do:
             `tree`
