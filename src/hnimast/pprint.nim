@@ -1,6 +1,9 @@
 import hmisc/other/blockfmt
 import hmisc/helpers
-import std/[options, strutils, strformat, sequtils, streams, sugar]
+import hmisc/hexceptions
+import hmisc/macros/cl_logic
+
+import std/[options, strutils, strformat, sequtils, streams, sugar, macros]
 import compiler/[ast, idents, lineinfos, renderer]
 
 proc str(n: PNode): string = renderer.`$`(n)
@@ -29,19 +32,17 @@ func `[]`(n: ast.PNode, sl: HSlice[int, BackwardsIndex]): seq[PNode] =
     result.add n[idx]
     inc idx
 
-
-
 func high(n: PNode): int = n.len - 1
 
-proc toBlock(n: PNode, level: int): Block =
+proc toLytBlock(n: PNode, level: int): LytBlock =
   let ind = level * 2
   case n.kind:
-    of nkProcDef:
+    of nkProcDef, nkLambda:
 
-      var vertArgsLyt: Block
+      var vertArgsLyt: LytBlock
 
       block:
-        var buf: seq[Block]
+        var buf: seq[LytBlock]
         let argPad = n[3][1..^1].maxIt(len($it[0]) + 2)
         for idx, arg in n[3][1..^1]:
           var hor = H[T[alignLeft($arg[0] & ": ", argPad)], T[$arg[1]]]
@@ -52,9 +53,9 @@ proc toBlock(n: PNode, level: int): Block =
 
         vertArgsLyt = V[buf]
 
-      var horizArgsLyt: Block
+      var horizArgsLyt: LytBlock
       block:
-        var buf: seq[Block]
+        var buf: seq[LytBlock]
         for idx, arg in n[3][1..^1]:
           var hor = H[T[$arg[0]], T[": "], T[$arg[1]]]
           if idx < n[3].high - 1:
@@ -68,9 +69,9 @@ proc toBlock(n: PNode, level: int): Block =
         if n[3][0].kind == nkEmpty:
           (T[""], false)
         else:
-          (H[toBlock(n[3][0], 0)], true)
+          (H[toLytBlock(n[3][0], 0)], true)
 
-      let pragmaLyt = toBlock(n[4], 0)
+      let pragmaLyt = toLytBlock(n[4], 0)
 
       let comment =
         if n.comment.len == 0:
@@ -81,12 +82,12 @@ proc toBlock(n: PNode, level: int): Block =
       # n.comment.split("\n").mapIt("")
 
       let headLyt = H[T["proc"], S[], T[$n[0]], T[$n[2]], T["("]]
-      let implLyt = V[toBlock(n[6], level + 1), T[comment]]
+      let implLyt = V[toLytBlock(n[6], level + 1), T[comment]]
       let postArgs = if hasRett: T["): "] else: T[")"]
       let eq = if n[6].kind == nkEmpty: T[""] else: T[" = "]
 
 
-      result = makeChoiceBlock()
+      result = makeChoiceBlock([])
 
       # proc q*(a: B): C {.d.} = e
       result.add I[ind,
@@ -157,27 +158,27 @@ proc toBlock(n: PNode, level: int): Block =
         ]
 
     of nkStmtList:
-      result = V[n.mapIt(toBlock(it, level))]
+      result = V[n.mapIt(toLytBlock(it, level))]
 
     of nkForStmt:
       result = V[
         I[ind, H[
-          T["for "], toBlock(n[0], 0),
-          T[" in "], toBlock(n[^2], 0),
+          T["for "], toLytBlock(n[0], 0),
+          T[" in "], toLytBlock(n[^2], 0),
           T[":"]
         ]],
-        toBlock(n[^1], level + 1)
+        toLytBlock(n[^1], level + 1)
       ]
 
       # echo result.ptreeRepr()
 
     of nkIfStmt:
-      result = makeStackBlock()
+      result = makeStackBlock([])
       for isFirst, branch in itemsIsFirst(n):
         if branch.kind == nkElse:
           result.add V[
             I[ind, T["else: "]],
-            toBlock(branch[0], level + 1),
+            toLytBlock(branch[0], level + 1),
             T[""]
           ]
 
@@ -187,32 +188,85 @@ proc toBlock(n: PNode, level: int): Block =
               ind,
               H[
                 T[if isFirst: "if " else: "elif "],
-                toBlock(branch[0], 0),
+                toLytBlock(branch[0], 0),
                 T[":"]
               ]
             ],
-            toBlock(branch[1], level + 1),
+            toLytBlock(branch[1], level + 1),
             T[""]
           ]
 
+    of nkLetSection, nkConstSection, nkVarSection:
+      result = V[I[ind, T[
+        cond(n.kind,
+            (nkLetSection, "let"),
+            (nkVarSection, "var"),
+            (nkConstSection, "const"),
+            (_, $n.kind)
+        )
+      ]]]
+
+      for le in n:
+        result.add toLytBlock(le, level + 1)
+
+    of nkIdentDefs:
+      if n[2].kind == nkLambda:
+        result = V[
+          I[ind, tern(
+            n[1].kind == nkEmpty,
+            H[T[n[0].str], T[" = "]],
+            H[T[n[0].str], T[" : "], toLytBlock(n[1], 0), T[" = "]]
+          )],
+          toLytBlock(n[2], level + 1)
+        ]
+      else:
+        result = I[ind,
+                   H[T[n[0].str],
+                     tern(
+                       n[1].kind == nkEmpty, T[""], H[T[": "], toLytBlock(n[1], 0)]
+                     ),
+                     tern(
+                       n[2].kind == nkEmpty, T[""], H[T[" = "], toLytBlock(n[2], 0)]
+                     )
+                   ]
+                 ]
+
+    of nkTypeSection:
+      result = V[I[ind, T["type"]]]
+      for def in n:
+        result.add toLytBlock(def, level + 1)
+        result.add T[""]
+
+    of nkTypeDef:
+      result = V[I[ind, H[
+        T[n[0].str],
+        T[" = "],
+        T[cond(n[2].kind,
+              (nkObjectTy, "object"),
+              (nkEnumTy, "enum"),
+              ($n[2].kind))]
+      ]]]
+
+      for fld in n[2]:
+        if fld.kind != nkEmpty:
+          result.add toLytBlock(fld, level + 1)
+
+    of nkRecList:
+      result = makeStackBlock([])
+
+      for fld in n:
+        result.add toLytBlock(fld, level)
+
     else:
       result = I[ind, T[n.str]]
-      # echov level, result
 
 
-proc lyt(bl: Block): string =
-  var bl = bl
-  let sln = none(Solution).withResIt do:
-    bl.doOptLayout(it, defaultFormatOpts).get()
-
-  var c = Console()
-  sln.layouts[0].printOn(c)
-  return c.text
+proc lyt(bl: LytBlock): string = bl.toString()
 
 proc layoutBlockRepr*(n: PNode, indent: int = 0): Layout =
-  var blocks = if n.isNil(): T[""] else: n.toBlock(indent)
+  var blocks = if n.isNil(): T[""] else: n.toLytBlock(indent)
 
-  let sln = none(Solution).withResIt do:
+  let sln = none(LytSolution).withResIt do:
     blocks.doOptLayout(it, defaultFormatOpts).get()
 
   return sln.layouts[0]
@@ -223,6 +277,6 @@ proc pprintWrite*(s: Stream | File, n: PNode, indent: int = 0) =
 
 proc toPString*(n: PNode, indent: int = 0): string =
   var blc = layoutBlockRepr(n, indent = indent)
-  var c = Console()
+  var c = LytConsole()
   blc.printOn(c)
   return c.text

@@ -278,6 +278,13 @@ suite "PQuote do":
           f1: int
           _: @@@^(subfields)
 
+    echo code
+
+  test "6":
+    let code = pquote do:
+      a.@@@!(newPIdent("hello"))
+
+    echo code
 
 suite "working with PNode":
   test "Core":
@@ -399,17 +406,26 @@ suite "Pretty printing":
       ))
     )
 
-    echo pr.toNNode()
     startHax()
-    echo pr.toNNode().toPString()
 
-    echo toPString((
-      pquote do:
-      const
-        arrCxxSCmapping: array[CxxSC, tuple[name: string, cEnum: CxxSC_Impl,
-                                            cName: string, value: int]] = [
-          (name: "World", cEnum: cxxSC_World, cName: "cxx::S::C::World", value: 12),
-          (name: "Nice", cEnum: cxxSC_Nice, cName: "cxx::S::C::Nice", value: 13),
-          (name: "HHHZ", cEnum: cxxSC_HHHZ, cName: "cxx::S::C::HHHZ", value: 14),
-          (name: "Hello", cEnum: cxxSC_Hello, cName: "cxx::S::C::Hello", value: 33)]
-    ))
+    let code = pquote do:
+      proc a() =
+        type
+          CppBaseNimRaw* {.importcpp, header: "wip.hpp".} = object
+            derivedImpl*: pointer
+            baseMethodEnv*: pointer
+
+          CppBase* {.importcpp: r"CppBase",
+                     header: r"""/mnt/workspace/github/hcparse/tests/wip.cpp""".} = object
+
+
+        let wrap = proc(
+          derivedImpl: pointer, arg: cint,
+          cbEnv, cbImpl: pointer): void {.cdecl.} =
+          var derived = cast[ptr SelfType](derivedImpl)
+          cast[ClosImplType](cbImpl)(derived[], arg, cbEnv)
+
+        self.d.baseMethodWrap = wrap
+
+
+    echo toPString((code))

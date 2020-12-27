@@ -286,10 +286,23 @@ func newPTree*(kind: NimNodeKind, val: SomeInteger): PNode =
   result.intVal = BiggestInt(val)
 
 
+func dropPar1*(nn: NimNode): NimNode =
+  if nn.kind == nnkPar: nn[0] else: nn
+
+
 func quoteAux(body: NimNode, resCall: string): NimNode =
   if body.kind == nnkPrefix and
      body[0].eqIdent("@@@!"):
     return body[1]
+
+  elif body.kind == nnkInfix and
+       body[0].eqIdent(".@@@!"):
+    return newCall(
+      resCall, ident "nnkDotExpr",
+      quoteAux(body[1], resCall),
+      body[2].dropPar1()
+    )
+
 
   result = newCall(resCall, ident $body.kind)
 
@@ -2905,14 +2918,18 @@ proc write*(
   if pprint:
     s.pprintWrite(pd.toNNode(standalone = standalone), indent = indent)
   else:
-    s.writeLine(pd.toNNode(standalone = standalone))
+    for line in (renderer.`$`(pd.toNNode(standalone = standalone))).split('\n'):
+      s.write(pref)
+      s.writeLine(line)
+
+    # s.writeLine(pd.toNNode(standalone = standalone))
 
   s.write("\n")
 
 proc write*(
     s: Stream | File, nd: NimDecl[PNode],
     standalone: bool = true,
-    pprint: bool = true
+    pprint: bool = false
   ) =
 
   case nd.kind:
