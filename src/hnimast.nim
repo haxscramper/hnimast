@@ -3,7 +3,9 @@
 ## generating and working with pragma annotations, parsing object
 ## defintions etc.
 
-import hmisc/helpers
+import hmisc/[helpers, base_errors]
+export base_errors
+
 import hmisc/types/colorstring
 import std/[
   sequtils, colors, macros, tables, strutils, streams,
@@ -141,7 +143,7 @@ func newReturn*(expr: PNode): PNode =
 func expectKind*(expr: PNode, kind: NimNodeKind): void =
   ## Raise assertion error of `expr` kind is not equal to `kind`
   if expr.kind != kind.toNK():
-    raiseAssert(
+    raiseArgumentError(
       &"Unexpected node kind: got {expr.kind}, but expected {kind}")
 
 
@@ -217,9 +219,12 @@ func newPTree*(kind: NimNodeKind, subnodes: varargs[PNode]): PNode =
   ## Create new `PNode` tree
   if kind in nnkTokenKinds:
     if subnodes.len > 0:
-      raiseAssert(&"Cannot create node of kind {kind} with subnodes")
+      raiseArgumentError(
+        &"Cannot create node of kind {kind} with subnodes")
+
     else:
       newNode(kind.toNK())
+
   else:
     newTree(kind.toNK(), subnodes)
 
@@ -503,8 +508,7 @@ proc treeRepr*(
 #*************************************************************************#
 
 #=======================  Enum set normalization  ========================#
-
-proc normalizeSetImpl[NNode](node: NNode): seq[NNode] =
+func normalizeSetImpl[NNode](node: NNode): seq[NNode] =
    case node.kind.toNNK():
     of nnkIdent, nnkIntLit, nnkCharLit:
       return @[ node ]
@@ -512,17 +516,27 @@ proc normalizeSetImpl[NNode](node: NNode): seq[NNode] =
       mixin items
       for subnode in items(node):
         result &= normalizeSetImpl(subnode)
+
     of nnkInfix:
       assert node[0].strVal == ".."
       result = @[ node ]
+
     else:
-      when NNode is PNode:
-        raiseAssert("Cannot normalize set: ")
-      else:
-        raiseAssert("Cannot normalize set: " & $node.lispRepr())
+      {.cast(noSideEffect).}:
+
+        when node is PNode:
+          let str = hnimast.`$`(node)
+
+        else:
+          let str = `$`(node)
+
+        raiseArgumentError(
+          "Cannot normalize set: " & str & " - unknown kind")
 
 
-proc normalizeSet*[NNode](node: NNode, forcebrace: bool = false): NNode =
+
+
+func normalizeSet*[NNode](node: NNode, forcebrace: bool = false): NNode =
   ## Convert any possible set representation (e.g. `{1}`, `{1, 2}`,
   ## `{2 .. 6}` as well as `2, 3` (in case branches). Return
   ## `nnkCurly` node with all values listed one-by-one (if identifiers
@@ -530,6 +544,7 @@ proc normalizeSet*[NNode](node: NNode, forcebrace: bool = false): NNode =
   let vals = normalizeSetImpl(node)
   if vals.len == 1 and not forcebrace:
     return vals[0]
+
   else:
     return newNTree[NNode](nnkCurly, vals)
 
@@ -538,7 +553,6 @@ func joinSets*[NNode](nodes: seq[NNode]): NNode =
   ## in `Curly` node.
   let vals = nodes.mapIt(it.normalizeSetImpl()).concat()
   result = newTree[NNode](nnkCurly, vals)
-  # debugecho $!result
 
 proc parseEnumSet*[Enum](
   node: NimNode,
@@ -614,11 +628,13 @@ func getElem*(pragma: NPragma, name: string): Option[NimNode] =
       of nnkIdent:
         if elem.eqIdent(name):
           return some(elem)
+
       of nnkCall:
         if elem[0].eqIdent(name):
           return some(elem)
+
       else:
-        raiseAssert("#[ IMPLEMENT ]#")
+        raiseImplementError("<>")
 
 func getElem*(optPragma: Option[NPragma], name: string): Option[NimNode] =
   ## Get element from optional annotation
@@ -808,19 +824,17 @@ func toNNode*[NNode](ntype: NType[NNode]): NNode =
       else:
         if ntype.head in ["ref", "ptr", "var"]:
           # TODO handle `lent`, `sink` and other things like that
-          assert ntype.genParams.len == 1,
-           "Expected single generic parameter for `ref/ptr` type, but got [" & join(
-             ntype.genParams.mapIt($!toNNode[NNode](it)),
-             " ",
-           ) & "]"
+          if ntype.genParams.len != 1:
+            let args = join(ntype.genParams.mapIt($!toNNode[NNode](it)), " ",)
+            argumentError:
+              "Expected single generic parameter for `ref/ptr`"
+              "type, but got [{args}]"
 
-          let ty =
-            case ntype.head:
-              of "ref": nnkRefTy
-              of "ptr": nnkPtrTy
-              of "var": nnkVarTy
-              else:
-                raiseAssert("#[ IMPLEMENT ]#")
+          var ty: NimNodeKind
+          case ntype.head:
+            of "ref": ty = nnkRefTy
+            of "ptr": ty = nnkPtrTy
+            of "var": ty = nnkVarTy
 
           result = newNTree[NNode](
             ty,
@@ -944,18 +958,22 @@ func newNTypeNNode*[NNode](impl: NNode): NType[NNode] =
       let head = impl[0].strVal
       when NNode is PNode:
         newNType(head, impl.sons[1..^1].mapIt(newNTypeNNode(it)))
+
       else:
         newNType(head, impl[1..^1].mapIt(newNTypeNNode(it)))
+
     of nnkSym:
       newNNType[NNode](impl.strVal)
+
     of nnkIdent:
       when NNode is PNode:
         newPType(impl.ident.s)
+
       else:
         newNType(impl.strVal)
+
     else:
-      # debugecho impl.treeRepr
-      raiseAssert("#[ IMPLEMENT ]#")
+      raiseImplementError("")
 
 template `[]`*(node: PNode, slice: HSLice[int, BackwardsIndex]): untyped =
   ## Get range of subnodes from `PNode`
@@ -1090,7 +1108,7 @@ func `$`*[NNode](nt: NType[NNode]): string =
         &"proc ({args}){pragma}{rtype}"
 
     of ntkRange:
-      raiseAssert("#[ IMPLEMENT ]#")
+      raiseImplementError("")
 
 
 #*************************************************************************#
@@ -1208,29 +1226,31 @@ func parseEnumField*[NNode](fld: NNode): EnumField[NNode] =
         of nnkCharLit..nnkUInt64Lit:
           EnumField[NNode](kind: efvOrdinal,
                            ordVal: val.parseRTimeOrdinal())
+
         of nnkPar:
           val[1].expectKind nnkStrLit
           EnumField[NNode](
             kind: efvOrdString, ordStr: (
               ordVal: val[0].parseRTimeOrdinal(),
               strval: val[1].getStrVal()))
+
         of nnkStrLit:
           EnumField[NNode](kind: efvString, strval: val.strVal)
+
         of nnkIdent, nnkSym:
           EnumField[NNode](kind: efvIdent, ident: val)
+
         else:
-          # when NNode is NimNode:
-          #   debugecho fld.treeRepr()
-          raiseAssert(&"Unexpected node kind for enum field: {val.kind}")
+          raiseArgumentError(
+            &"Unexpected node kind for enum field: {val.kind}")
 
       result.name = fld[0].getStrVal
+
     of nnkSym:
-      return makeEnumField(
-        name = fld.getStrVal,
-        value = none(NNode)
-      )
+      return makeEnumField(name = fld.getStrVal, value = none(NNode))
+
     else:
-      raiseAssert(&"#[ IMPLEMENT {fld.kind} ]#")
+      raiseImplementError(&"#[ IMPLEMENT {fld.kind} ]#")
 
 
 
@@ -1240,22 +1260,30 @@ func parseRTimeOrdinal*[NNode](nnode: NNode): RTimeOrdinal =
   case kind:
     of nnkIntLit .. nnkUInt64Lit:
       RTimeOrdinal(kind: rtokInt, intval: nnode.intVal)
+
     of nnkCharLit:
       RTimeOrdinal(kind: rtokChar, charval: char(nnode.intVal))
+
     of nnkIdent:
       let val = case nnode.getStrVal():
         of "off", "false":
           false
+
         of "on", "true":
           true
+
         else:
-          raiseAssert("Unexpected identifier for parsing RTimeOrdinal")
+          raiseArgumentError(
+            "Unexpected identifier for parsing RTimeOrdinal " &
+              nnode.getStrVal())
 
 
       RTimeOrdinal(kind: rtokBool, boolVal: val)
 
     else:
-      raiseAssert(&"Unexpected node kind for parsing RTimeOrdinal: {kind}")
+      raiseArgumentError(
+        &"Unexpected node kind for parsing RTimeOrdinal: {kind}")
+
 
 func makeRTOrdinal*(ival: int): RTimeOrdinal =
   RTimeOrdinal(kind: rtokInt, intval: BiggestInt(ival))
@@ -1275,8 +1303,10 @@ func toNNode*[NNode](ro: RTimeOrdinal): NNode =
   case ro.kind:
     of rtokInt:
       newNNLit[NNode](ro.intVal)
+
     of rtokChar:
       newNNLit[NNode](ro.charVal)
+
     of rtokBool:
       if ro.boolVal:
         newNident[NNode]("true")
@@ -1288,12 +1318,16 @@ func toNNode*[NNode](fld: EnumField[NNode]): NNode =
   var fldVal: Option[NNode] = case fld.kind:
     of efvNone:
       none(NNode)
+
     of efvIdent:
       some fld.ident
+
     of efvString:
       some newNNLit[NNode](fld.strval)
+
     of efvOrdinal:
       some toNNode[NNode](fld.ordval)
+
     of efvOrdString:
       some newNTree[NNode](
         nnkPar,
@@ -1311,10 +1345,12 @@ func toNNode*[NNode](fld: EnumField[NNode]): NNode =
       fldVal.get()).withIt do:
         when NNode is PNode:
           it.comment = fld.docComment
+
   else:
     when NNode is PNode:
       newPIdent(fld.name).withIt do:
         it.comment = fld.docComment
+
     else:
       # TODO generate documentation comments for NimNode
       ident(fld.name)
@@ -1333,6 +1369,7 @@ func toNNode*[NNode](en: EnumDecl[NNode], standalone: bool = false): NNode =
         newNIdent[NNode]("*"),
         newNIdent[NNode](en.name)
       )
+
     else:
       newNIdent[NNode](en.name)
 
@@ -1364,13 +1401,13 @@ func toNNode*[NNode](en: EnumDecl[NNode], standalone: bool = false): NNode =
 
 
 func parseEnumImpl*[NNode](en: NNode): EnumDecl[NNode] =
-  # echov en.kind
-  # debugecho en.treeRepr()
   case en.kind.toNNK():
     of nnkSym:
       when NNode is PNode:
-        raiseAssert("Parsing of enum implementation from " &
-          "Sym node is not support for PNode")
+        raiseImplementError(
+          "Parsing of enum implementation from " &
+          "Sym node is not yet support for PNode")
+
       else:
         let impl = en.getTypeImpl()
         # echov impl.kind
@@ -1378,20 +1415,26 @@ func parseEnumImpl*[NNode](en: NNode): EnumDecl[NNode] =
           of nnkBracketExpr:
             # let impl = impl.getTypeInst()[1].getImpl()
             return parseEnumImpl(impl.getTypeInst()[1].getImpl())
+
           of nnkEnumTy:
             result = parseEnumImpl(impl)
+
           else:
-            raiseAssert(&"#[ IMPLEMENT {impl.kind} ]#")
+            raiseImplementError(&"#[ IMPLEMENT {impl.kind} ]#")
+
     of nnkTypeDef:
       result = parseEnumImpl(en[2])
       result.name = en[0].getStrVal
+
     of nnkEnumTy:
       for fld in en[1..^1]:
         result.values.add parseEnumField(fld)
+
     of nnkTypeSection:
       result = parseEnumImpl(en[0])
+
     else:
-      raiseAssert(&"#[ IMPLEMENT {en.kind} ]#")
+      raiseImplementError(&"#[ IMPLEMENT {en.kind} ]#")
 
 
 #========================  Other implementation  =========================#
@@ -1421,6 +1464,7 @@ macro enumNames*(en: typed): seq[string] =
 proc write*(s: Stream, ed: EnumDecl[PNode], pprint: bool = true) =
   if pprint:
     s.pprintWrite(ed.toNNode())
+
   else:
     s.write($ed.toNNode())
 
@@ -1515,19 +1559,26 @@ macro `~>`*(a, b: untyped): untyped =
 
 func toNNode*[NNode](
   pr: ProcDecl[NNode], standalone: bool = true): NNode =
-  assert pr.signature.kind == ntkProc, $pr.iinfo
+  if pr.signature.kind != ntkProc:
+    argumentError:
+      "Invalid proc declaration - signature type has kind of"
+      "{pr.signature.kind}. Proc declaration location: {pr.iinfo}"
 
 
   let headSym = case pr.kind:
-    of pkRegular: newNIdent[NNode](pr.name)
+    of pkRegular:
+      newNIdent[NNode](pr.name)
+
     of pkHook: newNTree[NNode](
       nnkAccQuoted,
       newNIdent[NNode]("="),
       newNIdent[NNode](pr.name))
+
     of pkAssgn: newNTree[NNode](
       nnkAccQuoted,
       newNIdent[NNode](pr.name),
       newNIdent[NNode]("="))
+
     of pkOperator: newNTree[NNode](
       nnkAccQuoted, newNIdent[NNode](pr.name))
 
@@ -2291,15 +2342,19 @@ func toExported*[NNode](ntype: NType[NNode], exported: bool): tuple[
 
 
 
-func toNNode*[NNode, A](obj: ObjectDecl[NNode, A], annotConv: A ~> NNode): NNode =
+func toNNode*[NNode, A](
+  obj: ObjectDecl[NNode, A], annotConv: A ~> NNode): NNode =
+
   let (head, genparams) = obj.name.toExported(obj.exported)
   let header =
     if obj.annotation.isSome():
       let node = annotConv obj.annotation.get()
       if node.kind != nnkEmpty:
         newNTree[NNode](nnkPragmaExpr, head, node)
+
       else:
         head
+
     else:
       head
 
@@ -2554,7 +2609,6 @@ func objPath*(path: varargs[ObjAccs, `objAccs`]): ObjPath =
   toSeq(path)
 
 func getAtPath*(obj: var ObjTree, path: ObjPath): var ObjTree =
-  # TODO:DOC
   case obj.kind:
     of okComposed:
       if path.len < 1:
@@ -2568,16 +2622,20 @@ func getAtPath*(obj: var ObjTree, path: ObjPath): var ObjTree =
               if fld.name == path[0].name:
                  return fld.value.getAtPath(path[1..^1])
 
-            raisejoin(@["Cannot get field name '", path[0].name,
-              "' from object - no such field found"])
+            argumentError:
+              "Cannot get field name '{path[0].name}'"
+              "from object - no such field found"
+
           else:
-            raisejoin(@["Cannot get field name '", path[0].name,
-              "' from object with unnamed fields"])
+            argumentError:
+              "Cannot get field name '{path[0].name}'"
+              "from object with unnamed fields"
+
     of okConstant:
       if path.len > 1:
-        raiseAssert(msgjoin(
-          "Attempt to access subelements of constant value at path ",
-          path))
+        argumentError:
+          "Attempt to access subelements of constant value at path {path}"
+
       else:
         return obj
     of okSequence:
@@ -2585,16 +2643,18 @@ func getAtPath*(obj: var ObjTree, path: ObjPath): var ObjTree =
         return obj
 
       if not path[0].isIdx:
-        raiseAssert(msgjoin(
-          "Cannot access sequence elements by name, path", path,
-          "starts with non-index"))
+        argumentError:
+          "Cannot access sequence elements by name, path {path}"
+          "starts with non-index"
+
       elif path.len == 1:
         return obj.valItems[path[0].idx]
+
       else:
         return obj.valItems[path[0].idx].getAtPath(path[1..^1])
 
     else:
-      raiseAssert("#[ IMPLEMENT ]#")
+      raiseImplementError("")
 
 
 
@@ -2606,6 +2666,7 @@ func makeInitCalls*[T](val: T): NimNode =
   # TODO:DOC
   when T is enum:
     ident($val)
+
   else:
     newLit(val)
 
@@ -2621,17 +2682,22 @@ func makeConstructAllFields*[T](val: T): NimNode =
   when val is seq:
     result = val.mapPairs(
       rhs.makeConstructAllFields()).toBracketSeq()
+
   elif val is int | float | string | bool | enum | set:
     result = newLit(val)
+
   else:
     when val is Option:
       when val is Option[void]:
         result = newCall(ident "none", ident "void")
+
       else:
         if val.isSome():
           result = newCall(ident "none", parseExpr $typeof(T))
+
         else:
           result = newCall(ident "some", makeConstructAllFields(val.get()))
+
     else:
       result = nnkObjConstr.newTree(parseExpr $typeof(T))
       for name, fld in fieldPairs(val):
@@ -2641,6 +2707,7 @@ func makeConstructAllFields*[T](val: T): NimNode =
             result.add nnkExprColonExpr.newTree(
               ident(name),
               newCall("some", makeConstructAllFields(fld.get())))
+
         else:
           result.add nnkExprColonExpr.newTree(
             ident(name), makeConstructAllFields(fld))

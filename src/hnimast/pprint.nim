@@ -4,7 +4,7 @@ import hmisc/hexceptions
 import hmisc/macros/cl_logic
 
 import std/[options, strutils, strformat, sequtils, streams, sugar, macros]
-# import compiler/[ast, idents, lineinfos, renderer]
+import compiler/[ast, idents, lineinfos, renderer]
 
 proc str(n: PNode): string = renderer.`$`(n)
 

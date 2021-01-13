@@ -8,7 +8,7 @@ srcDir        = "src"
 
 # Dependencies
 
-requires "nim >= 1.2.6"
+requires "nim >= 1.4.0"
 requires "hmisc >= 0.8.5"
 requires "macroutils"
 requires "compiler"
