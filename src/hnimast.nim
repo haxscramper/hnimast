@@ -14,7 +14,7 @@ import std/[
 
 import compiler/[ast, idents, lineinfos, renderer]
 
-import hnimast/[pnode_parse, pprint]
+import hnimast/[pnode_parse]
 export pnode_parse, options, NimNodeKind
 
 export ast
@@ -1460,14 +1460,6 @@ func getEnumNames*(en: NimNode): seq[string] =
 macro enumNames*(en: typed): seq[string] =
   ## Generate list of enum names
   newLit en.getEnumNames()
-
-proc write*(s: Stream, ed: EnumDecl[PNode], pprint: bool = true) =
-  if pprint:
-    s.pprintWrite(ed.toNNode())
-
-  else:
-    s.write($ed.toNNode())
-
 
 
 #*************************************************************************#
@@ -2991,85 +2983,6 @@ func toNNode*[N](alias: AliasDecl[N], standalone: bool = true): N =
 
 func `$`*[N](nd: seq[NimDecl[N]]): string =
   mapIt(nd, $it).join("\n")
-
-proc write*(
-    s: Stream | File, pd: AnyNimDecl[PNode],
-    pprint: bool = true,
-    standalone: bool = true,
-    indent: int = 0
-  ) =
-
-  let pref = " ".repeat(indent)
-  s.writeLine(&"\n\n{pref}# Declaration created in: {pd.iinfo}\n")
-  if pd.codeComment.len > 0:
-    for line in split(pd.codeComment, "\n"):
-      s.writeLine(&"{pref}# {line}")
-
-  if pprint:
-    s.pprintWrite(pd.toNNode(standalone = standalone), indent = indent)
-  else:
-    for line in (renderer.`$`(pd.toNNode(standalone = standalone))).split('\n'):
-      s.write(pref)
-      s.writeLine(line)
-
-    # s.writeLine(pd.toNNode(standalone = standalone))
-
-  s.write("\n")
-
-proc write*(
-    s: Stream | File, nd: NimDecl[PNode],
-    standalone: bool = true,
-    pprint: bool = false
-  ) =
-
-  case nd.kind:
-    of nekProcDecl:
-      s.write(nd.procdecl, pprint = pprint)
-
-    of nekEnumDecl:
-      s.write(nd.enumdecl, pprint = pprint, standalone = standalone)
-
-    of nekObjectDecl:
-      s.write(nd.objectdecl, pprint = pprint, standalone = standalone)
-
-    of nekAliasDecl:
-      s.write(nd.aliasdecl, pprint = pprint, standalone = standalone)
-
-    of nekPasstroughCode:
-      if pprint:
-        s.pprintWrite(nd.passthrough)
-      else:
-        s.writeLine($nd)
-
-      s.write("\n\n")
-
-    of nekMultitype:
-      if nd.typedecls.len == 0:
-        return
-
-      s.write("\ntype")
-      for elem in nd.typedecls:
-        case elem.kind:
-          of ntdkEnumDecl:
-            s.write(
-              elem.enumDecl, standalone = false,
-              pprint = pprint, indent = 2
-            )
-
-          of ntdkObjectDecl:
-            s.write(
-              elem.objectDecl, standalone = false,
-              pprint = pprint, indent = 2
-            )
-
-          of ntdkAliasDecl:
-            s.write(
-              elem.aliasDecl, standalone = false,
-              pprint = pprint, indent = 2
-            )
-
-      s.write("\n\n")
-
 
 proc `iinfo=`*[N](nd: var NimDecl[N], iinfo: LineInfo) =
   case nd.kind:
