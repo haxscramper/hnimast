@@ -253,6 +253,9 @@ func newPLit*(i: BiggestInt): PNode =
 func newPLit*(c: char): PNode =
   newIntTYpeNode(BiggestInt(c), PType(kind: tyChar))
 
+func newPLit*(f: float): PNode =
+  newFloatNode(nkFloatLit, f)
+
 func newPLit*(i: string): PNode =
   ## Create new string literal `PNode`
   newStrNode(nkStrLit, i)
@@ -260,7 +263,6 @@ func newPLit*(i: string): PNode =
 func newRStrLit*(st: string): PNode =
   result = nnkRStrLit.newPTree()
   result.strVal = st
-
 
 func newPIdentColonString*(key, value: string): PNode =
   nnkExprColonExpr.newPTree(newPIdent(key), newPLit(value))
@@ -284,6 +286,13 @@ func newPTree*(kind: NimNodeKind, val: string): PNode =
 func newPTree*(kind: NimNodeKind, val: SomeInteger): PNode =
   result = PNode(kind: kind.toNK())
   result.intVal = BiggestInt(val)
+
+func newPCall*(call: string, args: varargs[PNode]): PNode =
+  result = nnkCall.newPTree()
+  result.add newPIdent(call)
+  for arg in args:
+    result.add arg
+
 
 
 func dropPar1*(nn: NimNode): NimNode =
@@ -716,7 +725,6 @@ func arg*[NNode](t: NType[NNode], idx: int): NIdentDefs[NNode] =
   assert t.kind == ntkProc
   t.arguments[idx]
 
-
 #=============================  Predicates  ==============================#
 func `==`*(l, r: NType): bool =
   l.kind == r.kind and (
@@ -825,6 +833,14 @@ func toNNode*[NNode](ntype: NType[NNode]): NNode =
           for param in ntype.genParams:
             result.add toNNode[NNode](param)
 
+func newNIdentDefs*[N](
+    vname: string,
+    vtype: NType[N],
+    kind: NVarDeclKind = nvdLet,
+    value: Option[N] = none(N)
+  ): NIdentDefs[N] =
+  NIdentDefs[N](varname: vname, vtype: vtype, value: value, kind: kind)
+
 func toNimNode*(ntype: NType): NimNode =
   ## Convert `NType` to nim node
   toNNode[NimNode](ntype)
@@ -846,12 +862,17 @@ func toNFormalParam*[NNode](nident: NIdentDefs[NNode]): NNode =
       of nvdConst: newNTree[NNode](
         nnkConstTy, toNNode[NNode](nident.vtype))
 
-  newNTree[NNode](
+  result = newNTree[NNode](
     nnkIdentDefs,
     newNIdent[NNode](nident.varname),
-    typespec,
-    newEmptyNNode[NNode]()
+    typespec
   )
+
+  if nident.value.isNone():
+    result.add newEmptyNNode[NNode]()
+
+  else:
+    result.add nident.value.get()
 
 func toFormalParam*(nident: NIdentDefs[NimNode]): NimNode =
   ## Convert to `nnkIdentDefs`
@@ -1578,6 +1599,7 @@ func newPProcDecl*(
     declType:    ProcDeclType                      = ptkProc,
     docComment:  string                            = "",
     codeComment: string                            = "",
+    kind: ProcKind                                 = pkRegular,
   ): ProcDecl[PNode] =
 
   result.name = name
@@ -1593,6 +1615,7 @@ func newPProcDecl*(
   result.docComment       = docComment
   result.codeComment      = codeComment
   result.iinfo            = iinfo
+  result.kind             = kind
 
   if rtyp.isSome():
     result.signature.setRtype rtyp.get()
