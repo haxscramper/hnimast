@@ -46,16 +46,20 @@ proc getBranches*[NNode, A](
         let ofSet = (newTree(nnkCurly, branch[0..^2])).normalizeSet()
         ofValues.add ofSet
         result.add ObjectBranch[NNode, A](
+          declNode: some(branch),
           ofValue: ofSet,
           flds: branch[^1].getFields(cb),
           isElse: false
         )
+
       of nnkElse:
         result.add ObjectBranch[NNode, A](
+          declNode: some(branch),
           flds: branch[0].getFields(cb),
           isElse: true,
           notOfValue: ofValues.joinSets()
         )
+
       else:
         raiseAssert(&"Unexpected branch kind {branch.kind}")
 
@@ -75,11 +79,14 @@ proc getFieldDescription[NNode](
           of nnkPostfix:
             exported = true
             $node[0][1]
+
           of nnkPragmaExpr:
             if node[0][0].kind.toNNK() == nnkPostfix:
               $node[0][0][1]
+
             else:
               $node[0][0]
+
           else:
             $node[0]
 
@@ -92,6 +99,7 @@ proc getFieldDescription[NNode](
       # debugecho result
     of nnkRecCase:
       return getFieldDescription(node[0])
+
     else:
       raiseAssert(
         &"Cannot get field description from node of kind {node.kind}")
@@ -103,26 +111,34 @@ proc getFields*[NNode, A](
     of nnkObjConstr:
       # echo node.treeRepr()
       return getFields(node[0], cb)
+
     of nnkSym, nnkCall, nnkDotExpr:
       when NNode is PNode:
         raiseAssert("Prasing Pnode from symbol is not supported")
+
       else:
         let kind = node.getTypeImpl().kind
         case kind:
           of nnkBracketExpr:
             let typeSym = node.getTypeImpl()[1]
             result = getFields(typeSym.getTypeImpl(), cb)
+
           of nnkObjectTy, nnkRefTy, nnkTupleTy, nnkTupleConstr:
             result = getFields(node.getTypeImpl(), cb)
+
           else:
             raiseAssert("Unknown parameter kind: " & $kind)
+
     of nnkObjectTy:
       return node[2].getFields(cb)
+
     of nnkRefTy:
       when NNode is PNode:
         raiseAssert("Parsing PNode from nnkRefTy is not supported")
+
       else:
         return node.getTypeImpl()[0].getImpl()[2][0].getFields(cb)
+
     of nnkRecList:
       mixin items
       for elem in items(node):
@@ -133,6 +149,7 @@ proc getFields*[NNode, A](
               # NOTE possible place for `cb` callbac
               # echo descr.exported, " -- ", descr.name
               result.add ObjectField[NNode, A](
+                declNode: some(elem),
                 isTuple: false,
                 isKind: true,
                 branches: getBranches(elem, cb),
@@ -153,12 +170,15 @@ proc getFields*[NNode, A](
     of nnkTupleConstr:
       for idx, sym in pairs(node):
         result.add ObjectField[NNode, A](
-          isTuple: true, tupleIdx: idx# , value: initObjTree[NimNode]()
+          declNode: some(sym),
+          isTuple: true,
+          tupleIdx: idx# , value: initObjTree[NimNode]()
         )
 
     of nnkIdentDefs:
       let descr = getFieldDescription(node)
       result.add ObjectField[NNode, A](
+        declNode: some(node),
         isTuple: false,
         isKind: false,
         exported: descr.exported,
@@ -174,6 +194,7 @@ proc getFields*[NNode, A](
 
     of nnkEmpty:
       discard
+
     else:
       raiseAssert(
         &"Unexpected node kind in `getFields`: {node.kind}."
@@ -185,28 +206,41 @@ proc getKindFields*[Node, A](
   flds: seq[ObjectField[Node, A]]): seq[ObjectField[Node, A]] =
   for fld in flds:
     if fld.isKind:
-      result.add ObjectField[Node, A](
+      var fld =  ObjectField[Node, A](
+        declNode: fld.declNode,
         isTuple: false,
         isKind: true,
         name: fld.name,
-        fldType: fld.fldType,
-        branches:
-          block:
-            filterIt2(it.flds.len > 0):
-              collect(newSeq):
-                for it in fld.branches:
-                  if it.isElse:
-                    ObjectBranch[Node, A](
-                      notOfValue: it.notOfValue,
-                      isElse: true,
-                      flds: it.flds.getKindFields())
-                  else:
-                    ObjectBranch[Node, A](
-                      ofValue: it.ofValue,
-                      isElse: false,
-                      flds: it.flds.getKindFields())
-
+        fldType: fld.fldType
       )
+
+      for it in fld.branches:
+        if it.flds.len > 0:
+          if it.isElse:
+            fld.branches.add ObjectBranch[Node, A](
+              declNode: it.declNode,
+              notOfValue: it.notOfValue,
+              isElse: true,
+              flds: it.flds.getKindFields()
+            )
+
+          else:
+            fld.branches.add ObjectBranch[Node, A](
+              declNode: it.declNode,
+              ofValue: it.ofValue,
+              isElse: false,
+              flds: it.flds.getKindFields()
+            )
+
+        # branches:
+        #   block:
+        #     filterIt2(it.flds.len > 0):
+        #       collect(newSeq):
+        #         for it in fld.branches:
+
+
+      result.add fld
+
 
 proc discardNimNode*(ntype: NType[NimNode]): NType[ObjTree] =
   result = NType[ObjTree](
@@ -266,6 +300,7 @@ func parsePragma*[NNode](node: NNode, position: ObjectAnnotKind): Pragma[NNode] 
       # debugecho node.idxTreeRepr
       node.expectKind nnkIdentDefs
       result.elements = toSeq(node[0][1].subnodes)
+
     else:
       node.expectKind nnkPragma
       result.elements = toSeq(node.subnodes)
@@ -287,11 +322,13 @@ proc parseObject*[NNode, A](
     if node.kind == nnkStmtList:
       node[0].expectKind nnkTypeSection
       node[0][0]
+
     else:
       node
 
   node.expectKind nnkTypeDef
   result = ObjectDecl[NNode, A](
+    declNode: some(node),
     flds: node[2].getFields(cb)
   )
 
@@ -301,11 +338,14 @@ proc parseObject*[NNode, A](
         of nnkPostfix:
           result.name = newNNType[NNode](node[0][0][1].getStrVal)
           result.exported = true
+
         else:
           result.name = newNNType[NNode](node[0][0].getStrVal)
+
     of nnkPostfix:
       result.name = newNNType[NNode](node[0][1].getStrVal())
       result.exported = true
+
     else:
       result.name = newNNType[NNode](node[0].getStrVal())
 

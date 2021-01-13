@@ -57,6 +57,10 @@ func getStrVal*(p: PNode): string =
   case p.kind:
     of nkIdent:
       p.ident.s
+
+    of nkSym:
+      p.sym.name.s
+
     else:
       p.strVal
 
@@ -706,15 +710,18 @@ type
 
   NType*[NNode] = object
     ## Representation of generic nim type;
+    declNode*: Option[NNode]
     case kind*: NTypeKind
       of ntkIdent, ntkGenericSpec:
         head*: string ## Type name `head[...]` or `head: .. | ..`
         genParams*: seq[NType[NNode]] ## Parameters or alternatives:
         ## `[@genParams]` or `..: alt1 | alt2 ..`
+
       of ntkProc:
         rType*: Option[SingleIt[NType[NNode]]] ## Optional return type
         arguments*: seq[NIdentDefs[NNode]] ## Sequence of argument identifiers
         pragma*: Pragma[NNode] ## Pragma annotation for proc
+
       of ntkRange:
         discard ## TODO
 
@@ -963,14 +970,14 @@ func newNTypeNNode*[NNode](impl: NNode): NType[NNode] =
         newNType(head, impl[1..^1].mapIt(newNTypeNNode(it)))
 
     of nnkSym:
-      newNNType[NNode](impl.strVal)
+      newNNType[NNode](impl.getStrVal())
 
     of nnkIdent:
       when NNode is PNode:
         newPType(impl.ident.s)
 
       else:
-        newNType(impl.strVal)
+        newNType(impl.getStrVal())
 
     else:
       raiseImplementError("")
@@ -1879,20 +1886,23 @@ func newProcDeclNode*[NNode](
 type
   ParseCb*[NNode, Annot] = proc(
     pragma: NNode, kind: ObjectAnnotKind): Annot
-  ObjectBranch*[Node, Annot] = object
+
+  ObjectBranch*[NNode, Annot] = object
     ## Single branch of case object
+    declNode*: Option[NNode]
     annotation*: Option[Annot]
-    flds*: seq[ObjectField[Node, Annot]] ## Fields in the case branch
+    flds*: seq[ObjectField[NNode, Annot]] ## Fields in the case branch
     case isElse*: bool ## Whether this branch is placed under `else` in
                   ## case object.
       of true:
-        notOfValue*: Node
+        notOfValue*: NNode
       of false:
-        ofValue*: Node ## Match value for case branch
+        ofValue*: NNode ## Match value for case branch
 
 
 
   ObjectField*[NNode, Annot] = object
+    declNode*: Option[NNode]
     docComment*: string
     codeComment*: string
 
@@ -1936,6 +1946,7 @@ type
     name*: NType[NNode] ## Name for an object
     # TODO rename to objType
     flds*: seq[ObjectField[NNode, Annot]]
+    declNode*: Option[NNode]
 
   # FieldBranch*[Node] = ObjectBranch[Node, void]
   # Field*[Node] = ObjectField[Node, void]
@@ -2381,6 +2392,14 @@ func toNNode*[NNode](
 func toNimNode*(obj: NObjectDecl[NPragma]): NimNode =
   # static: echo typeof obj
   toNNode[NimNode](obj)
+
+
+func toNNode*[N](fld: ObjectField[N, PRagma[N]]): N =
+  result = toNNode[N](
+    fld, annotConv =
+      proc(pr: Pragma[N]): N {.closure.} =
+        return toNNode[N](pr)
+  )
 
 #===========================  Pretty-printing  ===========================#
 
