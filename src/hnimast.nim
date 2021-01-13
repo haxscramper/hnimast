@@ -1921,7 +1921,7 @@ type
 const noParseCb*: ParseCb[NimNode, void] = nil
 const noParseCbPNode*: ParseCb[PNode, void] = nil
 
-import std/with
+# import std/with
 
 proc newPObjectDecl*(
   name: string,
