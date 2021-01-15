@@ -28,6 +28,8 @@ template currIInfo*(): untyped =
 
 const defaultIInfo* = LineInfo()
 
+proc getInfo*(n: NimNode): LineInfo = n.lineInfoObj
+proc getInfo*(n: PNode): TLineInfo = n.info
 
 
 func `$!`*(n: NimNode): string =
@@ -55,14 +57,13 @@ func getStrVal*(n: NimNode): string =
 func getStrVal*(p: PNode): string =
   ## Get string value from `PNode`
   case p.kind:
-    of nkIdent:
-      p.ident.s
-
-    of nkSym:
-      p.sym.name.s
-
+    of nkIdent:    p.ident.s
+    of nkSym:      p.sym.name.s
+    of nkStrKinds: p.strVal
     else:
-      p.strVal
+      raiseArgumentError(
+        "Cannot get string value from node of kind " & $p.kind)
+
 
 func dropStmtList*(p: PNode): PNode =
   case p.kind:
@@ -170,21 +171,16 @@ const
   nnkStrKinds* = { nnkStrLit .. nnkTripleStrLit }
   nnkIntKinds* = { nnkCharLit .. nnkUInt64Lit }
   nnkFloatKinds* = { nnkFloatLit .. nnkFloat128Lit }
-
-  nnkTokenKinds* = nnkStrKinds + nnkIntKinds + nnkFloatKinds + {
-    nnkIdent,
-    nnkSym
-  }
+  nnkLiteralKinds* = nnkStrKinds + nnkIntKinds + nnkFloatKinds
+  nnkTokenKinds* = nnkLiteralKinds + {nnkIdent, nnkSym}
 
 
   nkStrKinds* = { nkStrLit .. nkTripleStrLit }
   nkIntKinds* = { nkCharLit .. nkUInt64Lit }
   nkFloatKinds* = { nkFloatLit .. nkFloat128Lit }
+  nkLiteralKinds* = nkStrKinds + nkIntKinds + nkFloatKinds
 
-  nkTokenKinds* = nkStrKinds + nkIntKinds + nkFloatKinds + {
-    nkIdent,
-    nkSym
-  }
+  nkTokenKinds* = nkLiteralKinds + {nkIdent, nkSym}
 
 
 proc pprintCalls*(node: NimNode, level: int): void =
@@ -487,10 +483,10 @@ proc treeRepr*(
         result &= " \"" & toYellow(n.getStrVal(), colored) & "\"\""
 
       of nkIntKinds:
-        result &= " " & toBlue(n.getStrVal(), colored)
+        result &= " " & toBlue($n.intVal, colored)
 
       of nkFloatKinds:
-        result &= " " & toMagenta(n.getStrVal(), colored)
+        result &= " " & toMagenta($n.floatVal, colored)
 
       of nkIdent, nkSym:
         result &= " " & toGreen(n.getStrVal(), colored)
@@ -504,7 +500,7 @@ proc treeRepr*(
           if newIdx < n.len - 1:
             result &= "\n"
 
-  return aux(pnode, 0, @[0])
+  return aux(pnode, 0, @[])
 
 
 #*************************************************************************#
@@ -516,13 +512,14 @@ func normalizeSetImpl[NNode](node: NNode): seq[NNode] =
    case node.kind.toNNK():
     of nnkIdent, nnkIntLit, nnkCharLit:
       return @[ node ]
+
     of nnkCurly:
       mixin items
       for subnode in items(node):
         result &= normalizeSetImpl(subnode)
 
     of nnkInfix:
-      assert node[0].strVal == ".."
+      assert node[0].getStrVal() == ".."
       result = @[ node ]
 
     else:
@@ -707,17 +704,23 @@ type
     ntkProc ## Procedure type: `proc(a: int, b: float) {.cdecl.}`
     ntkRange ## Range type: `range[1..10]`
     ntkGenericSpec ## Constrained generic: `A: B | C | D`
+    ntkAnonTuple ## Unnaped tuple: `(int, string)`
+    ntkNamedTuple ## Named tuple: `tuple[name: string, value: int]`
 
   NType*[NNode] = object
     ## Representation of generic nim type;
     declNode*: Option[NNode]
     case kind*: NTypeKind
-      of ntkIdent, ntkGenericSpec:
+      of ntkIdent, ntkGenericSpec, ntkAnonTuple:
         head*: string ## Type name `head[...]` or `head: .. | ..`
-        genParams*: seq[NType[NNode]] ## Parameters or alternatives:
-        ## `[@genParams]` or `..: alt1 | alt2 ..`
+        genParams*: seq[NType[NNode]] ## Generic parametrs for procs,
+        ## alternatives for constrained types or anonymous tuple types.
+        ##
+        ## - `head[T0, T1]` :: Regular generic type
+        ## - `T0 | T1` :: Constrained generic alternatives
+        ## - `(T0, T1)` :: Anonymous tuples
 
-      of ntkProc:
+      of ntkProc, ntkNamedTuple:
         rType*: Option[SingleIt[NType[NNode]]] ## Optional return type
         arguments*: seq[NIdentDefs[NNode]] ## Sequence of argument identifiers
         pragma*: Pragma[NNode] ## Pragma annotation for proc
@@ -736,7 +739,8 @@ type
 
   NIdentDefs*[NNode] = object
     ## Identifier declaration
-    varname*: string ## Variable name
+    idents*: seq[NNode]
+    varname* {.deprecated.}: string ## Variable name
     kind*: NVarDeclKind
     vtype*: NType[NNode] ## Variable type
     value*: Option[NNode] ## Optional initialization value
@@ -791,6 +795,9 @@ func toNIdentDefs*[NNode](
 
 
 func toNFormalParam*[NNode](nident: NIdentDefs[NNode]): NNode
+
+func toNNode*[NNode](nident: NIdentDefs[NNode]): NNode =
+  toNFormalParam(nident)
 
 func add*[NNode](ntype: var NType[NNode], nt: NType[NNode]) =
   if ntype.head in ["ref", "ptr", "var"]:
@@ -958,29 +965,43 @@ func newProcNType*[NNode](args: seq[NType[NNode]]): NType[NNode] =
     pragma: newNNPragma[NNode]()
   )
 
-func newNTypeNNode*[NNode](impl: NNode): NType[NNode] =
+func toStrLit*(node: PNode): PNode =
+  {.noSideEffect.}:
+    result = newPLit($node)
+
+func newNTypeNNode*[NNode](node: NNode): NType[NNode] =
+  # REFACTOR rename to `parseNType`
   ## Convert type described in `NimNode` into `NType`
-  case impl.kind.toNNK():
+  case node.kind.toNNK():
     of nnkBracketExpr:
-      let head = impl[0].strVal
+      let head = node[0].getStrVal()
       when NNode is PNode:
-        newNType(head, impl.sons[1..^1].mapIt(newNTypeNNode(it)))
+        result = newNType(head, node.sons[1..^1].mapIt(newNTypeNNode(it)))
 
       else:
-        newNType(head, impl[1..^1].mapIt(newNTypeNNode(it)))
+        result = newNType(head, node[1..^1].mapIt(newNTypeNNode(it)))
 
     of nnkSym:
-      newNNType[NNode](impl.getStrVal())
+      result = newNNType[NNode](node.getStrVal())
 
     of nnkIdent:
       when NNode is PNode:
-        newPType(impl.ident.s)
+        result = newPType(node.ident.s)
 
       else:
-        newNType(impl.getStrVal())
+        result = newNType(node.getStrVal())
+
+    of nnkPar:
+      result = NType[NNode](kind: ntkAnonTuple)
+      for subnode in items(node):
+        result.genParams.add newNTypeNNode(subnode)
 
     else:
-      raiseImplementError("")
+      raiseImplementError(
+        &"Implement NType conversion for '{node.kind}' '" &
+          node.toStrLit().getStrVal() & "' " &
+          $node.getInfo()
+      )
 
 template `[]`*(node: PNode, slice: HSLice[int, BackwardsIndex]): untyped =
   ## Get range of subnodes from `PNode`
@@ -1092,27 +1113,42 @@ func `$`*[NNode](nt: NType[NNode]): string =
   case nt.kind:
     of ntkIdent:
       if nt.genParams.len > 0:
-        nt.head & "[" & nt.genParams.mapIt($it).join(", ") & "]"
+        result = nt.head & "[" & nt.genParams.mapIt($it).join(", ") & "]"
+
       else:
-        nt.head
+        result = nt.head
 
     of ntkGenericSpec:
       if nt.genParams.len > 0:
-        nt.head & ": " & nt.genParams.mapIt($it).join(" | ")
+        result = nt.head & ": " & nt.genParams.mapIt($it).join(" | ")
+
       else:
-        nt.head
+        result = nt.head
 
     of ntkProc:
       {.noSideEffect.}:
         let rtype: string = nt.rtype.getSomeIt($it & ": ", "")
         let pragma: string =
-          if nt.pragma.len == 0:
-            ""
-          else:
+          if nt.pragma.len > 0:
             toString(nt.pragma.toNNode()) & " "
 
+          else:
+            ""
+
         let args: string = nt.arguments.mapIt($it).join(", ")
-        &"proc ({args}){pragma}{rtype}"
+
+        result = &"proc ({args}){pragma}{rtype}"
+
+    of ntkAnonTuple:
+      result = nt.genParams.mapIt($it).join(", ").wrap("()")
+
+    of ntkNamedTuple:
+      let args = collect(newSeq):
+        for arg in nt.arguments:
+          {.cast(noSideEffect).}:
+            arg.idents.mapIt($it).join(", ") & ": " & $arg.vtype
+
+      result = args.join(", ").wrap(("tuple[", "]"))
 
     of ntkRange:
       raiseImplementError("")
@@ -1155,6 +1191,7 @@ type
     codeComment*: string
     name*: string
     value*: Option[NNode]
+    declNode*: Option[NNode]
 
     case kind*: EnumFieldVal
       of efvNone:
@@ -1173,6 +1210,7 @@ type
     iinfo*: LineInfo
     docComment*: string
     codeComment*: string
+    declNode*: Option[NNode]
 
     ## Enum declaration wrapper
     meta*: DeclMetainfo
@@ -1229,23 +1267,26 @@ func parseEnumField*[NNode](fld: NNode): EnumField[NNode] =
   case fld.kind.toNNK():
     of nnkEnumFieldDef:
       let val = fld[1]
-      result = case val.kind.toNNK():
+      case val.kind.toNNK():
         of nnkCharLit..nnkUInt64Lit:
-          EnumField[NNode](kind: efvOrdinal,
-                           ordVal: val.parseRTimeOrdinal())
+          result = EnumField[NNode](
+            kind: efvOrdinal,
+            ordVal: val.parseRTimeOrdinal()
+          )
 
         of nnkPar:
           val[1].expectKind nnkStrLit
-          EnumField[NNode](
-            kind: efvOrdString, ordStr: (
+          result = EnumField[NNode](
+            kind: efvOrdString,
+            ordStr: (
               ordVal: val[0].parseRTimeOrdinal(),
               strval: val[1].getStrVal()))
 
         of nnkStrLit:
-          EnumField[NNode](kind: efvString, strval: val.strVal)
+          result = EnumField[NNode](kind: efvString, strval: val.strVal)
 
         of nnkIdent, nnkSym:
-          EnumField[NNode](kind: efvIdent, ident: val)
+          result = EnumField[NNode](kind: efvIdent, ident: val)
 
         else:
           raiseArgumentError(
@@ -1254,10 +1295,13 @@ func parseEnumField*[NNode](fld: NNode): EnumField[NNode] =
       result.name = fld[0].getStrVal
 
     of nnkSym:
-      return makeEnumField(name = fld.getStrVal, value = none(NNode))
+      result = makeEnumField(name = fld.getStrVal, value = none(NNode))
 
     else:
       raiseImplementError(&"#[ IMPLEMENT {fld.kind} ]#")
+
+
+  result.declNode = some(fld)
 
 
 
@@ -1431,6 +1475,7 @@ func parseEnumImpl*[NNode](en: NNode): EnumDecl[NNode] =
 
     of nnkTypeDef:
       result = parseEnumImpl(en[2])
+      result.declNode = some(en)
       result.name = en[0].getStrVal
 
     of nnkEnumTy:
@@ -1443,6 +1488,8 @@ func parseEnumImpl*[NNode](en: NNode): EnumDecl[NNode] =
     else:
       raiseImplementError(&"#[ IMPLEMENT {en.kind} ]#")
 
+func parseEnum*[NNode](node: NNode): EnumDecl[NNode] =
+  return parseEnumImpl(node)
 
 #========================  Other implementation  =========================#
 func getEnumPref*(en: NimNode): string =
@@ -1917,6 +1964,7 @@ type
                         # wrapper.
       of true:
         tupleIdx*: int
+
       of false:
         name*: string
 
@@ -2284,6 +2332,7 @@ func toNNode*[NNode, A](
     newNTree[NNode](
       nnkElse,
       nnkRecList.newTree(branch.flds.mapIt(it.toNNode(annotConv))))
+
   else:
     newNTree[NNode](
       nnkOfBranch,
@@ -2320,6 +2369,7 @@ func toNNode*[NNode, A](
   if fld.isKind:
     return nnkRecCase.newTree(
       @[selector] & fld.branches.mapIt(toNNode[NNode](it, annotConv)))
+
   else:
     return selector
 

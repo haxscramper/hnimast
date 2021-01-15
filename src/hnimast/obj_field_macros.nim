@@ -100,9 +100,15 @@ proc getFieldDescription[NNode](
     of nnkRecCase:
       return getFieldDescription(node[0])
 
+    # of nnkRecWhen:
+    #   # WARNING skipping condition for field access.
+    #   for subnode in node:
+
     else:
       raiseAssert(
-        &"Cannot get field description from node of kind {node.kind}")
+        &"Cannot get field description from node of kind {node.kind}." &
+          &"{node.getInfo()}"
+      )
 
 proc getFields*[NNode, A](
   node: NNode, cb: ParseCb[NNode, A]): seq[ObjectField[NNode, A]] =
@@ -142,12 +148,14 @@ proc getFields*[NNode, A](
     of nnkRecList:
       mixin items
       for elem in items(node):
-        if elem.kind.toNNK() notin {nnkRecList, nnkNilLit}:
+        if elem.kind.toNNK() == nnkRecWhen:
+          result.add getFields(elem, cb)
+
+        elif elem.kind.toNNK() notin {nnkRecList, nnkNilLit}:
           let descr = getFieldDescription(elem)
           case elem.kind.toNNK():
             of nnkRecCase: # Case field
               # NOTE possible place for `cb` callbac
-              # echo descr.exported, " -- ", descr.name
               result.add ObjectField[NNode, A](
                 declNode: some(elem),
                 isTuple: false,
@@ -167,6 +175,7 @@ proc getFields*[NNode, A](
     of nnkTupleTy:
       for fld in items(node):
         result.add fld.getFields(cb)
+
     of nnkTupleConstr:
       for idx, sym in pairs(node):
         result.add ObjectField[NNode, A](
@@ -195,8 +204,23 @@ proc getFields*[NNode, A](
     of nnkEmpty:
       discard
 
+    of nnkRecWhen:
+      for subnode in items(node):
+        result.add getFields(subnode, cb)
+
+    of nnkElifBranch:
+      # WARNING condition is dropped
+      result.add getFields(node[1], cb)
+
+    of nnkElse:
+      result.add getFields(node[0], cb)
+
+    of nnkNilLit:
+      # Explicit `nil`
+      discard
+
     else:
-      raiseAssert(
+      raiseArgumentError(
         &"Unexpected node kind in `getFields`: {node.kind}."
       )
 
