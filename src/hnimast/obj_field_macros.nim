@@ -64,41 +64,36 @@ proc getBranches*[NNode, A](
         raiseAssert(&"Unexpected branch kind {branch.kind}")
 
 
-proc getFieldDescription[NNode](
-  node: NNode): tuple[
-    name: string,
-    fldType: NType[NNode],
-    exported: bool
-  ] =
+proc getFieldDescriptions[NNode](node: NNode):
+  seq[tuple[name: string, fldType: NType[NNode], exported: bool]] =
 
-  var exported = false
   case node.kind.toNNK():
     of nnkIdentDefs:
-      let name: string =
-        case node[0].kind.toNNK():
+      let fldType = newNType[NNode](node[^2])
+      for ident in node[0 ..^ 3]:
+        var name: string
+        var exported = false
+        case ident.kind.toNNK():
           of nnkPostfix:
             exported = true
-            $node[0][1]
+            name = $node[0][1]
 
           of nnkPragmaExpr:
             if node[0][0].kind.toNNK() == nnkPostfix:
-              $node[0][0][1]
+              name = $node[0][0][1]
 
             else:
-              $node[0][0]
+              name = $node[0][0]
 
           else:
-            $node[0]
+            name = $node[0]
 
-      result = (
-        name: name,
-        fldType: newNType[NNode](node[1]),
-        exported: exported
-      )
+        result.add((name: name, fldType: fldType, exported: exported))
+
       # debugecho node[0].idxTreeRepr
       # debugecho result
     of nnkRecCase:
-      return getFieldDescription(node[0])
+      return getFieldDescriptions(node[0])
 
     # of nnkRecWhen:
     #   # WARNING skipping condition for field access.
@@ -152,7 +147,7 @@ proc getFields*[NNode, A](
           result.add getFields(elem, cb)
 
         elif elem.kind.toNNK() notin {nnkRecList, nnkNilLit}:
-          let descr = getFieldDescription(elem)
+          let descr = getFieldDescriptions(elem)
           case elem.kind.toNNK():
             of nnkRecCase: # Case field
               # NOTE possible place for `cb` callbac
@@ -161,9 +156,9 @@ proc getFields*[NNode, A](
                 isTuple: false,
                 isKind: true,
                 branches: getBranches(elem, cb),
-                name: descr.name,
-                exported: descr.exported,
-                fldType: descr.fldType,
+                name: descr[0].name,
+                exported: descr[0].exported,
+                fldType: descr[0].fldType,
               )
 
             of nnkIdentDefs: # Regular field definition
@@ -185,17 +180,27 @@ proc getFields*[NNode, A](
         )
 
     of nnkIdentDefs:
-      let descr = getFieldDescription(node)
-      result.add ObjectField[NNode, A](
-        declNode: some(node),
-        isTuple: false,
-        isKind: false,
-        exported: descr.exported,
-        name: descr.name,
-        fldType: descr.fldType,
-        value: (node[2].kind.toNNK() != nnkEmpty).tern(
-          some(node[2]), none(NNode))
-      )
+      let descr = getFieldDescriptions(node)
+      for idx, (name, fldType, exported) in descr:
+        result.add ObjectField[NNode, A](
+          declNode: some(node),
+          isTuple: false,
+          isKind: false,
+          exported: exported,
+          name: name,
+          fldType: fldType,
+          value: (
+            if idx == node.len - 2 and
+               node[^1].kind.toNNK() != nnkEmpty:
+              some(node[^1])
+
+            else:
+              none(NNode)
+          )
+          #   idx == node.len - 2 and node[^1].kind.toNNK() != nnkEmpty).tern(
+          #   some(node[^1]), none(NNode)
+          # )
+        )
 
       when not (A is void):
         if node[0].kind == nnkPragmaExpr and cb != nil:

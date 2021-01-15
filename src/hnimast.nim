@@ -156,14 +156,17 @@ func newNIdent*[NNode](str: string): NNode =
   ## Create new `nnkIdent` node of type `NNode`
   when NNode is NimNode:
     newIdentNode(str)
+
   else:
     newPIdent(str)
 
 func newNTree*[NNode](
   kind: NimNodeKind, subnodes: varargs[NNode]): NNode =
   ## Create new tree with `subnodes` and `kind`
+  # STYLE rename to `toNNode`
   when NNode is NimNode:
     newTree(kind, subnodes)
+
   else:
     newTree(kind.toNK(), subnodes)
 
@@ -740,7 +743,7 @@ type
   NIdentDefs*[NNode] = object
     ## Identifier declaration
     idents*: seq[NNode]
-    varname* {.deprecated.}: string ## Variable name
+    # varname* {.deprecated.}: string ## Variable name
     kind*: NVarDeclKind
     vtype*: NType[NNode] ## Variable type
     value*: Option[NNode] ## Optional initialization value
@@ -778,7 +781,8 @@ func toNIdentDefs*[NNode](
   ## Convert array of name-type pairs into sequence of `NIdentDefs`.
   ## Each identifier will be immutable (e.g. no `var` annotation).
   for (name, atype) in args:
-    result.add NIdentDefs[NNode](varname: name, vtype: atype)
+    result.add NIdentDefs[NNode](
+      idents: @[newNIdent[NNode](name)], vtype: atype)
 
 func toNIdentDefs*[NNode](
   args: openarray[tuple[
@@ -809,16 +813,39 @@ func add*[NNode](ntype: var NType[NNode], nt: varargs[NType[NNode]]) =
   for arg in nt:
     ntype.add arg
 
+func contains*(arg: set[NimNodeKind], pkind: TNodeKind): bool =
+  pkind.toNNK() in arg
+
 func toNNode*[NNode](ntype: NType[NNode]): NNode =
   ## Convert to NNode
   case ntype.kind:
     of ntkProc:
       result = newNTree[NNode](nnkProcTy)
 
-      let renamed: seq[NIdentDefs[NNode]] = ntype.arguments.mapPairs:
-        rhs.withIt do:
-          if it.varname.len == 0:
-            it.varname = "a" & $idx
+      var renamed: seq[NIdentDefs[NNode]]
+      var cnt = 0
+      for arg in ntype.arguments:
+        var arg = arg
+        for name in mitems(arg.idents):
+          if name.kind in {nnkEmpty}:
+            name = newNIdent[NNode]("arg" & $cnt)
+
+
+          inc cnt
+
+        renamed.add arg
+
+      # let renamed: seq[NIdentDefs[NNode]] = collect(newSeq):
+      #   for argIdx< arg in ntype.arguments:
+      #     var arg = arg
+      #     for name in mitems(arg.idents):
+      #       if name.kind in {nnkEmptyNode}:
+      #         name =
+      #     arg.withIt do:
+      #   ntype.arguments.mapPairs:
+      #   rhs.withIt do:
+      #     if it.varname.len == 0:
+      #       it.varname = "a" & $idx
 
       result.add newNTree[NNode](
         nnkFormalParams,
@@ -890,11 +917,7 @@ func toNFormalParam*[NNode](nident: NIdentDefs[NNode]): NNode =
       of nvdConst: newNTree[NNode](
         nnkConstTy, toNNode[NNode](nident.vtype))
 
-  result = newNTree[NNode](
-    nnkIdentDefs,
-    newNIdent[NNode](nident.varname),
-    typespec
-  )
+  result = newNTree[NNode](nnkIdentDefs, nident.idents & @[typespec])
 
   if nident.value.isNone():
     result.add newEmptyNNode[NNode]()
