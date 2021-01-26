@@ -32,6 +32,10 @@ proc getInfo*(n: NimNode): LineInfo = n.lineInfoObj
 proc getInfo*(n: PNode): TLineInfo = n.info
 
 
+template `[]`*(node: PNode, slice: HSLice[int, BackwardsIndex]): untyped =
+  ## Get range of subnodes from `PNode`
+  `[]`(node.sons, slice)
+
 func `$!`*(n: NimNode): string =
   ## NimNode stringification that does not blow up in your face on
   ## 'invalid node kind'
@@ -80,6 +84,8 @@ func toString*(p: PNode): string =
   ## Convert any node to string without side effects
   {.noSideEffect.}:
     $p
+
+func toShow*[N](node: N): string = "'" & toString(node) & "'"
 
 func subnodes*(p: PNode): seq[PNode] =
   ## Get subnodes as a sequence
@@ -169,6 +175,33 @@ func newNTree*[NNode](
 
   else:
     newTree(kind.toNK(), subnodes)
+
+
+func flattenInfix*[N](inNode: N, infix: string): seq[N] =
+  func aux(node: N): seq[N] =
+    if node.kind == nnkInfix and node[0].getStrVal() == infix:
+      result = aux(node[1]) & aux(node[2])
+
+    else:
+      result = @[node]
+
+  return aux(inNode)
+
+func foldInfix*[N](inNodes: seq[N], infix: string): N =
+  func aux(nodes: seq[N]): N =
+    if nodes.len == 1:
+      result = nodes[0]
+
+    else:
+      result = newNTree[N](
+        nnkInfix,
+        newNIdent[N](infix),
+        nodes[0],
+        aux(nodes[1..^1])
+      )
+
+  return aux(inNodes)
+
 
 const
   nnkStrKinds* = { nnkStrLit .. nnkTripleStrLit }
@@ -483,7 +516,7 @@ proc treeRepr*(
     result &= pref & ($n.kind)[2..^1]
     case n.kind:
       of nkStrKinds:
-        result &= " \"" & toYellow(n.getStrVal(), colored) & "\"\""
+        result &= " \"" & toYellow(n.getStrVal(), colored) & "\""
 
       of nkIntKinds:
         result &= " " & toBlue($n.intVal, colored)
@@ -703,12 +736,14 @@ func toNimNode*(pragma: NPragma): NimNode =
 type
   NTypeKind* = enum
     ## Type kind
+    ntkNone
     ntkIdent ## Generic identifier, possibly with parameters: `G[A, C]`
     ntkProc ## Procedure type: `proc(a: int, b: float) {.cdecl.}`
     ntkRange ## Range type: `range[1..10]`
     ntkGenericSpec ## Constrained generic: `A: B | C | D`
     ntkAnonTuple ## Unnaped tuple: `(int, string)`
     ntkNamedTuple ## Named tuple: `tuple[name: string, value: int]`
+    ntkVarargs ## `varargs[Type, Converter]`
 
   NType*[NNode] = object
     ## Representation of generic nim type;
@@ -729,7 +764,14 @@ type
         pragma*: Pragma[NNode] ## Pragma annotation for proc
 
       of ntkRange:
-        discard ## TODO
+        rngStart*, rngEnd*: NNode
+
+      of ntkVarargs:
+        vaTypeIt: SingleIt[NType[NNode]]
+        vaConverter*: Option[NNode]
+
+      of ntkNone:
+        discard
 
   # PType* = NType[PNode]
 
@@ -754,6 +796,11 @@ type
 func arg*[NNode](t: NType[NNode], idx: int): NIdentDefs[NNode] =
   assert t.kind == ntkProc
   t.arguments[idx]
+
+func `vaType=`*[N](t: var NType[N], vat: NType[N]) =
+  t.vaTypeIt = newIt(vat)
+
+func vaType*[N](t: NType[N]): NType[N] = getIt(t.vaTypeIt)
 
 #=============================  Predicates  ==============================#
 func `==`*(l, r: NType): bool =
@@ -835,18 +882,6 @@ func toNNode*[NNode](ntype: NType[NNode]): NNode =
 
         renamed.add arg
 
-      # let renamed: seq[NIdentDefs[NNode]] = collect(newSeq):
-      #   for argIdx< arg in ntype.arguments:
-      #     var arg = arg
-      #     for name in mitems(arg.idents):
-      #       if name.kind in {nnkEmptyNode}:
-      #         name =
-      #     arg.withIt do:
-      #   ntype.arguments.mapPairs:
-      #   rhs.withIt do:
-      #     if it.varname.len == 0:
-      #       it.varname = "a" & $idx
-
       result.add newNTree[NNode](
         nnkFormalParams,
         @[
@@ -858,10 +893,48 @@ func toNNode*[NNode](ntype: NType[NNode]): NNode =
 
       result.add toNNode(ntype.pragma)
 
+    of ntkRange:
+      result = newNTree[NNode](
+        nnkBracketExpr,
+        newNIdent[NNode]("range"),
+        newNTree[NNode](
+          nnkInfix,
+          newNIdent[NNode](".."),
+          ntype.rngStart,
+          ntype.rngEnd
+        )
+      )
 
-    else:
+    of ntkNone:
+      result = newEmptyNNode[NNode]()
+
+    of ntkAnonTuple:
+      result = newNTree[NNode](nnkPar)
+      for param in items(ntype.genParams):
+        result.add toNNode[NNode](param)
+
+    of ntkNamedTuple:
+      result = newNTree[NNode](nnkBracketExpr, newNIdent[NNode]("tuple"))
+      for field in items(ntype.arguments):
+        result.add toNNode[NNode](field)
+
+    of ntkGenericSpec:
+      var buf: seq[NNode]
+      for entry in items(ntype.genParams):
+        buf.add toNNode[NNode](entry)
+
+      result = foldInfix(buf, "|")
+
+    of ntkVarargs:
+      result = newNTree[NNode](nnkBracketExpr, newNIdent[NNode]("varargs"))
+      result.add toNNode[NNode](ntype.vaType)
+      if ntype.vaConverter.isSome():
+        result.add ntype.vaConverter.get()
+
+    of ntkIdent:
       if ntype.genParams.len == 0:
         return newNIdent[NNode](ntype.head)
+
       else:
         if ntype.head in ["ref", "ptr", "var"]:
           # TODO handle `lent`, `sink` and other things like that
@@ -881,6 +954,9 @@ func toNNode*[NNode](ntype: NType[NNode]): NNode =
             ty,
             toNNode[NNode](ntype.genParams[0])
           )
+
+        elif ntype.head == "nil":
+          result = newNTree[NNode](nnkNilLit)
 
         else:
           result = newNTree[NNode](
@@ -924,6 +1000,7 @@ func toNFormalParam*[NNode](nident: NIdentDefs[NNode]): NNode =
 
   else:
     result.add nident.value.get()
+
 
 func toFormalParam*(nident: NIdentDefs[NimNode]): NimNode =
   ## Convert to `nnkIdentDefs`
@@ -992,17 +1069,58 @@ func toStrLit*(node: PNode): PNode =
   {.noSideEffect.}:
     result = newPLit($node)
 
+proc parseNidentDefs*(node: PNode): NIdentDefs[PNode] =
+  for arg in node[0..^3]:
+    result.idents.add arg
+
+  if node[^2].kind != nnkEmpty:
+    result.vtype = newNType(node[^2])
+
+  else:
+    result.vtype = NType[PNode](kind: ntkNone)
+
+  if node[^1].kind != nnkEmpty:
+    result.value = some(node[^1])
+
+
+proc `arguments=`*(
+  procDecl: var PProcDecl, arguments: seq[NIdentDefs[PNode]]) =
+  procDecl.signature.arguments = arguments
+
+proc arguments*(procDecl: var PProcDecl): var seq[NIdentDefs[PNode]] =
+  procDecl.signature.arguments
+
+iterator argumentIdents*[N](procDecl: ProcDecl[N]): N =
+  for argument in procDecl.signature.arguments:
+    for ident in argument.idents:
+      yield ident
+
+
+
 func newNTypeNNode*[NNode](node: NNode): NType[NNode] =
   # REFACTOR rename to `parseNType`
   ## Convert type described in `NimNode` into `NType`
   case node.kind.toNNK():
     of nnkBracketExpr:
       let head = node[0].getStrVal()
-      when NNode is PNode:
-        result = newNType(head, node.sons[1..^1].mapIt(newNTypeNNode(it)))
+      if head == "range":
+        result = NType[NNode](
+          kind: ntkRange, rngStart: node[1][1], rngEnd: node[1][2])
+
+      elif head == "varargs":
+        result = NType[NNode](kind: ntkVarargs)
+        result.vaType = newNTypeNNode(node[1])
+        if node.len == 3:
+          result.vaConverter = some(node[2])
 
       else:
-        result = newNType(head, node[1..^1].mapIt(newNTypeNNode(it)))
+        when NNode is PNode:
+          result = newNType(head, node.sons[1..^1].mapIt(newNTypeNNode(it)))
+
+        else:
+          result = newNType(head, node[1..^1].mapIt(newNTypeNNode(it)))
+
+
 
     of nnkSym:
       result = newNNType[NNode](node.getStrVal())
@@ -1019,6 +1137,41 @@ func newNTypeNNode*[NNode](node: NNode): NType[NNode] =
       for subnode in items(node):
         result.genParams.add newNTypeNNode(subnode)
 
+    of nnkRefTy: result = newNType("ref", @[newNTypeNNode(node[0])])
+    of nnkPtrTy: result = newNType("ptr", @[newNTypeNNode(node[0])])
+    of nnkVarTy: result = newNType("var", @[newNTypeNNode(node[0])])
+
+    of nnkCommand:
+      result = newNType(node[0].getStrVal(), @[newNTypeNNode(node[1])])
+
+    of nnkInfix:
+      if node[0].getStrVal() in ["|", "or"]:
+        result = NType[NNode](
+          kind: ntkGenericSpec,
+          genParams: node.flattenInfix("|").mapIt(newNTypeNNode(it))
+        )
+
+      else:
+        raiseArgumentError(
+          "Unexpected infix node for type: " & toShow(node[0])
+        )
+
+    of nnkCall:
+      if node[0].getStrVal() == "type":
+        result = newNType("type", @[newNTypeNNode(node[1])])
+
+      else:
+        raiseArgumentError(
+          "Unexpected call node for type: " & toShow(node[0]))
+
+    of nnkNilLit:
+      result = newNType("nil", newSeq[NType[NNode]]())
+
+    of nnkTupleTy:
+      result = NType[NNode](kind: ntkNamedTuple)
+      for field in items(node):
+        result.arguments.add parseNIdentDefs(field)
+
     else:
       raiseImplementError(
         &"Implement NType conversion for '{node.kind}' '" &
@@ -1026,9 +1179,7 @@ func newNTypeNNode*[NNode](node: NNode): NType[NNode] =
           $node.getInfo()
       )
 
-template `[]`*(node: PNode, slice: HSLice[int, BackwardsIndex]): untyped =
-  ## Get range of subnodes from `PNode`
-  `[]`(node.sons, slice)
+  result.declNode = some(node)
 
 func newNType*(impl: NimNode): NType[NimNode] =
   ## Convert type described in `NimNode` into `NType`
@@ -1122,6 +1273,8 @@ func newCallNode*(
   newCallNode(dotHead, name, toSeq(args), toSeq(genTypes))
 
 
+
+
 #========================  Other implementation  =========================#
 
 
@@ -1134,6 +1287,18 @@ func toNTypeAst*[T](): NType =
 func `$`*[NNode](nt: NType[NNode]): string =
   ## Convert `NType` to texual representation
   case nt.kind:
+    of ntkNone:
+      result = ""
+
+    of ntkVarargs:
+      result = "varargs[" & $nt.vaType
+      if nt.vaConverter.isSome():
+        {.noSideEffect.}:
+          result &= ", " & $nt.vaConverter.get()
+
+      result &= "]"
+
+
     of ntkIdent:
       if nt.genParams.len > 0:
         result = nt.head & "[" & nt.genParams.mapIt($it).join(", ") & "]"
