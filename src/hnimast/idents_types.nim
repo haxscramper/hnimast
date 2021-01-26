@@ -1,3 +1,7 @@
+import std/[options, sequtils, strutils, strformat, sugar]
+import hmisc/helpers
+import pragmas, hast_common
+
 type
   NTypeKind* = enum
     ## Type kind
@@ -330,38 +334,7 @@ func newProcNType*[NNode](args: seq[NType[NNode]]): NType[NNode] =
     pragma: newNNPragma[NNode]()
   )
 
-func toStrLit*(node: PNode): PNode =
-  {.noSideEffect.}:
-    result = newPLit($node)
-
-proc parseNidentDefs*(node: PNode): NIdentDefs[PNode] =
-  for arg in node[0..^3]:
-    result.idents.add arg
-
-  if node[^2].kind != nnkEmpty:
-    result.vtype = newNType(node[^2])
-
-  else:
-    result.vtype = NType[PNode](kind: ntkNone)
-
-  if node[^1].kind != nnkEmpty:
-    result.value = some(node[^1])
-
-
-proc `arguments=`*(
-  procDecl: var PProcDecl, arguments: seq[NIdentDefs[PNode]]) =
-  procDecl.signature.arguments = arguments
-
-proc arguments*(procDecl: var PProcDecl): var seq[NIdentDefs[PNode]] =
-  procDecl.signature.arguments
-
-iterator argumentIdents*[N](procDecl: ProcDecl[N]): N =
-  for argument in procDecl.signature.arguments:
-    for ident in argument.idents:
-      yield ident
-
-
-
+func parseNidentDefs*[N](node: N): NIdentDefs[N]
 func newNTypeNNode*[NNode](node: NNode): NType[NNode] =
   # REFACTOR rename to `parseNType`
   ## Convert type described in `NimNode` into `NType`
@@ -486,6 +459,24 @@ func toNTypeAst*[T](): NType =
   let str = $typeof(T)
   let expr = parseExpr(str)
 
+
+func parseNidentDefs*[N](node: N): NIdentDefs[N] =
+  for arg in node[0..^3]:
+    result.idents.add arg
+
+  if node[^2].kind != nnkEmpty:
+    result.vtype = newNType(node[^2])
+
+  else:
+    raiseImplementError("")
+    # result.vtype = NType[N](kind: ntkNone)
+
+  if node[^1].kind != nnkEmpty:
+    result.value = some(node[^1])
+
+
+
+
 #===========================  Pretty-printing  ===========================#
 func `$`*[NNode](nt: NType[NNode]): string =
   ## Convert `NType` to texual representation
@@ -543,3 +534,57 @@ func `$`*[NNode](nt: NType[NNode]): string =
 
     of ntkRange:
       raiseImplementError("")
+
+func newCallNode*(
+  dotHead: NimNode, name: string,
+  args: seq[NimNode], genParams: seq[NType[NimNode]] = @[]): NimNode {.deprecated.} =
+  ## Create node `dotHead.name[@genParams](genParams)`
+  let dotexpr = nnkDotExpr.newTree(dotHead, ident(name))
+  if genParams.len > 0:
+    result = nnkCall.newTree()
+    result.add nnkBracketExpr.newTree(
+      @[ dotexpr ] & genParams.mapIt(it.toNimNode))
+  else:
+    result = nnkCall.newTree(dotexpr)
+
+  for arg in args:
+    result.add arg
+
+func newCallNode*(
+  name: string,
+  args: seq[NimNode],
+  genParams: seq[NType[NimNode]] = @[]): NimNode {.deprecated.} =
+  ## Create node `name[@genParams](@args)`
+  if genParams.len > 0:
+    result = nnkCall.newTree()
+    result.add nnkBracketExpr.newTree(
+      @[ newIdentNode(name) ] & genParams.mapIt(it.toNimNode()))
+
+  else:
+    result = nnkCall.newTree(ident name)
+
+  for node in args:
+    result.add node
+
+
+func newCallNode*(name: string,
+                 gentypes: openarray[NType],
+                 args: varargs[NimNode]): NimNode {.deprecated.} =
+  ## Create node `name[@gentypes](@args)`. Overload with more
+  ## convinient syntax if you have predefined number of genric
+  ## parameters - `newCallNode("name", [<param>](arg1, arg2))` looks
+  ## almost like regular `quote do` interpolation.
+  newCallNode(name, toSeq(args), toSeq(genTypes))
+
+func newCallNode*(
+  arg: NimNode, name: string,
+  gentypes: openarray[NType[NimNode]] = @[]): NimNode {.deprecated.} =
+  ## Create call node `name[@gentypes](arg)`
+  newCallNode(name, @[arg], toSeq(genTypes))
+
+func newCallNode*(
+  dotHead: NimNode, name: string,
+  gentypes: openarray[NType],
+  args: seq[NimNode]): NimNode {.deprecated.} =
+  ## Create call node `dotHead.name[@gentypes](@args)`
+  newCallNode(dotHead, name, toSeq(args), toSeq(genTypes))

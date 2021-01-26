@@ -1,4 +1,6 @@
 import hast_common
+import std/[strutils]
+import compiler/[lineinfos]
 
 func quoteAux(body: NimNode, resCall: string): NimNode =
   if body.kind == nnkPrefix and

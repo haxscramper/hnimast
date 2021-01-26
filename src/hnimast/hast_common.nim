@@ -1,5 +1,9 @@
-
+import std/[macros, sequtils, strformat, strutils, tables, sets]
 import compiler/[ast, idents, lineinfos, renderer]
+import hmisc/types/colorstring
+import hmisc/helpers
+
+export ast, macros
 
 template `[]`*(node: PNode, slice: HSLice[int, BackwardsIndex]): untyped =
   ## Get range of subnodes from `PNode`
@@ -21,6 +25,13 @@ const
   nkLiteralKinds* = nkStrKinds + nkIntKinds + nkFloatKinds
 
   nkTokenKinds* = nkLiteralKinds + {nkIdent, nkSym}
+
+type
+  ObjectAnnotKind* = enum
+    ## Position of annotation (most likely pragma) attached.
+    oakCaseOfBranch ## Annotation on case branch, not currently suppported
+    oakObjectToplevel ## Toplevel annotaion for object
+    oakObjectField ## Annotation for object field
 
 template currIInfo*(): untyped =
   let (file, line, col) = instantiationInfo()
@@ -236,6 +247,10 @@ func newRStrLit*(st: string): PNode =
   result = nnkRStrLit.newPTree()
   result.strVal = st
 
+func toStrLit*(node: PNode): PNode =
+  {.noSideEffect.}:
+    result = newPLit($node)
+
 func newPIdentColonString*(key, value: string): PNode =
   nnkExprColonExpr.newPTree(newPIdent(key), newPLit(value))
 
@@ -266,59 +281,6 @@ func newPCall*(call: string, args: varargs[PNode]): PNode =
     result.add arg
 
 
-func newCallNode*(
-  dotHead: NimNode, name: string,
-  args: seq[NimNode], genParams: seq[NType[NimNode]] = @[]): NimNode =
-  ## Create node `dotHead.name[@genParams](genParams)`
-  let dotexpr = nnkDotExpr.newTree(dotHead, ident(name))
-  if genParams.len > 0:
-    result = nnkCall.newTree()
-    result.add nnkBracketExpr.newTree(
-      @[ dotexpr ] & genParams.mapIt(it.toNimNode))
-  else:
-    result = nnkCall.newTree(dotexpr)
-
-  for arg in args:
-    result.add arg
-
-func newCallNode*(
-  name: string,
-  args: seq[NimNode],
-  genParams: seq[NType[NimNode]] = @[]): NimNode =
-  ## Create node `name[@genParams](@args)`
-  if genParams.len > 0:
-    result = nnkCall.newTree()
-    result.add nnkBracketExpr.newTree(
-      @[ newIdentNode(name) ] & genParams.mapIt(it.toNimNode()))
-
-  else:
-    result = nnkCall.newTree(ident name)
-
-  for node in args:
-    result.add node
-
-
-func newCallNode*(name: string,
-                 gentypes: openarray[NType],
-                 args: varargs[NimNode]): NimNode =
-  ## Create node `name[@gentypes](@args)`. Overload with more
-  ## convinient syntax if you have predefined number of genric
-  ## parameters - `newCallNode("name", [<param>](arg1, arg2))` looks
-  ## almost like regular `quote do` interpolation.
-  newCallNode(name, toSeq(args), toSeq(genTypes))
-
-func newCallNode*(
-  arg: NimNode, name: string,
-  gentypes: openarray[NType[NimNode]] = @[]): NimNode =
-  ## Create call node `name[@gentypes](arg)`
-  newCallNode(name, @[arg], toSeq(genTypes))
-
-func newCallNode*(
-  dotHead: NimNode, name: string,
-  gentypes: openarray[NType],
-  args: seq[NimNode]): NimNode =
-  ## Create call node `dotHead.name[@gentypes](@args)`
-  newCallNode(dotHead, name, toSeq(args), toSeq(genTypes))
 
 func toBracket*(elems: seq[NimNode]): NimNode =
   ## Create `nnkBracket` with elements
@@ -434,6 +396,29 @@ proc treeRepr*(
 
   return aux(pnode, 0, @[])
 
+func idxTreeRepr*(inputNode: NimNode): string =
+  ## `treeRepr` with indices for subnodes
+  ## .. code-block::
+  ##                 TypeDef
+  ##     [0]            PragmaExpr
+  ##     [0][0]            Postfix
+  ##     [0][0][0]            Ident *
+  ##     [0][0][1]            Ident Hello
+  ##     [0][1]            Pragma
+
+  func aux(node: NimNode, parent: seq[int]): seq[string] =
+    result.add parent.mapIt(&"[{it}]").join("") &
+      "  ".repeat(6) &
+      ($node.kind)[3..^1] &
+      (node.len == 0).tern(" " & node.toStrLit().strVal(), "")
+
+    for idx, subn in node:
+      result &= aux(subn, parent & @[idx])
+
+  return aux(inputNode, @[]).join("\n")
+
+
+
 
 #=======================  Init calls construction  =======================#
 
@@ -531,7 +516,7 @@ func normalizeSetImpl[NNode](node: NNode): seq[NNode] =
       {.cast(noSideEffect).}:
 
         when node is PNode:
-          let str = hnimast.`$`(node)
+          let str = hast_common.`$`(node)
 
         else:
           let str = `$`(node)

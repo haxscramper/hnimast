@@ -6,15 +6,30 @@
 import hmisc/[helpers, base_errors]
 export base_errors
 
-import hmisc/types/colorstring
-import std/[
-  sequtils, colors, macros, tables, strutils, streams,
-  terminal, options, parseutils, sets, strformat, sugar
+import std/[options, macros]
+import compiler/[ast, idents, lineinfos, renderer]
+import hnimast/[
+  pnode_parse,
+  hast_common,
+  pragmas,
+  proc_decl,
+  object_decl,
+  enum_decl,
+  idents_types,
+  hast_quote,
+  nim_decl
 ]
 
-import compiler/[ast, idents, lineinfos, renderer]
+export pnode_parse,
+  hast_common,
+  pragmas,
+  proc_decl,
+  object_decl,
+  enum_decl,
+  idents_types,
+  hast_quote,
+  nim_decl
 
-import hnimast/[pnode_parse]
 export pnode_parse, options, NimNodeKind
 
 export ast

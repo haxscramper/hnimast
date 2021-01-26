@@ -1,4 +1,8 @@
-#===========================  Type definition  ===========================#
+import hast_common
+import compiler/[ast]
+import std/[macros, options, tables, sequtils]
+import hmisc/helpers
+
 type
   Pragma*[NNode] = object
     ## Body of pragma annotation;
@@ -81,3 +85,40 @@ func toNimNode*(pragma: NPragma): NimNode =
   ## Convert pragma to nim node. If pragma contains no elements
   ## `EmptyNode` is generated.
   toNNode[NimNode](pragma)
+
+
+
+func createProcType*(p, b: NimNode, annots: NPragma): NimNode =
+  ## Copy-past of `sugar.createProcType` with support for annotations
+  result = newNimNode(nnkProcTy)
+  var formalParams = newNimNode(nnkFormalParams)
+
+  formalParams.add b
+
+  case p.kind
+  of nnkPar, nnkTupleConstr:
+    for i in 0 ..< p.len:
+      let ident = p[i]
+      var identDefs = newNimNode(nnkIdentDefs)
+      case ident.kind
+      of nnkExprColonExpr:
+        identDefs.add ident[0]
+        identDefs.add ident[1]
+      else:
+        identDefs.add newIdentNode("i" & $i)
+        identDefs.add(ident)
+      identDefs.add newEmptyNode()
+      formalParams.add identDefs
+  else:
+    var identDefs = newNimNode(nnkIdentDefs)
+    identDefs.add newIdentNode("i0")
+    identDefs.add(p)
+    identDefs.add newEmptyNode()
+    formalParams.add identDefs
+
+  result.add formalParams
+  result.add annots.toNimNode()
+
+macro `~>`*(a, b: untyped): untyped =
+  ## Construct proc type with `noSideEffect` annotation.
+  result = createProcType(a, b, newNPragma("noSideEffect"))

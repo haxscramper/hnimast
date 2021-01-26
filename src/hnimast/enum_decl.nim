@@ -1,3 +1,7 @@
+import hast_common, pragmas
+import hmisc/helpers
+import std/[macros, options, sugar, strformat, parseutils, sequtils]
+
 type
   EnumFieldVal* = enum
     efvNone

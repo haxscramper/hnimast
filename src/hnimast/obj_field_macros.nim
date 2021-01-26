@@ -6,31 +6,11 @@ import compiler/ast
 import hmisc/algo/halgorithm
 import hmisc/helpers
 import hmisc/types/colorstring
-import ../hnimast
+import object_decl, idents_types, hast_common, pragmas
 import hmisc/hdebug_misc
+export pragmas
 
 # TODO support multiple fields declared on the same line - `fld1, fld2: Type`
-
-func idxTreeRepr*(inputNode: NimNode): string =
-  ## `treeRepr` with indices for subnodes
-  ## .. code-block::
-  ##                 TypeDef
-  ##     [0]            PragmaExpr
-  ##     [0][0]            Postfix
-  ##     [0][0][0]            Ident *
-  ##     [0][0][1]            Ident Hello
-  ##     [0][1]            Pragma
-
-  func aux(node: NimNode, parent: seq[int]): seq[string] =
-    result.add parent.mapIt(&"[{it}]").join("") &
-      "  ".repeat(6) &
-      ($node.kind)[3..^1] &
-      (node.len == 0).tern(" " & node.toStrLit().strVal(), "")
-
-    for idx, subn in node:
-      result &= aux(subn, parent & @[idx])
-
-  return aux(inputNode, @[]).join("\n")
 
 proc getFields*[NNode, A](
   node: NNode, cb: ParseCb[NNode, A]): seq[ObjectField[NNode, A]]

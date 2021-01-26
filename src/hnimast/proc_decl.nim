@@ -1,3 +1,8 @@
+import hast_common, idents_types, pragmas
+import hmisc/helpers
+import std/[sequtils, strutils, macros, options]
+import compiler/[ast, lineinfos, idents]
+
 type
   # TODO different keyword types: `method`, `iterator`, `proc`,
   # `func`, `template` etc.
@@ -40,43 +45,17 @@ func `==`*[NNode](lhs, rhs: ProcDecl[NNode]): bool =
   lhs.exported == rhs.exported and
   lhs.signature == rhs.signature
 
+proc `arguments=`*(
+  procDecl: var PProcDecl, arguments: seq[NIdentDefs[PNode]]) =
+  procDecl.signature.arguments = arguments
 
+proc arguments*(procDecl: var PProcDecl): var seq[NIdentDefs[PNode]] =
+  procDecl.signature.arguments
 
-func createProcType*(p, b: NimNode, annots: NPragma): NimNode =
-  ## Copy-past of `sugar.createProcType` with support for annotations
-  result = newNimNode(nnkProcTy)
-  var formalParams = newNimNode(nnkFormalParams)
-
-  formalParams.add b
-
-  case p.kind
-  of nnkPar, nnkTupleConstr:
-    for i in 0 ..< p.len:
-      let ident = p[i]
-      var identDefs = newNimNode(nnkIdentDefs)
-      case ident.kind
-      of nnkExprColonExpr:
-        identDefs.add ident[0]
-        identDefs.add ident[1]
-      else:
-        identDefs.add newIdentNode("i" & $i)
-        identDefs.add(ident)
-      identDefs.add newEmptyNode()
-      formalParams.add identDefs
-  else:
-    var identDefs = newNimNode(nnkIdentDefs)
-    identDefs.add newIdentNode("i0")
-    identDefs.add(p)
-    identDefs.add newEmptyNode()
-    formalParams.add identDefs
-
-  result.add formalParams
-  result.add annots.toNimNode()
-
-macro `~>`*(a, b: untyped): untyped =
-  ## Construct proc type with `noSideEffect` annotation.
-  result = createProcType(a, b, newNPragma("noSideEffect"))
-
+iterator argumentIdents*[N](procDecl: ProcDecl[N]): N =
+  for argument in procDecl.signature.arguments:
+    for ident in argument.idents:
+      yield ident
 
 func toNNode*[NNode](
   pr: ProcDecl[NNode], standalone: bool = true): NNode =
@@ -234,7 +213,7 @@ func newProcDeclNNode*[NNode](
   impl: NNode,
   pragma: Pragma[NNode] = Pragma[NNode](),
   exported: bool = true,
-  comment: string = ""): NNode =
+  comment: string = ""): NNode {.deprecated.} =
   ## Generate procedure declaration
   ##
   ## ## Parameters
@@ -291,7 +270,7 @@ func newProcDeclNNode*[NNode](
 func newProcDeclNode*(
   head: NimNode, rtype: Option[NType[NimNode]], args: seq[NIdentDefs[NimNode]],
   impl: NimNode, pragma: NPragma = NPragma(), exported: bool = true,
-  comment: string = ""): NimNode =
+  comment: string = ""): NimNode {.deprecated.} =
 
   newProcDeclNNode[NimNode](
     head, rtype, args, impl, pragma, exported, comment)
@@ -300,7 +279,7 @@ func newProcDeclNode*(
 func newProcDeclNode*(
   head: PNode, rtype: Option[NType[PNode]], args: seq[PIdentDefs],
   impl: PNode, pragma: Pragma[PNode] = Pragma[PNode](),
-  exported: bool = true, comment: string = ""): PNode =
+  exported: bool = true, comment: string = ""): PNode {.deprecated.} =
 
   newProcDeclNNode[PNode](
     head, rtype, args, impl, pragma, exported, comment)
@@ -311,7 +290,7 @@ func newProcDeclNode*[NNode](
   impl: NNode,
   pragma: Pragma[NNode] = Pragma[NNode](),
   exported: bool = true,
-  comment: string = ""): NNode =
+  comment: string = ""): NNode {.deprecated.} =
   newProcDeclNNode(
     head,
     none(NType[NNode]),
@@ -330,7 +309,7 @@ func newProcDeclNode*[NNode](
   impl: NNode,
   pragma: Pragma[NNode] = Pragma[NNode](),
   exported: bool = true,
-  comment: string = ""): NNode =
+  comment: string = ""): NNode {.deprecated.} =
   newProcDeclNNode(
     newNTree[NNode](nnkAccQuoted, accq),
     some(rtype),
@@ -348,7 +327,7 @@ func newProcDeclNode*[NNode](
   impl: NNode,
   pragma: Pragma[NNode] = Pragma[NNode](),
   exported: bool = true,
-  comment: string = ""): NNode =
+  comment: string = ""): NNode {.deprecated.} =
   newProcDeclNNode(
     newNTree[NNode](nnkAccQuoted, accq),
     none(NType[NNode]),
@@ -367,7 +346,7 @@ func newProcDeclNode*[NNode](
   impl: NNode,
   pragma: Pragma[NNode] = Pragma[NNode](),
   exported: bool = true,
-  comment: string = ""): NNode =
+  comment: string = ""): NNode {.deprecated.} =
   newProcDeclNNode(
     head,
     some(rtype),
@@ -388,7 +367,7 @@ func newProcDeclNode*[NNode](
   impl: NNode,
   pragma: Pragma[NNode] = Pragma[NNode](),
   exported: bool = true,
-  comment: string = ""): NNode =
+  comment: string = ""): NNode {.deprecated.} =
   newProcDeclNNode(
     head,
     none(NType[NNode]),

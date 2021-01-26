@@ -1,3 +1,7 @@
+import hast_common, proc_decl, idents_types, object_decl, enum_decl, pragmas
+import std/[sequtils]
+import hmisc/helpers
+
 type
   NimDeclKind* = enum
     nekPasstroughCode
@@ -26,8 +30,10 @@ type
     case kind*: NimTypeDeclKind:
       of ntdkEnumDecl:
         enumDecl*: EnumDecl[N]
+
       of ntdkObjectDecl:
         objectDecl*: ObjectDecl[N, Pragma[N]]
+
       of ntdkAliasDecl:
         aliasDecl*: AliasDecl[N]
 
@@ -35,14 +41,19 @@ type
     case kind*: NimDeclKind
       of nekProcDecl:
         procdecl*: ProcDecl[N]
+
       of nekEnumDecl:
         enumdecl*: EnumDecl[N]
+
       of nekObjectDecl:
         objectdecl*: ObjectDecl[N, Pragma[N]]
+
       of nekAliasDecl:
         aliasDecl*: AliasDecl[N]
+
       of nekPasstroughCode:
         passthrough*: N
+
       of nekMultitype:
         typedecls*: seq[NimTypeDecl[N]]
 
