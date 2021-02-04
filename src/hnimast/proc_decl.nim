@@ -1,7 +1,7 @@
 import hast_common, idents_types, pragmas
 import hmisc/helpers
 import std/[sequtils, strutils, macros, options]
-import compiler/[ast, lineinfos, idents]
+import compiler/[ast, lineinfos]
 
 type
   # TODO different keyword types: `method`, `iterator`, `proc`,
@@ -52,10 +52,17 @@ proc `arguments=`*(
 proc arguments*(procDecl: var PProcDecl): var seq[NIdentDefs[PNode]] =
   procDecl.signature.arguments
 
+proc arguments*[N](procDecl: ProcDecl[N]): seq[NIdentDefs[N]] =
+  procDecl.signature.arguments
+
+
 iterator argumentIdents*[N](procDecl: ProcDecl[N]): N =
   for argument in procDecl.signature.arguments:
     for ident in argument.idents:
       yield ident
+
+proc returnType*[N](procDecl: ProcDecl[N]): Option[NType[N]] =
+  procDecl.signature.returnType()
 
 func toNNode*[NNode](
   pr: ProcDecl[NNode], standalone: bool = true): NNode =
@@ -137,6 +144,9 @@ func toNNode*[NNode](
     result.comment = pr.docComment
     # debugecho result.comment
 
+func newProcDecl*[N](name: string): ProcDecl[N] =
+  result.name = name
+  result.signature = NType[N](kind: ntkProc)
 
 func newPProcDecl*(
     name:        string,
@@ -377,3 +387,46 @@ func newProcDeclNode*[NNode](
     exported,
     comment
   )
+
+proc parseProc*[N](node: N): ProcDecl[N] =
+  result = newProcDecl[N](":tmp")
+
+  case toNNK(node.kind):
+    of nnkProcDeclKinds:
+      case toNNK(node[0].kind):
+        of nnkSym, nnkIdent:
+          result.name = node[0].getStrVal()
+
+        else:
+          raiseImplementError("")
+
+
+      case toNNK(node[1].kind):
+        of nnkEmpty:
+          discard
+
+        else:
+          # IMPLEMENT term rewriting arguments
+          discard
+
+      case toNNK(node[2].kind):
+        of nnkEmpty:
+          discard
+
+        else:
+          discard
+
+      for arg in node[3][1..^1]:
+        result.arguments.add parseNidentDefs(arg)
+
+      result.impl = node[6]
+
+      if node[6].kind in {nnkStmtList} and
+         node[6].len > 0 and
+         node[6][0].kind == nkCommentStmt
+        :
+        result.docComment = node[6][0].comment
+
+    else:
+      echo node.treeRepr()
+      raiseImplementError($node.kind & " " & $node.getInfo())

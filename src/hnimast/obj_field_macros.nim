@@ -13,7 +13,8 @@ export pragmas
 # TODO support multiple fields declared on the same line - `fld1, fld2: Type`
 
 proc getFields*[NNode, A](
-  node: NNode, cb: ParseCb[NNode, A]): seq[ObjectField[NNode, A]]
+  node: NNode, cb: ParseCb[NNode, A],
+  level: int = 0): seq[ObjectField[NNode, A]]
 
 proc getBranches*[NNode, A](
   node: NNode, cb: ParseCb[NNode, A]): seq[ObjectBranch[NNode, A]] =
@@ -56,28 +57,40 @@ proc getFieldDescriptions[NNode](node: NNode):
         case ident.kind.toNNK():
           of nnkPostfix:
             exported = true
-            name = $node[0][1]
+            name = $ident[1]
 
           of nnkPragmaExpr:
-            if node[0][0].kind.toNNK() == nnkPostfix:
-              name = $node[0][0][1]
+            if ident[0].kind.toNNK() == nnkPostfix:
+              name = $ident[1]
 
             else:
-              name = $node[0][0]
+              name = $ident[0]
 
           else:
-            name = $node[0]
+            name = $ident
 
         result.add((name: name, fldType: fldType, exported: exported))
 
-      # debugecho node[0].idxTreeRepr
-      # debugecho result
     of nnkRecCase:
       return getFieldDescriptions(node[0])
 
-    # of nnkRecWhen:
-    #   # WARNING skipping condition for field access.
-    #   for subnode in node:
+    of nnkSym:
+      var fldType: NType[NNode]
+      when node is PNode:
+        if node.sym.notNil() and
+           node.sym.typ.notNil() and
+           node.sym.typ.n.notNil()
+          :
+
+          fldType = newNType(node.sym.typ.n)
+
+        else:
+          fldTYpe = newNNType[NNode]("TYPE_DETECTION_ERROR")
+
+      else:
+        fldTYpe = newNNType[NNode]("TYPE_DETECTION_ERROR")
+
+      result.add((name: $node, fldType: fldType, exported: false))
 
     else:
       raiseAssert(
@@ -86,45 +99,67 @@ proc getFieldDescriptions[NNode](node: NNode):
       )
 
 proc getFields*[NNode, A](
-  node: NNode, cb: ParseCb[NNode, A]): seq[ObjectField[NNode, A]] =
+  node: NNode, cb: ParseCb[NNode, A], level: int = 0): seq[ObjectField[NNode, A]] =
   # TODO ignore `void` fields
   case node.kind.toNNK():
     of nnkObjConstr:
       # echo node.treeRepr()
-      return getFields(node[0], cb)
+      return getFields(node[0], cb, level + 1)
 
     of nnkSym, nnkCall, nnkDotExpr:
       when NNode is PNode:
-        raiseAssert("Prasing Pnode from symbol is not supported")
+        if level == 0:
+          raiseAssert(
+            "Parsing PNode from symbol on the first level is not supported " & $level
+          )
+        else:
+          if node.kind.toNNK() == nnkSym:
+            let descr = getFieldDescriptions(node)[0]
+            result = @[ObjectField[NNode, A](
+              declNode: some(node),
+              isTuple: false,
+              isKind: false,
+              name: descr.name,
+              fldType: descr.fldType,
+              exported: descr.exported
+            )]
+
+            # if node.sym.notNil() and
+            #    node.sym.typ.n.notNil():
+            #   result[0].fldType = newNType(node.sym.typ.n)
+
+
+          else:
+            raiseImplementError("")
 
       else:
         let kind = node.getTypeImpl().kind
         case kind:
           of nnkBracketExpr:
             let typeSym = node.getTypeImpl()[1]
-            result = getFields(typeSym.getTypeImpl(), cb)
+            result = getFields(typeSym.getTypeImpl(), cb, level + 1)
 
           of nnkObjectTy, nnkRefTy, nnkTupleTy, nnkTupleConstr:
-            result = getFields(node.getTypeImpl(), cb)
+            result = getFields(node.getTypeImpl(), cb, level + 1)
 
           else:
             raiseAssert("Unknown parameter kind: " & $kind)
 
     of nnkObjectTy:
-      return node[2].getFields(cb)
+      return node[2].getFields(cb, level  + 1)
 
     of nnkRefTy:
       when NNode is PNode:
         raiseAssert("Parsing PNode from nnkRefTy is not supported")
 
       else:
-        return node.getTypeImpl()[0].getImpl()[2][0].getFields(cb)
+        return node.getTypeImpl()[0].getImpl()[2][0].getFields(cb, level + 1)
 
     of nnkRecList:
       mixin items
       for elem in items(node):
         if elem.kind.toNNK() == nnkRecWhen:
-          result.add getFields(elem, cb)
+          result.add getFields(elem, cb, level + 1)
 
         elif elem.kind.toNNK() notin {nnkRecList, nnkNilLit}:
           let descr = getFieldDescriptions(elem)
@@ -142,14 +177,14 @@ proc getFields*[NNode, A](
               )
 
             of nnkIdentDefs: # Regular field definition
-              result.add getFields(elem, cb)[0]
+              result.add getFields(elem, cb, level + 1)[0]
 
             else:
               discard
 
     of nnkTupleTy:
       for fld in items(node):
-        result.add fld.getFields(cb)
+        result.add fld.getFields(cb, level + 1)
 
     of nnkTupleConstr:
       for idx, sym in pairs(node):
@@ -191,14 +226,14 @@ proc getFields*[NNode, A](
 
     of nnkRecWhen:
       for subnode in items(node):
-        result.add getFields(subnode, cb)
+        result.add getFields(subnode, cb, level + 1)
 
     of nnkElifBranch:
       # WARNING condition is dropped
-      result.add getFields(node[1], cb)
+      result.add getFields(node[1], cb, level + 1)
 
     of nnkElse:
-      result.add getFields(node[0], cb)
+      result.add getFields(node[0], cb, level + 1)
 
     of nnkNilLit:
       # Explicit `nil`
@@ -366,7 +401,7 @@ proc parseObject*[NNode, A](
 macro makeFieldsLiteral*(node: typed): untyped =
   result = node.getFields(
     noParseCb).discardNimNode.makeConstructAllFields()
-  # echo result.toStrLit()
+
 
 type
   GenParams = object
@@ -579,13 +614,15 @@ fields **as defined** in object while second one shows order of fields
 
   let (unrolled, _) = getFields(
     lhsObj, noParseCb).unrollFieldLoop(body, 0, genParams)
-  result = superquote do:
 
+  result = superquote do:
     block: ## Toplevel
       var `ident(genParams.valIdxName)`: int = 0
       let `ident(genParams.lhsObj)` = `lhsObj`
       let `ident(genParams.rhsObj)` = `rhsObj`
       `unrolled`
+
+  # echo unrolled.repr
 
 
 macro hackPrivateParallelFieldPairs*(lhsObj, rhsObj: typed, body: untyped): untyped =

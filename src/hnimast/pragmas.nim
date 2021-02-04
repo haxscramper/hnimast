@@ -50,6 +50,16 @@ func clear*[N](pragma: var PRagma[N]) =
 #============================  constructors  =============================#
 func newNNPragma*[NNode](): Pragma[NNode] = discard
 
+func parsePragma*[N](node: N): Pragma[N] =
+  case toNNK(node.kind):
+    of nnkPragma:
+      for entry in items(node):
+        result.elements.add entry
+
+    else:
+      discard
+
+
 func newNPragma*(names: varargs[string]): NPragma =
   ## Create pragma using each string as separate name.
   ## `{.<<name1>, <name2>, ...>.}`

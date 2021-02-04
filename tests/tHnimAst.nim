@@ -1,12 +1,9 @@
-import sugar, strutils, sequtils, strformat, macros, options
+import strutils, sequtils, strformat, macros, options
 import ../src/hnimast
 import hmisc/helpers
-import ../src/hnimast/obj_field_macros
+import ../src/hnimast/[obj_field_macros, pprint]
 
 import compiler/ast
-import hmisc/types/colorstring
-# import ../src/hnimast/hnim_ast
-# import hpprint
 
 
 #===========================  implementation  ============================#
@@ -109,22 +106,6 @@ suite "HNimAst":
       type
         Type {.zz(C), ee: "333", ee.} = object
           f1 {.check(it < 2).}: float = 32.0
-
-  test "{newProcDeclNode}":
-    macro mcr(): untyped =
-      result = newStmtList()
-      result.add newProcDeclNode(
-        ident "hello",
-        { "world" : newNType("int") },
-        newCall(
-          "echo", newLit("value is: "), ident "world"
-        ),
-        exported = false
-      )
-
-    mcr()
-
-    hello(12)
 
   test "{eachCase}":
     macro mcr(body: untyped): untyped =
@@ -291,22 +272,8 @@ suite "working with PNode":
     echo newPIdent("hello")
     echo newReturn(newPIdent("qqqq"))
     echo newPrefix("!", newPIdent("eee"))
-    echo newProcDeclNNode(
-      newPIdent("hello"), none(NType[PNode]), @[], newPIdent("impl"))
-
-    echo newProcDeclNode(newPIdent("nice"), {
-      "arg1" : newPType("HHH")
-    }, newPIdent("implementation"), comment = "some documentation")
-
     block:
-      var decl = newProcDeclNode(newPIdent("nice"), [
-        ("arg1", newPType("HHH"), nvdVar)
-      ], newPIdent("implementation"))
-
-
-      echo newProcDeclNode(
-        newPIdent("noimpl"), {"arg1" : newPType("HHH")}, newEmptyPNode())
-
+      var decl = newPProcDecl("nice", {"arg1" : newPType("HHH")}).toNNode()
       var procdef: ProcDecl[PNode]
       procdef.name = "Hello"
       procdef.signature = newProcNType[PNode](@[])
@@ -316,7 +283,6 @@ suite "working with PNode":
 
       let node = parsePNodeStr($pd)
       echo node.treeRepr()
-      # echo node.treeRepr()
 
       decl.comment = "hello world"
       echo decl
@@ -329,16 +295,7 @@ suite "working with PNode":
           comment = "documentation comment"
         )
 
-        # values: @{
-        #   "hello" : some(
-        #     newPIdent("eee").withIt do:
-        #       it.comment = "documentation for field"
-        #   ),
-        #   "world" : some(newPLit(12))
-        # }
-      # )
-
-      en.meta.docComment = """
+      en.docComment = """
 Aliquam erat volutpat. Nunc eleifend leo vitae magna. In id erat non
 orci commodo lobortis. Proin neque massa, cursus ut, gravida ut,
 lobortis eget, lacus. Sed diam. Praesent fermentum tempor tellus.
@@ -370,13 +327,13 @@ type Type = object
     let pdecl = pproc.toNimDecl()
 
     let pnode = pdecl.toNNode()
-    hnimast.write(stdout, pdecl)
+    write(stdout, pdecl)
 
     var decls: seq[NimTypeDecl[PNode]]
 
     decls.add toNimTypeDecl(newPEnumDecl("Test", iinfo = currIInfo()))
 
-    hnimast.write(stdout, decls.toNimDecl())
+    write(stdout, decls.toNimDecl())
 
 import hnimast/pprint
 

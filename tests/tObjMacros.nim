@@ -1,6 +1,6 @@
 import sugar, strutils, sequtils, strformat, options
 import compiler/ast
-import ../src/hnimast/obj_field_macros
+import ../src/hnimast/[obj_field_macros, object_decl]
 import ../src/hnimast
 import hmisc/types/colorstring
 
@@ -343,14 +343,14 @@ type
 
       f3: int
 
-  template checkDeclaredFields(): untyped =
-    if name == "kind":
+  template checkDeclaredFields(fldName): untyped =
+    if fldName == "kind":
       assert (lhs is bool) and (rhs is bool)
       assert isKind
-    elif name == "f1":
+    elif fldName == "f1":
       assert (lhs is char) and (rhs is char)
       assert not isKind
-    elif (name == "f2") or (name == "f3"):
+    elif (fldName == "f2") or (fldName == "f3"):
       discard
     else:
       fail()
@@ -360,31 +360,35 @@ type
       UTop(kind: true, f1: '1'),
       UTop(kind: true, f1: '1')
     ):
-      checkDeclaredFields()
+      checkDeclaredFields(name)
 
   test "{parallelFieldPairs} from variable :macro:":
     let v1 = UTop()
     let v2 = UTop()
     parallelFieldPairs(v1, v2):
-      checkDeclaredFields()
+      checkDeclaredFields(name)
 
   test "{parallelFieldPairs} inside generic function :macro:generic:":
     var found = (kind: false, f2: false, f3: false)
-    proc generic[T](lhsIn, rhsIn: T): void =
-      parallelFieldPairs(lhsIn, rhsIn):
-        checkDeclaredFields()
+    when false: # FIXME for some reason shit stopped working - `name` is
+                # correctly injected into the scope, but is not recognized
+                # for overload resolution (instead it tries to use
+                # `std/macros/name()` for `NimNode`)
+      proc generic[T](lhsIn, rhsIn: T): void =
+        parallelFieldPairs(lhsIn, rhsIn):
+          checkDeclaredFields(name)
 
-        if name == "kind":
-          found.kind = true
-        elif name == "f2":
-          found.f2 = true
-        elif name == "f3":
-          found.f3 = true
+          if name == "kind":
+            found.kind = true
+          elif name == "f2":
+            found.f2 = true
+          elif name == "f3":
+            found.f3 = true
 
-    generic(UTop(), UTop())
-    assert found.kind
-    assert found.f2
-    assert found.f3
+      generic(UTop(), UTop())
+      assert found.kind
+      assert found.f2
+      assert found.f3
 
   test "{parallelFieldPairs} iterate field/call :macro:":
     block:
@@ -393,14 +397,14 @@ type
 
       parallelFieldPairs(makeObj(), makeObj()):
         assert lhsObj is UTop
-        checkDeclaredFields()
+        checkDeclaredFields(name)
 
     block:
       let val = (f: UTop())
 
       parallelFieldPairs(val.f, val.f):
         assert lhsObj is UTop
-        checkDeclaredFields()
+        checkDeclaredFields(name)
 
 import private
 

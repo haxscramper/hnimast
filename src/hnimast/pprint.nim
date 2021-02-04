@@ -3,12 +3,12 @@ import hmisc/helpers
 import hmisc/hexceptions
 import hmisc/macros/cl_logic
 
-import ../hnimast
+import ../hnimast, nim_decl
 
 import std/[options, strutils, strformat, sequtils, streams, sugar, macros]
-import compiler/[ast, idents, lineinfos, renderer]
+import compiler/[ast, idents, lineinfos]
 
-proc str(n: PNode): string = renderer.`$`(n)
+proc str(n: PNode): string = `$`(n)
 
 let
   txb = makeTextBlock
@@ -299,7 +299,7 @@ proc write*(
   if pprint:
     s.pprintWrite(pd.toNNode(standalone = standalone), indent = indent)
   else:
-    for line in (renderer.`$`(pd.toNNode(standalone = standalone))).split('\n'):
+    for line in (str(pd.toNNode(standalone = standalone))).split('\n'):
       s.write(pref)
       s.writeLine(line)
 

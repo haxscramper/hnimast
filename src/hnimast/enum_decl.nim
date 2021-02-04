@@ -1,4 +1,6 @@
 import hast_common, pragmas
+export hast_common
+
 import hmisc/helpers
 import std/[macros, options, sugar, strformat, parseutils, sequtils]
 
@@ -34,12 +36,16 @@ type
     case kind*: EnumFieldVal
       of efvNone:
         discard
+
       of efvIdent:
         ident*: NNode
+
       of efvOrdinal:
         ordVal*: RtimeOrdinal
+
       of efvString:
         strval*: string
+
       of efvOrdString:
         ordStr*: tuple[ordVal: RtimeOrdinal, strval: string]
 
@@ -112,7 +118,7 @@ func parseEnumField*[NNode](fld: NNode): EnumField[NNode] =
             ordVal: val.parseRTimeOrdinal()
           )
 
-        of nnkPar:
+        of nnkPar, nnkTupleConstr:
           val[1].expectKind nnkStrLit
           result = EnumField[NNode](
             kind: efvOrdString,
@@ -314,7 +320,17 @@ func parseEnumImpl*[NNode](en: NNode): EnumDecl[NNode] =
     of nnkTypeDef:
       result = parseEnumImpl(en[2])
       result.declNode = some(en)
-      result.name = en[0].getStrVal
+      case toNNK(en[0].kind):
+        of nnkIdent, nnkSym:
+          result.name = en[0].getStrVal
+
+        of nnkPragmaExpr:
+          result.name = en[0][0].getStrVal()
+          result.pragma = parsePragma(en[0][1])
+
+        else:
+          raiseImplementError($en[0].kind & $treeRepr(en[0]))
+      # debugecho treeRepr(en)
 
     of nnkEnumTy:
       for fld in en[1..^1]:

@@ -18,6 +18,15 @@ const
   nnkLiteralKinds* = nnkStrKinds + nnkIntKinds + nnkFloatKinds
   nnkTokenKinds* = nnkLiteralKinds + {nnkIdent, nnkSym}
 
+  nnkProcDeclKinds* = {
+    nnkProcDef,
+    nnkFuncDef,
+    nnkIteratorDef,
+    nnkTemplateDef,
+    nnkMacroDef,
+    nnkMethodDef
+  }
+
 
   nkStrKinds* = { nkStrLit .. nkTripleStrLit }
   nkIntKinds* = { nkCharLit .. nkUInt64Lit }
@@ -25,6 +34,16 @@ const
   nkLiteralKinds* = nkStrKinds + nkIntKinds + nkFloatKinds
 
   nkTokenKinds* = nkLiteralKinds + {nkIdent, nkSym}
+
+
+  nkProcDeclKinds* = {
+    nkProcDef,
+    nkFuncDef,
+    nkIteratorDef,
+    nkTemplateDef,
+    nkMacroDef,
+    nkMethodDef
+  }
 
 type
   ObjectAnnotKind* = enum
@@ -77,6 +96,7 @@ func getStrVal*(p: PNode): string =
     of nkIdent:    p.ident.s
     of nkSym:      p.sym.name.s
     of nkStrKinds: p.strVal
+    of nkOpenSymChoice: p[0].sym.name.s
     else:
       raiseArgumentError(
         "Cannot get string value from node of kind " & $p.kind)
@@ -258,7 +278,7 @@ func newPIdentColonString*(key, value: string): PNode =
 func newExprColonExpr*(key, value: PNode): PNode =
   nnkExprColonExpr.newPTree(key, value)
 
-template newNNLit[NNode](val: untyped): untyped =
+template newNNLit*[NNode](val: untyped): untyped =
   when NNode is PNode:
     newPLit(val)
   else:
@@ -361,7 +381,8 @@ proc pprintCalls*(node: NimNode, level: int): void =
       echo ($node.toStrLit()).indent(level * 2)
 
 proc treeRepr*(
-    pnode: PNode, colored: bool = true, indexed: bool = false
+    pnode: PNode, colored: bool = true,
+    indexed: bool = false, maxdepth: int = 120
   ): string =
 
   proc aux(n: PNode, level: int, idx: seq[int]): string =
@@ -370,6 +391,11 @@ proc treeRepr*(
         idx.join("", ("[", "]")) & "    "
       else:
         "  ".repeat(level)
+
+    if level > maxdepth:
+      return pref & " ..."
+
+
 
     result &= pref & ($n.kind)[2..^1]
     case n.kind:
@@ -384,6 +410,19 @@ proc treeRepr*(
 
       of nkIdent, nkSym:
         result &= " " & toGreen(n.getStrVal(), colored)
+
+      of nkCommentStmt:
+        let lines = split(n.comment, '\n')
+        if lines.len > 1:
+          result &= "\n"
+          for idx, line in pairs(lines):
+            if idx != 0:
+              result &= "\n"
+
+            result &= pref & toYellow(line)
+
+        else:
+          result &= toYellow(n.comment)
 
       else:
         if n.len > 0:

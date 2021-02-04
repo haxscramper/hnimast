@@ -3,7 +3,7 @@
 ## generating and working with pragma annotations, parsing object
 ## defintions etc.
 
-import hmisc/[helpers, base_errors]
+import hmisc/[base_errors]
 export base_errors
 
 import std/[options, macros]

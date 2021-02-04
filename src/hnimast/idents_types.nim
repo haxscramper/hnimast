@@ -13,10 +13,13 @@ type
     ntkAnonTuple ## Unnaped tuple: `(int, string)`
     ntkNamedTuple ## Named tuple: `tuple[name: string, value: int]`
     ntkVarargs ## `varargs[Type, Converter]`
+    ntkValue ## Value as type argument
+    ntkCurly ## Term rewriting patterns
 
   NType*[NNode] = object
     ## Representation of generic nim type;
     declNode*: Option[NNode]
+    module*: Option[NNode]
     case kind*: NTypeKind
       of ntkIdent, ntkGenericSpec, ntkAnonTuple:
         head*: string ## Type name `head[...]` or `head: .. | ..`
@@ -38,6 +41,13 @@ type
       of ntkVarargs:
         vaTypeIt: SingleIt[NType[NNode]]
         vaConverter*: Option[NNode]
+
+      of ntkValue:
+        value*: NNode
+
+      of ntkCurly:
+        curlyHead: NNode
+        curlyArgs: seq[NNode]
 
       of ntkNone:
         discard
@@ -71,15 +81,40 @@ func `vaType=`*[N](t: var NType[N], vat: NType[N]) =
 
 func vaType*[N](t: NType[N]): NType[N] = getIt(t.vaTypeIt)
 
+func `returnType=`*[N](t: var NType[N], val: NType[N]) =
+  t.rType = some(newIt(val))
+
+func returnType*[N](t: NType[N]): Option[NType[N]] =
+  if t.rType.isSome():
+    result = some(t.rtype.get().getIt())
+
+
 #=============================  Predicates  ==============================#
 func `==`*(l, r: NType): bool =
   l.kind == r.kind and (
     case l.kind:
-      of ntkIdent, ntkGenericSpec:
+      of ntkIdent, ntkGenericSpec, ntkAnonTuple:
         (l.head == r.head) and (l.genParams == r.genParams)
-      of ntkProc:
+
+      of ntkProc, ntkNamedTuple:
         (l.rType == r.rType) and (l.arguments == r.arguments)
+
       of ntkRange:
+        l.rngStart == r.rngStart and
+        l.rngEnd == r.rngEnd
+
+      of ntkVarargs:
+        l.vaTypeIt == r.vaTypeIt and
+        l.vaConverter == r.vaConverter
+
+      of ntkValue:
+        l.value == r.value
+
+      of ntkCurly:
+        l.curlyHead == r.curlyHead and
+        l.curlyArgs == r.curlyArgs
+
+      of ntkNone:
         true
   )
 
@@ -110,7 +145,11 @@ func toNIdentDefs*[NNode](
   ## Each identifier must supply mutability parameter (e.g `nvdLet` or
   ## `vndVar`)
   for (name, atype, nvd) in args:
-    result.add NIdentDefs[NNode](varname: name, vtype: atype, kind: nvd)
+    result.add NIdentDefs[NNode](
+      idents: @[newNIdent[NNode](name)],
+      vtype: atype,
+      kind: nvd
+    )
 
 
 
@@ -174,8 +213,17 @@ func toNNode*[NNode](ntype: NType[NNode]): NNode =
         )
       )
 
+    of ntkCurly:
+      result = newNTree[NNode](nnkCurlyExpr)
+      result.add ntype.curlyHead
+      for it in ntype.curlyArgs:
+        result.add it
+
     of ntkNone:
       result = newEmptyNNode[NNode]()
+
+    of ntkValue:
+      result = ntype.value
 
     of ntkAnonTuple:
       result = newNTree[NNode](nnkPar)
@@ -232,6 +280,15 @@ func toNNode*[NNode](ntype: NType[NNode]): NNode =
             nnkBracketExpr, newNIdent[NNode](ntype.head))
           for param in ntype.genParams:
             result.add toNNode[NNode](param)
+
+
+
+proc toNNode*[N](ntype: Option[NType[N]]): N =
+  if ntype.isNone():
+    newNTree[N](nnkEmpty)
+
+  else:
+    toNNode[N](ntype.get())
 
 func newNIdentDefs*[N](
     vname: string,
@@ -370,7 +427,7 @@ func newNTypeNNode*[NNode](node: NNode): NType[NNode] =
       else:
         result = newNType(node.getStrVal())
 
-    of nnkPar:
+    of nnkPar, nnkTupleConstr:
       result = NType[NNode](kind: ntkAnonTuple)
       for subnode in items(node):
         result.genParams.add newNTypeNNode(subnode)
@@ -378,6 +435,16 @@ func newNTypeNNode*[NNode](node: NNode): NType[NNode] =
     of nnkRefTy: result = newNType("ref", @[newNTypeNNode(node[0])])
     of nnkPtrTy: result = newNType("ptr", @[newNTypeNNode(node[0])])
     of nnkVarTy: result = newNType("var", @[newNTypeNNode(node[0])])
+
+    of nnkObjectTy: result = newNNType[NNode]("object")
+    of nnkTupleClassTy: result = newNNType[NNode]("tuple")
+    of nnkIteratorTy: result = newNNType[NNode]("iterator")
+
+    of nnkCurlyExpr: result = NType[NNode](
+      kind: ntkCurly,
+      curlyHead: node[0],
+      curlyArgs: toSeq(node[1..^1])
+    )
 
     of nnkCommand:
       result = newNType(node[0].getStrVal(), @[newNTypeNNode(node[1])])
@@ -389,18 +456,33 @@ func newNTypeNNode*[NNode](node: NNode): NType[NNode] =
           genParams: node.flattenInfix("|").mapIt(newNTypeNNode(it))
         )
 
+      elif node[0].getStrVal() in [".."]:
+        result = NType[NNode](kind: ntkRange, rngStart: node[1], rngEnd: node[2])
+
       else:
-        raiseArgumentError(
-          "Unexpected infix node for type: " & toShow(node[0])
-        )
+        result = NType[NNode](kind: ntkValue, value: node[0])
+        # raiseArgumentError(
+        #   "Unexpected infix node for type: " & toShow(node[0])
+        # )
 
     of nnkCall:
-      if node[0].getStrVal() == "type":
-        result = newNType("type", @[newNTypeNNode(node[1])])
+      if node[0].getStrVal() in ["type", "sink", "owned", "out"]:
+        result = newNType(node[0].getStrVal(), @[newNTypeNNode(node[1])])
+
+      elif node[0].getStrVal() in ["[]"]:
+        result = newNType(node[1].getStrVal(), @[newNTypeNNode(node[2])])
 
       else:
         raiseArgumentError(
           "Unexpected call node for type: " & toShow(node[0]))
+
+    of nnkPrefix:
+      if node[0].getStrVal() in ["not"]:
+        result = newNType("not", @[newNTypeNNode(node[1])])
+
+      else:
+        raiseArgumentError(
+          "Unexpected prefix node for type: " & toShow(node[0]))
 
     of nnkNilLit:
       result = newNType("nil", newSeq[NType[NNode]]())
@@ -409,6 +491,26 @@ func newNTypeNNode*[NNode](node: NNode): NType[NNode] =
       result = NType[NNode](kind: ntkNamedTuple)
       for field in items(node):
         result.arguments.add parseNIdentDefs(field)
+
+    of nnkProcTy:
+       result = NType[NNode](kind: ntkProc)
+       for arg in items(node[0][1..^1]):
+         result.arguments.add parseNIdentDefs(arg)
+
+       if node[0][0].kind != nnkEmpty:
+         result.returnType = newNType(node[0][0])
+
+       result.pragma = parsePragma(node[1])
+
+    of nnkIntLit:
+      result = NType[NNode](kind: ntkValue, value: node)
+
+    of nnkEnumTy:
+      result = newNNType[NNode]("enum")
+
+    of nnkDotExpr:
+      result = newNTypeNNode(node[1])
+      result.module = some(node[0])
 
     else:
       raiseImplementError(
@@ -423,6 +525,9 @@ func newNType*(impl: NimNode): NType[NimNode] =
   ## Convert type described in `NimNode` into `NType`
   newNTypeNNode(impl)
 
+# proc newNType*(typ: PType): NType[PNode] =
+
+
 func newNType*(impl: PNode): NType[PNode] =
   ## Convert type described in `NimNode` into `NType`
   newNTypeNNode(impl)
@@ -432,7 +537,8 @@ func newVarDecl*(name: string, vtype: NType,
   ## Declare varaible `name` of type `vtype`
   # TODO initalization value, pragma annotations and `isGensym`
   # parameter
-  NIdentDefs[NimNode](varname: name, kind: kind, vtype: vtype)
+  NIdentDefs[NimNode](idents: @[newNIdent[NimNode](name)],
+                      kind: kind, vtype: vtype)
 
 func newVarStmt*(varname: string, vtype: NType, val: NimNode): NimNode =
   nnkVarSection.newTree(
@@ -461,6 +567,10 @@ func toNTypeAst*[T](): NType =
 
 
 func parseNidentDefs*[N](node: N): NIdentDefs[N] =
+  if node.kind.toNNK() in {nnkSym, nnkIdent}:
+    result.idents.add node
+    return
+
   for arg in node[0..^3]:
     result.idents.add arg
 
@@ -468,8 +578,13 @@ func parseNidentDefs*[N](node: N): NIdentDefs[N] =
     result.vtype = newNType(node[^2])
 
   else:
-    raiseImplementError("")
-    # result.vtype = NType[N](kind: ntkNone)
+    # FIXME just putting `N` for `NType` results in 'object constructor
+    # needs an object type' that I can't understand at all.
+    when node is PNode:
+      result.vtype = NType[PNode](kind: ntkNone)
+
+    else:
+      result.vtype = NType[NimNode](kind: ntkNone)
 
   if node[^1].kind != nnkEmpty:
     result.value = some(node[^1])
@@ -484,14 +599,22 @@ func `$`*[NNode](nt: NType[NNode]): string =
     of ntkNone:
       result = ""
 
+    of ntkValue:
+      {.cast(noSideEffect).}:
+        result = $nt.value
+
     of ntkVarargs:
       result = "varargs[" & $nt.vaType
       if nt.vaConverter.isSome():
-        {.noSideEffect.}:
+        {.cast(noSideEffect).}:
           result &= ", " & $nt.vaConverter.get()
 
       result &= "]"
 
+    of ntkCurly:
+      {.cast(noSideEffect).}:
+        result = $nt.curlyHead & "{" &
+          nt.curlyArgs.mapIt($it).join(", ") & "}"
 
     of ntkIdent:
       if nt.genParams.len > 0:
@@ -508,7 +631,7 @@ func `$`*[NNode](nt: NType[NNode]): string =
         result = nt.head
 
     of ntkProc:
-      {.noSideEffect.}:
+      {.cast(noSideEffect).}:
         let rtype: string = nt.rtype.getSomeIt($it & ": ", "")
         let pragma: string =
           if nt.pragma.len > 0:
@@ -553,7 +676,7 @@ func newCallNode*(
 func newCallNode*(
   name: string,
   args: seq[NimNode],
-  genParams: seq[NType[NimNode]] = @[]): NimNode {.deprecated.} =
+  genParams: seq[NType[NimNode]] = @[]): NimNode =
   ## Create node `name[@genParams](@args)`
   if genParams.len > 0:
     result = nnkCall.newTree()
@@ -569,7 +692,7 @@ func newCallNode*(
 
 func newCallNode*(name: string,
                  gentypes: openarray[NType],
-                 args: varargs[NimNode]): NimNode {.deprecated.} =
+                 args: varargs[NimNode]): NimNode =
   ## Create node `name[@gentypes](@args)`. Overload with more
   ## convinient syntax if you have predefined number of genric
   ## parameters - `newCallNode("name", [<param>](arg1, arg2))` looks
@@ -578,13 +701,13 @@ func newCallNode*(name: string,
 
 func newCallNode*(
   arg: NimNode, name: string,
-  gentypes: openarray[NType[NimNode]] = @[]): NimNode {.deprecated.} =
+  gentypes: openarray[NType[NimNode]] = @[]): NimNode =
   ## Create call node `name[@gentypes](arg)`
   newCallNode(name, @[arg], toSeq(genTypes))
 
 func newCallNode*(
   dotHead: NimNode, name: string,
   gentypes: openarray[NType],
-  args: seq[NimNode]): NimNode {.deprecated.} =
+  args: seq[NimNode]): NimNode =
   ## Create call node `dotHead.name[@gentypes](@args)`
   newCallNode(dotHead, name, toSeq(args), toSeq(genTypes))

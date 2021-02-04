@@ -21,7 +21,7 @@ type
     newType*: Ntype[N]
     oldType*: Ntype[N]
 
-  NimTypeDeclKind = enum
+  NimTypeDeclKind* = enum
     ntdkEnumDecl
     ntdkObjectDecl
     ntdkAliasDecl
@@ -63,7 +63,7 @@ type
   PAliasDecl* = NimDecl[PNode]
   NAliasDecl* = NimDecl[NimNode]
 
-  AnyNimDecl[N] =
+  AnyNimDecl*[N] =
           ProcDecl[N] |
           AliasDecl[N] |
           ProcDecl[N] |
@@ -223,7 +223,7 @@ func `$`*[N](nd: NimDecl[N]): string =
     when N is NimNode:
       $toNNode(nd)
     else:
-      hnimast.`$`(toNNode(nd))
+      `$`(toNNode(nd))
 
 func toNNode*[N](alias: AliasDecl[N], standalone: bool = true): N =
   let pr = (alias.isDistinct, alias.isExported)
