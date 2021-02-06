@@ -24,7 +24,8 @@ const
     nnkIteratorDef,
     nnkTemplateDef,
     nnkMacroDef,
-    nnkMethodDef
+    nnkMethodDef,
+    nnkConverterDef
   }
 
 
@@ -42,7 +43,8 @@ const
     nkIteratorDef,
     nkTemplateDef,
     nkMacroDef,
-    nkMethodDef
+    nkMethodDef,
+    nkConverterDef
   }
 
 type
@@ -539,7 +541,7 @@ func makeInitCalls*[A](hset: HashSet[A]): NimNode =
 #=======================  Enum set normalization  ========================#
 func normalizeSetImpl[NNode](node: NNode): seq[NNode] =
    case node.kind.toNNK():
-    of nnkIdent, nnkIntLit, nnkCharLit:
+    of nnkIdent, nnkIntLit, nnkCharLit, nnkDotExpr:
       return @[ node ]
 
     of nnkCurly:

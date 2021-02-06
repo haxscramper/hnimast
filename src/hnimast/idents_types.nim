@@ -656,7 +656,8 @@ func `$`*[NNode](nt: NType[NNode]): string =
       result = args.join(", ").wrap(("tuple[", "]"))
 
     of ntkRange:
-      raiseImplementError("")
+      {.cast(noSideEffect).}:
+        result = $nt.rngStart & ".." &  $nt.rngEnd
 
 func newCallNode*(
   dotHead: NimNode, name: string,

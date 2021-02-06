@@ -61,6 +61,10 @@ iterator argumentIdents*[N](procDecl: ProcDecl[N]): N =
     for ident in argument.idents:
       yield ident
 
+iterator argumentTypes*[N](procDecl: ProcDecl[N]): NType[N] =
+  for argument in procDecl.signature.arguments:
+    yield argument.vtype
+
 proc returnType*[N](procDecl: ProcDecl[N]): Option[NType[N]] =
   procDecl.signature.returnType()
 
