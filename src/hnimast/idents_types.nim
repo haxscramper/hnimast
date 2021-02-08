@@ -1,5 +1,6 @@
 import std/[options, sequtils, strutils, strformat, sugar]
 import hmisc/helpers
+import hmisc/macros/cl_logic
 import pragmas, hast_common
 
 type
@@ -436,13 +437,27 @@ func newNTypeNNode*[NNode](node: NNode): NType[NNode] =
       for subnode in items(node):
         result.genParams.add newNTypeNNode(subnode)
 
-    of nnkRefTy: result = newNType("ref", @[newNTypeNNode(node[0])])
-    of nnkPtrTy: result = newNType("ptr", @[newNTypeNNode(node[0])])
+    of nnkPtrTy, nnkRefTy, nnkDistinctTy:
+      let name = cond(
+        node.kind,
+        (nnkPtrTy, "ptr"),
+        (nnkRefTy, "ref"),
+        ("distinct")
+      )
+        # case node.kind:
+        #   if nnkPtrTy: ""
+      if node.len > 0:
+        result = newNType(name, @[newNTypeNNode(node[0])])
+
+      else:
+        result = newNNType[NNode](name)
+
     of nnkVarTy: result = newNType("var", @[newNTypeNNode(node[0])])
 
     of nnkObjectTy: result = newNNType[NNode]("object")
     of nnkTupleClassTy: result = newNNType[NNode]("tuple")
     of nnkIteratorTy: result = newNNType[NNode]("iterator")
+    # of nnkDistinctTy: result = newNNType[NNode]("distinct")
 
     of nnkCurlyExpr: result = NType[NNode](
       kind: ntkCurly,
@@ -461,7 +476,8 @@ func newNTypeNNode*[NNode](node: NNode): NType[NNode] =
         )
 
       elif node[0].getStrVal() in [".."]:
-        result = NType[NNode](kind: ntkRange, rngStart: node[1], rngEnd: node[2])
+        result = NType[NNode](
+          kind: ntkRange, rngStart: node[1], rngEnd: node[2])
 
       else:
         result = NType[NNode](kind: ntkValue, value: node[0])
@@ -470,13 +486,13 @@ func newNTypeNNode*[NNode](node: NNode): NType[NNode] =
         # )
 
     of nnkCall:
-      if node[0].getStrVal() in ["type", "sink", "owned", "out"]:
+      if node[0].getStrVal() in ["sink", "owned", "out"]:
         result = newNType(node[0].getStrVal(), @[newNTypeNNode(node[1])])
 
       elif node[0].getStrVal() in ["[]"]:
         result = newNType(node[1].getStrVal(), @[newNTypeNNode(node[2])])
 
-      elif node[0].getStrVal() in ["typeof"]:
+      elif node[0].getStrVal() in ["type", "typeof"]:
         result = NType[NNode](kind: ntkTypeofExpr, value: node)
 
       else:
@@ -500,14 +516,18 @@ func newNTypeNNode*[NNode](node: NNode): NType[NNode] =
         result.arguments.add parseNIdentDefs(field)
 
     of nnkProcTy:
-       result = NType[NNode](kind: ntkProc)
-       for arg in items(node[0][1..^1]):
-         result.arguments.add parseNIdentDefs(arg)
+      if node.len == 0:
+        result = newNNType[NNode]("proc")
 
-       if node[0][0].kind != nnkEmpty:
-         result.returnType = newNType(node[0][0])
+      else:
+        result = NType[NNode](kind: ntkProc)
+        for arg in items(node[0][1..^1]):
+          result.arguments.add parseNIdentDefs(arg)
 
-       result.pragma = parsePragma(node[1])
+        if node[0][0].kind != nnkEmpty:
+          result.returnType = newNTypeNNode(node[0][0])
+
+        result.pragma = parsePragma(node[1])
 
     of nnkIntLit:
       result = NType[NNode](kind: ntkValue, value: node)
@@ -532,10 +552,14 @@ func newNType*(impl: NimNode): NType[NimNode] =
   ## Convert type described in `NimNode` into `NType`
   newNTypeNNode(impl)
 
+func parseNType*(impl: PNode): NType[PNode] =
+  ## Convert type described in `NimNode` into `NType`
+  newNTypeNNode(impl)
+
 # proc newNType*(typ: PType): NType[PNode] =
 
 
-func newNType*(impl: PNode): NType[PNode] =
+func newNType*(impl: PNode): NType[PNode] {.deprecated.} =
   ## Convert type described in `NimNode` into `NType`
   newNTypeNNode(impl)
 
