@@ -432,5 +432,4 @@ proc parseProc*[N](node: N): ProcDecl[N] =
         result.docComment = node[6][0].comment
 
     else:
-      echo node.treeRepr()
       raiseImplementError($node.kind & " " & $node.getInfo())

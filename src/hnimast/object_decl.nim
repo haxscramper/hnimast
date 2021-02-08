@@ -489,8 +489,6 @@ func toNNode*[NNode, A](
         nnkRecList,
         obj.flds.mapIt(toNNode(it, annotConv))))) # loud LISP sounds
 
-  # echov result.treeRepr()
-
 func toNNode*[NNode](
   obj: ObjectDecl[NNode, PRagma[NNode]], standalone: bool = false): NNode =
   result = toNNode[NNode](

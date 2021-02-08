@@ -172,8 +172,6 @@ proc toLytBlock(n: PNode, level: int): LytBlock =
         toLytBlock(n[^1], level + 1)
       ]
 
-      # echo result.ptreeRepr()
-
     of nkIfStmt:
       result = makeStackBlock([])
       for isFirst, branch in itemsIsFirst(n):

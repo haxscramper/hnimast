@@ -103,7 +103,6 @@ proc getFields*[NNode, A](
   # TODO ignore `void` fields
   case node.kind.toNNK():
     of nnkObjConstr:
-      # echo node.treeRepr()
       return getFields(node[0], cb, level + 1)
 
     of nnkSym, nnkCall, nnkDotExpr:

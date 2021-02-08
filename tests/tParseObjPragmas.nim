@@ -15,13 +15,10 @@ type
 
 func parseAnnot(body: NimNode, kind: ObjectAnnotKind): Annot =
   discard
-  # debugecho kind
-  # debugecho body.treeRepr()
 
 macro makeAnnots(body: untyped): untyped =
   for section in body:
     for obj in section:
-      # echo obj.treeRepr()
       let parsed = obj.parseObject(parseAnnot)
 
 makeAnnots:

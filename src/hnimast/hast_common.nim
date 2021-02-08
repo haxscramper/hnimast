@@ -87,6 +87,15 @@ proc `$`*(n: PNode): string =
   {.cast(noSideEffect).}:
     renderer.`$`(n)
 
+proc `&`*(n: PNode, str: string): PNode =
+  if n.kind in nkStrKinds + {nkIdent}:
+    result = n
+    result.strVal &= str
+
+  else:
+    raiseArgumentError(
+      "Cannot concatentate non-string node with string")
+
 func getStrVal*(n: NimNode): string =
   ## Get string value from `NimNode` that can have it - e.g. strings,
   ## identifiers etc.

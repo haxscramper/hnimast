@@ -15,6 +15,8 @@ type
     ntkVarargs ## `varargs[Type, Converter]`
     ntkValue ## Value as type argument
     ntkCurly ## Term rewriting patterns
+    ntkTypeofExpr ## `typeof(nil)` and similar (if there anything else of
+                  ## that sort)
 
   NType*[NNode] = object
     ## Representation of generic nim type;
@@ -42,7 +44,7 @@ type
         vaTypeIt: SingleIt[NType[NNode]]
         vaConverter*: Option[NNode]
 
-      of ntkValue:
+      of ntkValue, ntkTypeofExpr:
         value*: NNode
 
       of ntkCurly:
@@ -222,7 +224,7 @@ func toNNode*[NNode](ntype: NType[NNode]): NNode =
     of ntkNone:
       result = newEmptyNNode[NNode]()
 
-    of ntkValue:
+    of ntkValue, ntkTypeofExpr:
       result = ntype.value
 
     of ntkAnonTuple:
@@ -296,7 +298,9 @@ func newNIdentDefs*[N](
     kind: NVarDeclKind = nvdLet,
     value: Option[N] = none(N)
   ): NIdentDefs[N] =
-  NIdentDefs[N](varname: vname, vtype: vtype, value: value, kind: kind)
+  NIdentDefs[N](
+    idents: @[newNIdent[N](vname)],
+    vtype: vtype, value: value, kind: kind)
 
 func toNimNode*(ntype: NType): NimNode =
   ## Convert `NType` to nim node
@@ -472,6 +476,9 @@ func newNTypeNNode*[NNode](node: NNode): NType[NNode] =
       elif node[0].getStrVal() in ["[]"]:
         result = newNType(node[1].getStrVal(), @[newNTypeNNode(node[2])])
 
+      elif node[0].getStrVal() in ["typeof"]:
+        result = NType[NNode](kind: ntkTypeofExpr, value: node)
+
       else:
         raiseArgumentError(
           "Unexpected call node for type: " & toShow(node[0]))
@@ -599,7 +606,7 @@ func `$`*[NNode](nt: NType[NNode]): string =
     of ntkNone:
       result = ""
 
-    of ntkValue:
+    of ntkValue, ntkTypeofExpr:
       {.cast(noSideEffect).}:
         result = $nt.value
 

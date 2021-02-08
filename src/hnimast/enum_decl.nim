@@ -330,7 +330,6 @@ func parseEnumImpl*[NNode](en: NNode): EnumDecl[NNode] =
 
         else:
           raiseImplementError($en[0].kind & $treeRepr(en[0]))
-      # debugecho treeRepr(en)
 
     of nnkEnumTy:
       for fld in en[1..^1]:
