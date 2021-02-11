@@ -1,6 +1,8 @@
 import compiler/[parser, llstream, idents, options, pathutils, astalgo]
 import compiler/[ast, lineinfos]
 
+type ParseError = ref object of CatchableError
+
 proc parsePNodeStr*(str: string): PNode =
   let cache: IdentCache = newIdentCache()
   let config: ConfigRef = newConfigRef()
@@ -20,7 +22,11 @@ proc parsePNodeStr*(str: string): PNode =
   pars.lex.errorHandler =
     proc(conf: ConfigRef; info: TLineInfo; msg: TMsgKind; arg: string) =
       if msg notin {hintLineTooLong}:
-        echo arg
+        raise ParseError(msg: arg)
 
-  result = parseAll(pars)
-  closeParser(pars)
+  try:
+    result = parseAll(pars)
+    closeParser(pars)
+
+  except ParseError:
+    return nil

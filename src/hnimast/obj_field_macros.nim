@@ -375,22 +375,10 @@ proc parseObject*[NNode, A](
     flds: node[2].getFields(cb)
   )
 
-  case node[0].kind.toNNK():
-    of nnkPragmaExpr:
-      case node[0][0].kind.toNNK():
-        of nnkPostfix:
-          result.name = newNNType[NNode](node[0][0][1].getStrVal)
-          result.exported = true
+  let (exported, name) = parseIdentName(node[0])
 
-        else:
-          result.name = newNNType[NNode](node[0][0].getStrVal)
-
-    of nnkPostfix:
-      result.name = newNNType[NNode](node[0][1].getStrVal())
-      result.exported = true
-
-    else:
-      result.name = newNNType[NNode](node[0].getStrVal())
+  result.exported = exported
+  result.name = newNNType[NNode](name.getStrVal())
 
   when not (A is void):
     if node[0].kind.toNNK() == nnkPragmaExpr and cb != nil:

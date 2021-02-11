@@ -110,7 +110,7 @@ func `==`*(l, r: NType): bool =
         l.vaTypeIt == r.vaTypeIt and
         l.vaConverter == r.vaConverter
 
-      of ntkValue:
+      of ntkValue, ntkTypeofExpr:
         l.value == r.value
 
       of ntkCurly:
@@ -538,6 +538,10 @@ func newNTypeNNode*[NNode](node: NNode): NType[NNode] =
     of nnkDotExpr:
       result = newNTypeNNode(node[1])
       result.module = some(node[0])
+
+    of nnkBracket:
+      # `ptr [CXString]`
+      result = newNTypeNNode(node[0])
 
     else:
       raiseImplementError(

@@ -32,7 +32,8 @@ const
   nkStrKinds* = { nkStrLit .. nkTripleStrLit }
   nkIntKinds* = { nkCharLit .. nkUInt64Lit }
   nkFloatKinds* = { nkFloatLit .. nkFloat128Lit }
-  nkLiteralKinds* = nkStrKinds + nkIntKinds + nkFloatKinds
+  nkLiteralKinds* = nkStrKinds + nkIntKinds + nkFloatKinds + {
+    nkNilLit}
 
   nkTokenKinds* = nkLiteralKinds + {nkIdent, nkSym}
 
@@ -108,6 +109,7 @@ func getStrVal*(p: PNode): string =
     of nkSym:      p.sym.name.s
     of nkStrKinds: p.strVal
     of nkOpenSymChoice: p[0].sym.name.s
+    of nkAccQuoted: ($p)[1..^2]
     else:
       raiseArgumentError(
         "Cannot get string value from node of kind " & $p.kind)
@@ -629,3 +631,21 @@ proc parseEnumSet*[Enum](
       # QUESTION there was something useful or what? Do I need it
       # here?
       discard
+
+proc parseIdentName*[N](node: N): tuple[exported: bool, name: N] =
+  case node.kind.toNNK():
+    of nnkPragmaExpr:
+      case node[0].kind.toNNK():
+        of nnkPostfix:
+          result.name = node[0][1]
+          result.exported = true
+
+        else:
+          result.name = node[0]
+
+    of nnkPostfix:
+      result.name = node[1]
+      result.exported = true
+
+    else:
+      result.name = node
