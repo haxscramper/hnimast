@@ -289,7 +289,7 @@ proc write*(
   ) =
 
   let pref = " ".repeat(indent)
-  s.writeLine(&"\n\n{pref}# Declaration created in: {pd.iinfo}\n")
+  s.writeLine(&"\n\n{pref}# Declaration created in: {pd.iinfo}")
   if pd.codeComment.len > 0:
     for line in split(pd.codeComment, "\n"):
       s.writeLine(&"{pref}# {line}")

@@ -533,15 +533,30 @@ type
     orkReference
     orkPointer
 
-  ObjAccs = object
-    # TODO:DOC
-    case isIdx*: bool
-      of true:
+  # ObjAccs = object
+  #   # TODO:DOC
+  #   case isIdx*: bool
+  #     of true:
+  #       idx*: int
+  #     of false:
+  #       name*: string
+
+  ObjAccessor* = object
+    case kind*: ObjKind
+      of okConstant:
+        nil
+
+      of okSequence:
         idx*: int
-      of false:
+
+      of okComposed:
         name*: string
 
-  ObjPath = seq[ObjAccs]
+      of okTable:
+        key*: string
+
+  ObjPath* = seq[ObjAccessor]
+  # ObjPath = seq[ObjAccs]
 
   ObjTree* = object
     ##[
@@ -560,7 +575,8 @@ type
   container has four elements or less.
 
     ]##
-    path*: seq[int] ## Path of object in original tree
+    ignored*: bool
+    path*: ObjPath ## Path of object in original tree
     objId*: int ## Unique object id
     isPrimitive*: bool ## Whether or not value can be considered primitive
     annotation*: string ## String annotation for object
@@ -691,16 +707,15 @@ func styleTerm*(str: string, conf: PrintStyling): string =
 
 #=============================  Path access  =============================#
 
-func objAccs*(idx: int): ObjAccs =
+func seqAccs*(idx: int): ObjAccessor =
   # TODO:DOC
-  ObjAccs(isIdx: true, idx: idx)
-func objAccs*(name: string): ObjAccs =
-  # TODO:DOC
-  ObjAccs(isIdx: false, name: name)
+  ObjAccessor(kind: okSequence, idx: idx)
 
-func objPath*(path: varargs[ObjAccs, `objAccs`]): ObjPath =
-  # TODO:DOC
-  toSeq(path)
+func objAccs*(name: string): ObjAccessor =
+  ObjAccessor(kind: okComposed, name: name)
+
+func tableAccs*(name: string): ObjAccessor =
+  ObjAccessor(kind: okTable, key: name)
 
 func getAtPath*(obj: var ObjTree, path: ObjPath): var ObjTree =
   case obj.kind:
@@ -708,8 +723,9 @@ func getAtPath*(obj: var ObjTree, path: ObjPath): var ObjTree =
       if path.len < 1:
         return obj
       else:
-        if path[0].isIdx:
+        if path[0].kind == okSequence:
           return obj.fldPairs[path[0].idx].value.getAtPath(path[1..^1])
+
         else:
           if obj.namedFields:
             for fld in mitems(obj.fldPairs):
@@ -736,7 +752,7 @@ func getAtPath*(obj: var ObjTree, path: ObjPath): var ObjTree =
       if path.len == 0:
         return obj
 
-      if not path[0].isIdx:
+      if path[0].kind != okSequence:
         argumentError:
           "Cannot access sequence elements by name, path {path}"
           "starts with non-index"

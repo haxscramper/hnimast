@@ -21,3 +21,4 @@ tests/*
 /scripts/.latex
 callgrind.out.*
 nimdoc.cfg
+cache/*

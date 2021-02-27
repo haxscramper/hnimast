@@ -133,22 +133,29 @@ func toNNode*[N](entry: NimDecl[N], standalone: bool = true): N =
   case entry.kind:
     of nekProcDecl:
       return toNNode[N](entry.procdecl)
+
     of nekEnumDecl:
       return toNNode[N](entry.enumdecl, standalone = standalone)
+
     of nekObjectDecl:
       return toNNode[N](entry.objectdecl, standalone = standalone)
+
     of nekAliasDecl:
       return toNNode[N](entry.aliasDecl)
+
     of nekPasstroughCode:
       return entry.passthrough
+
     of nekMultitype:
       result = newNTree[N](nnkTypeSection)
       for elem in entry.typedecls:
         case elem.kind:
           of ntdkEnumDecl:
             result.add toNNode[N](elem.enumDecl, standalone = false)
+
           of ntdkObjectDecl:
             result.add toNNode[N](elem.objectDecl, standalone = false)
+
           of ntdkAliasDecl:
             result.add toNNode[N](elem.aliasDecl, standalone = false)
 
@@ -167,10 +174,13 @@ func toNimTypeDecl*[N](entry: NimDecl[N]): NimTypeDecl[N] =
   case entry.kind:
     of nekEnumDecl:
       return toNimTypeDecl[N](entry.enumdecl)
+
     of nekObjectDecl:
       return toNimTypeDecl[N](entry.objectdecl)
+
     of nekAliasDecl:
       return toNimTypeDecl[N](entry.aliasDecl)
+
     else:
      raiseAssert(&"Cannot convert to NimTypeDecl for kind {entry.kind}")
 
