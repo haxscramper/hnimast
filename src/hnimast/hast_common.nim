@@ -405,12 +405,20 @@ proc treeRepr*(
       else:
         "  ".repeat(level)
 
+    if isNil(n):
+      return pref & toRed("<nil>", colored)
+
     if level > maxdepth:
       return pref & " ..."
 
 
 
     result &= pref & ($n.kind)[2..^1]
+    if n.comment.len > 0:
+      result.add "\n"
+      for line in split(n.comment, '\n'):
+        result.add pref & " " & toCyan(line) & "\n"
+
     case n.kind:
       of nkStrKinds:
         result &= " \"" & toYellow(n.getStrVal(), colored) & "\""

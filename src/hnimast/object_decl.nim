@@ -91,6 +91,7 @@ type
 
   PObjectDecl* = ObjectDecl[PNode, Pragma[PNode]]
   PObjectField* = ObjectField[PNode, Pragma[PNode]]
+  PObjectBranch*[A] = ObjectBranch[PNode, A]
 
 const noParseCb*: ParseCb[NimNode, void] = nil
 const noParseCbPNode*: ParseCb[PNode, void] = nil

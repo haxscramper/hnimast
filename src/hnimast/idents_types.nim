@@ -503,6 +503,9 @@ func newNTypeNNode*[NNode](node: NNode): NType[NNode] =
       if node[0].getStrVal() in ["not"]:
         result = newNType("not", @[newNTypeNNode(node[1])])
 
+      elif node[0].getStrVal() in ["<//>"]:
+        result = newNTypeNNode(node[1])
+
       else:
         raiseArgumentError(
           "Unexpected prefix node for type: " & toShow(node[0]))

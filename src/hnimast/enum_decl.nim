@@ -286,7 +286,7 @@ func toNNode*[NNode](en: EnumDecl[NNode], standalone: bool = false): NNode =
     newNTree[NNode](nnkEnumTy, @[ newEmptyNNode[NNode]() ] & flds))
 
   when NNode is PNode:
-    result.comment = en.docComment
+    result[2].comment = en.docComment.strip()
 
   if standalone:
     result = newNTree[NNode](

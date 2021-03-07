@@ -293,3 +293,16 @@ proc addCodeComment*[N](nd: var NimDecl[N], comm: string) =
     of nekAliasDecl:      nd.aliasdecl.codeComment &= comm
     of nekMultitype:      discard
     of nekPasstroughCode: discard
+
+
+proc addDocComment*[N](nd: var AnyNimDecl[N], comm: string) =
+  nd.docComment &= comm
+
+proc addDocComment*[N](nd: var NimDecl[N], comm: string) =
+  case nd.kind:
+    of nekProcDecl:       nd.procdecl.docComment &= comm
+    of nekEnumDecl:       nd.enumdecl.docComment &= comm
+    of nekObjectDecl:     nd.objectdecl.docComment &= comm
+    of nekAliasDecl:      nd.aliasdecl.docComment &= comm
+    of nekMultitype:      discard
+    of nekPasstroughCode: discard

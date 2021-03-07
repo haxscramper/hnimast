@@ -147,9 +147,13 @@ proc getFields*[NNode, A](
     of nnkObjectTy:
       return node[2].getFields(cb, level  + 1)
 
-    of nnkRefTy:
+    of nnkRefTy, nnkPtrTy:
       when NNode is PNode:
-        raiseAssert("Parsing PNode from nnkRefTy is not supported")
+        if node[0].kind.toNNK() == nnkObjectTy:
+          return getFields(node[0], cb, level)
+
+        else:
+          raiseImplementKindError(node[0])
 
       else:
         return node.getTypeImpl()[0].getImpl()[2][0].getFields(cb, level + 1)
@@ -239,9 +243,7 @@ proc getFields*[NNode, A](
       discard
 
     else:
-      raiseArgumentError(
-        &"Unexpected node kind in `getFields`: {node.kind}."
-      )
+      raiseImplementKindError(node)
 
 template filterIt2(op, body: untyped): untyped = filterIt(body, op)
 
@@ -376,6 +378,7 @@ proc parseObject*[NNode, A](
   )
 
   let (exported, name) = parseIdentName(node[0])
+
 
   result.exported = exported
   result.name = newNNType[NNode](name.getStrVal())
