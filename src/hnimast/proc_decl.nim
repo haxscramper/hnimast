@@ -55,6 +55,26 @@ proc arguments*(procDecl: var PProcDecl): var seq[NIdentDefs[PNode]] =
 proc arguments*[N](procDecl: ProcDecl[N]): seq[NIdentDefs[N]] =
   procDecl.signature.arguments
 
+proc addArgument*[N](
+    procDecl: var ProcDecl[N],
+    argName: string, argType: NType[N], kind: NVarDeclKind = nvdLet,
+    value: Option[N] = none(N)
+  ) =
+
+  procDecl.signature.arguments.add newNIdentDefs(
+    argName, argType, kind, value)
+
+proc addArgument*[N](
+  procDecl: var ProcDecl, args: openarray[(string, NType[N])]) =
+
+  for (argName, argType) in args:
+    procDecl.addArgument(argName, argType)
+
+# proc addArgument*[N](
+#   procDecl: var ProcDecl,
+#   args: openarray[(string, NType[N], NVarDeclKind)]) =
+
+#   for (argName, argType, argKind) in args:
 
 iterator argumentIdents*[N](procDecl: ProcDecl[N]): N =
   for argument in procDecl.signature.arguments:
@@ -67,6 +87,12 @@ iterator argumentTypes*[N](procDecl: ProcDecl[N]): NType[N] =
 
 proc returnType*[N](procDecl: ProcDecl[N]): Option[NType[N]] =
   procDecl.signature.returnType()
+
+proc `returnType=`*[N](procDecl: var ProcDecl[N], retType: NType[N]) =
+  procDecl.signature.returnType = retType
+
+proc `pragma=`*[N](procDecl: var ProcDecl[N], pragma: Pragma[N]) =
+  procDecl.signature.pragma = pragma
 
 func toNNode*[NNode](
   pr: ProcDecl[NNode], standalone: bool = true): NNode =

@@ -197,7 +197,6 @@ func eachAnnotMut*[NNode, A](
       for branch in mitems(fld.branches):
         branch.eachAnnotMut(cb)
 
-
 # ~~~~ each field immutable ~~~~ #
 
 func eachField*[NNode, A](
@@ -324,6 +323,58 @@ func eachAnnot*[Node, A](
         branch.eachAnnot(cb)
 
 
+# ~~~~ each static path ~~~~ #
+
+func eachStaticPath*[A](
+    kind: NimNode,
+    obj: NObjectDecl[A],
+    cb: (seq[NObjectField[A]] ~> NimNode)
+  ): NimNode =
+
+  var topFlds: seq[NObjectField[A]]
+  var trailFlds: seq[NObjectField[A]]
+
+  var kindCount = 0
+
+
+  for fld in items(obj.flds):
+    if fld.isKind:
+      inc kindCount
+      if kindCount > 1:
+        raiseArgumentError(
+          "Found more than one top-level kind field. " &
+            "Single-argument static path only supports one kind.")
+
+    else:
+      if kindCount == 0:
+        topFlds.add fld
+
+      else:
+        trailFlds.add fld
+
+
+
+  result = nnkWhenStmt.newTree()
+
+  for fld in items(obj.flds):
+    if fld.isKind:
+      for branch in fld.branches:
+        if branch.isElse:
+          result.add nnkElse.newTree(
+            cb(topFlds & branch.flds & trailFlds))
+
+        else:
+          result.add nnkElifBranch.newTree(
+            nnkInfix.newTree(
+              ident "in", kind,
+              branch.ofValue.normalizeSet(forceBrace = true)),
+            cb(topFlds & branch.flds & trailFlds)
+          )
+
+
+
+
+
 # ~~~~ Each path in case object ~~~~ #
 func eachPath*[A](
   fld: NObjectField[A], self: NimNode, parent: NObjectPath[A],
@@ -353,8 +404,10 @@ func eachPath*[A](
 
 
 func eachPath*[A](
-  self: NimNode,
-  obj: NObjectDecl[A], cb: ((NObjectPath[A], seq[NObjectField[A]]) ~> NimNode)): NimNode =
+    self: NimNode,
+    obj: NObjectDecl[A],
+    cb: ((NObjectPath[A], seq[NObjectField[A]]) ~> NimNode)
+  ): NimNode =
   ## Visit each group of fields in object described by `obj` and
   ## generate case statement with all possible object paths. Arguments
   ## for callback - `NObjectPath[A]` is a sequence of kind field values that

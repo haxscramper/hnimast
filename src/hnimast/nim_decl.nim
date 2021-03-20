@@ -4,7 +4,7 @@ import hmisc/helpers
 
 type
   NimDeclKind* = enum
-    nekPasstroughCode
+    nekPassthroughCode
     nekProcDecl
     nekObjectDecl
     nekEnumDecl
@@ -51,7 +51,8 @@ type
       of nekAliasDecl:
         aliasDecl*: AliasDecl[N]
 
-      of nekPasstroughCode:
+      of nekPassthroughCode:
+        passIInfo*: LineInfo
         passthrough*: N
 
       of nekMultitype:
@@ -64,13 +65,13 @@ type
   NAliasDecl* = NimDecl[NimNode]
 
   AnyNimDecl*[N] =
-          ProcDecl[N] |
-          AliasDecl[N] |
-          ProcDecl[N] |
-          ObjectDecl[N, Pragma[N]] |
-          EnumDecl[N] |
-          AliasDecl[N] |
-          NimTypeDecl[N]
+    ProcDecl[N]              |
+    AliasDecl[N]             |
+    ProcDecl[N]              |
+    ObjectDecl[N, Pragma[N]] |
+    EnumDecl[N]              |
+    AliasDecl[N]             |
+    NimTypeDecl[N]
 
 func `==`*[N, A](a, b: ObjectBranch[N, A]): bool =
   a.isElse == b.isElse and
@@ -122,7 +123,7 @@ func `==`*[N](a, b: NimDecl[N]): bool =
       of nekEnumDecl: a.enumdecl == b.enumdecl
       of nekObjectDecl: a.objectdecl == b.objectdecl
       of nekAliasDecl: a.aliasdecl == b.aliasdecl
-      of nekPasstroughCode: a.passthrough == b.passthrough
+      of nekPassthroughCode: a.passthrough == b.passthrough
       of nekMultitype:
         a.typedecls.len == b.typedecls.len and
         zip(a.typedecls, b.typedecls).allOfIt(it[0] == it[1])
@@ -143,7 +144,7 @@ func toNNode*[N](entry: NimDecl[N], standalone: bool = true): N =
     of nekAliasDecl:
       return toNNode[N](entry.aliasDecl)
 
-    of nekPasstroughCode:
+    of nekPassthroughCode:
       return entry.passthrough
 
     of nekMultitype:
@@ -197,7 +198,7 @@ func toNimDecl*[N](edc: EnumDecl[N]): NimDecl[N] =
   NimDecl[N](kind: nekEnumDecl, enumdecl: edc)
 
 func toNimDecl*[N](decl: N): NimDecl[N] =
-  NimDecl[N](kind: nekPasstroughCode, passthrough: decl)
+  NimDecl[N](kind: nekPassthroughCode, passthrough: decl)
 
 func toNimDecl*[N](decl: seq[NimTypeDecl[N]]): NimDecl[N] =
   NimDecl[N](kind: nekMultitype, typedecls: decl)
@@ -206,7 +207,7 @@ func add*[N](declSeq: var seq[NimDecl[N]], decl: AnyNimDecl[N]) =
   declSeq.add toNimDecl(decl)
 
 # func add*[N](declSeq: var seq[NimDecl[N]], decl: N) =
-#   declSeq.add NimDecl(kind: nekPasstroughCode, passthrough: decl)
+#   declSeq.add NimDecl(kind: nekPassthroughCode, passthrough: decl)
 
 func newAliasDecl*[N](
     t1, t2: NType[N],
@@ -237,33 +238,44 @@ func `$`*[N](nd: NimDecl[N]): string =
 
 func toNNode*[N](alias: AliasDecl[N], standalone: bool = true): N =
   let pr = (alias.isDistinct, alias.isExported)
-  let
-    aType = toNNode[N](alias.newType)
+  var
+    aType = toNNode[N](alias.newType, alias.isExported)
     bType = toNNode[N](alias.oldType)
 
-  if pr == (false, false):
-    result = newNTree[N](nnkTypeDef, aType, newEmptyNNode[N](), bType)
-  elif pr == (true, false):
+  if alias.isDistinct:
     result = newNTree[N](
       nnkTypeDef,
       aType,
       newEmptyNNode[N](),
       newNTree[N](nnkDistinctTy, bType)
     )
-  elif pr == (false, true):
-    result = newNTree[N](
-      nnkTypeDef,
-      newNTree[N](nnkPostfix, newNIdent[N]("*"), aType),
-      newEmptyNNode[N](),
-      bType
-    )
-  elif pr == (true, true):
-    result = newNTree[N](
-      nnkTypeDef,
-      newNTree[N](nnkPostfix, newNIdent[N]("*"), aType),
-      newEmptyNNode[N](),
-      newNTree[N](nnkDistinctTy, bType)
-    )
+
+  else:
+    result = newNTree[N](nnkTypeDef, aType, newEmptyNNode[N](), bType)
+
+  # if pr == (false, false):
+
+  # elif pr == (true, false):
+  #   result = newNTree[N](
+  #     nnkTypeDef,
+  #     aType,
+  #     newEmptyNNode[N](),
+  #     newNTree[N](nnkDistinctTy, bType)
+  #   )
+  # elif pr == (false, true):
+  #   result = newNTree[N](
+  #     nnkTypeDef,
+  #     newNTree[N](nnkPostfix, newNIdent[N]("*"), aType),
+  #     newEmptyNNode[N](),
+  #     bType
+  #   )
+  # elif pr == (true, true):
+  #   result = newNTree[N](
+  #     nnkTypeDef,
+  #     newNTree[N](nnkPostfix, newNIdent[N]("*"), aType),
+  #     newEmptyNNode[N](),
+  #     newNTree[N](nnkDistinctTy, bType)
+  #   )
 
   if standalone:
     result = newNTree[N](nnkTypeSection, result)
@@ -279,7 +291,7 @@ proc `iinfo=`*[N](nd: var NimDecl[N], iinfo: LineInfo) =
     of nekObjectDecl:     nd.objectdecl.iinfo = iinfo
     of nekAliasDecl:      nd.aliasdecl.iinfo = iinfo
     of nekMultitype:      discard
-    of nekPasstroughCode: discard
+    of nekPassthroughCode: nd.passIInfo = iinfo
 
 
 proc addCodeComment*[N](nd: var AnyNimDecl[N], comm: string) =
@@ -292,7 +304,7 @@ proc addCodeComment*[N](nd: var NimDecl[N], comm: string) =
     of nekObjectDecl:     nd.objectdecl.codeComment &= comm
     of nekAliasDecl:      nd.aliasdecl.codeComment &= comm
     of nekMultitype:      discard
-    of nekPasstroughCode: discard
+    of nekPassthroughCode: discard
 
 
 proc addDocComment*[N](nd: var AnyNimDecl[N], comm: string) =
@@ -305,4 +317,4 @@ proc addDocComment*[N](nd: var NimDecl[N], comm: string) =
     of nekObjectDecl:     nd.objectdecl.docComment &= comm
     of nekAliasDecl:      nd.aliasdecl.docComment &= comm
     of nekMultitype:      discard
-    of nekPasstroughCode: discard
+    of nekPassthroughCode: discard

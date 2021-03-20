@@ -3,7 +3,7 @@ import strutils, strformat, macros, sequtils
 import hmisc/hexceptions
 
 import compiler/ast
-import hmisc/algo/halgorithm
+import hmisc/algo/[halgorithm, htree_mapping]
 import hmisc/helpers
 import hmisc/types/colorstring
 import object_decl, idents_types, hast_common, pragmas
@@ -46,14 +46,16 @@ proc getBranches*[NNode, A](
 
 
 proc getFieldDescriptions[NNode](node: NNode):
-  seq[tuple[name: string, fldType: NType[NNode], exported: bool]] =
+  seq[tuple[name: string, fldType: NType[NNode],
+            exported: bool, value: Option[NNode]]] =
 
   case node.kind.toNNK():
     of nnkIdentDefs:
-      let fldType = newNType[NNode](node[^2])
+      let fldType = parseNType(node[^2])
       for ident in node[0 ..^ 3]:
         var name: string
         var exported = false
+
         case ident.kind.toNNK():
           of nnkPostfix:
             exported = true
@@ -69,7 +71,12 @@ proc getFieldDescriptions[NNode](node: NNode):
           else:
             name = $ident
 
-        result.add((name: name, fldType: fldType, exported: exported))
+        result.add((name: name, fldType: fldType,
+                    exported: exported, value: none(NNode)))
+
+      if node[2].kind.toNNK() != nnkEmpty:
+        result[^1].value = some(node[2])
+
 
     of nnkRecCase:
       return getFieldDescriptions(node[0])
@@ -90,7 +97,8 @@ proc getFieldDescriptions[NNode](node: NNode):
       else:
         fldTYpe = newNNType[NNode]("TYPE_DETECTION_ERROR")
 
-      result.add((name: $node, fldType: fldType, exported: false))
+      result.add((name: $node, fldType: fldType,
+                  exported: false, value: none(NNode)))
 
     else:
       raiseAssert(
@@ -120,7 +128,8 @@ proc getFields*[NNode, A](
               isKind: false,
               name: descr.name,
               fldType: descr.fldType,
-              exported: descr.exported
+              exported: descr.exported,
+              value: descr.value
             )]
 
             # if node.sym.notNil() and
@@ -199,7 +208,7 @@ proc getFields*[NNode, A](
 
     of nnkIdentDefs:
       let descr = getFieldDescriptions(node)
-      for idx, (name, fldType, exported) in descr:
+      for idx, (name, fldType, exported, value) in descr:
         result.add ObjectField[NNode, A](
           declNode: some(node),
           isTuple: false,
@@ -207,17 +216,7 @@ proc getFields*[NNode, A](
           exported: exported,
           name: name,
           fldType: fldType,
-          value: (
-            if idx == node.len - 2 and
-               node[^1].kind.toNNK() != nnkEmpty:
-              some(node[^1])
-
-            else:
-              none(NNode)
-          )
-          #   idx == node.len - 2 and node[^1].kind.toNNK() != nnkEmpty).tern(
-          #   some(node[^1]), none(NNode)
-          # )
+          value: value
         )
 
       when not (A is void):
@@ -285,6 +284,27 @@ proc getKindFields*[Node, A](
 
 
       result.add fld
+
+proc getSubfields*[N, A](field: ObjectField[N, A]): seq[ObjectField[N, A]] =
+  for branch in field.branches:
+    for field in branch.flds:
+      result.add field
+
+iterator iterateFields*[N, A](objDecl: ObjectDecl[N, A]):
+  ObjectField[N, A] =
+
+  for field in objDecl.flds:
+    iterateItDFS(field, it.getSubfields(), it.isKind, dfsPostorder):
+      yield it
+
+proc getBranchFields*[N, A](objDecl: ObjectDecl[N, A]):
+  seq[ObjectField[N, A]] =
+
+  for field in objDecl.flds:
+    iterateItDFS(field, it.getSubfields(), it.isKind, dfsPostorder):
+      if it.isKind:
+        result.add it
+
 
 
 proc discardNimNode*(ntype: NType[NimNode]): NType[ObjTree] =
@@ -358,34 +378,76 @@ func parsePPragma*(node: PNode, position: ObjectAnnotKind): Pragma[PNode] =
   parsePragma(node, position)
 
 
+func getFuckingTypeImpl*(node: NimNode): NimNode =
+  case node.kind:
+    of nnkSym:
+      getFuckingTypeImpl(node.getTypeImpl())
+
+    of nnkIdent:
+      raiseImplementError("Cannot get type implementation from ident")
+
+    of nnkBracketExpr:
+      getFuckingTypeImpl(node[1])
+
+    of nnkObjectTy:
+      return node
+
+    else:
+      raiseImplementKindError(node, node.treeRepr())
+
 proc parseObject*[NNode, A](
-    node: NNode,
+    inNode: NNode,
     cb: ParseCb[NNode, A]
   ): ObjectDecl[NNode, A] =
 
   let node =
-    if node.kind == nnkStmtList:
-      node[0].expectKind nnkTypeSection
-      node[0][0]
+    case inNode.kind.toNNK():
+      of nnkStmtList:
+        inNode[0].expectKind nnkTypeSection
+        inNode[0][0]
 
-    else:
-      node
+      of nnkSym:
+        when NNode is PNode:
+          raiseImplementError(
+            "Parsing PNode from symbol on the first level is not supported")
 
-  node.expectKind nnkTypeDef
+        else:
+          inNode.getFuckingTypeImpl()
+
+      else:
+        inNode
+
+  if node.kind notin {nnkTypeDef, nnkObjectTy}:
+    raiseImplementKindError(node, node.treeRepr())
+
+  let declBody = tern(node.kind == nnkTypeDef, node[2], node)
+
   result = ObjectDecl[NNode, A](
     declNode: some(node),
-    flds: node[2].getFields(cb)
+    flds: declBody.getFields(cb)
   )
 
-  let (exported, name) = parseIdentName(node[0])
 
 
-  result.exported = exported
-  result.name = newNNType[NNode](name.getStrVal())
 
-  when not (A is void):
-    if node[0].kind.toNNK() == nnkPragmaExpr and cb != nil:
-      result.annotation = some cb(node[0][1], oakObjectToplevel)
+  if node.kind == nnkTypeDef:
+    let (exported, name) = parseIdentName(node[0])
+
+    result.exported = exported
+    result.name = newNNType[NNode](name.getStrVal())
+
+
+    when not (A is void):
+      if node[0].kind.toNNK() == nnkPragmaExpr and cb != nil:
+        result.annotation = some cb(node[0][1], oakObjectToplevel)
+
+  elif inNode.kind == nnkSym:
+    result.name = newNNtype[NNode](inNode.getStrVal())
+
+  # else:
+  #   result.name = newNNtype[NNode](node.getTypeImpl[0])
+  #   echo node.treeRepr()
+
 
 
 macro makeFieldsLiteral*(node: typed): untyped =

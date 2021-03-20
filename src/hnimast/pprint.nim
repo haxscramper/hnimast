@@ -277,9 +277,7 @@ proc pprintWrite*(s: Stream | File, n: PNode, indent: int = 0) =
 
 proc toPString*(n: PNode, indent: int = 0): string =
   var blc = layoutBlockRepr(n, indent = indent)
-  var c = LytConsole()
-  blc.printOn(c)
-  return c.text
+  blc.printOn(result)
 
 proc write*(
   s: Stream | File, pd: AnyNimDecl[PNode],
@@ -324,7 +322,7 @@ proc write*(
     of nekAliasDecl:
       s.write(nd.aliasdecl, pprint = pprint, standalone = standalone)
 
-    of nekPasstroughCode:
+    of nekPassthroughCode:
       if pprint:
         s.pprintWrite(nd.passthrough)
       else:

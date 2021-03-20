@@ -174,7 +174,9 @@ func add*[NNode](ntype: var NType[NNode], nt: varargs[NType[NNode]]) =
 func contains*(arg: set[NimNodeKind], pkind: TNodeKind): bool =
   pkind.toNNK() in arg
 
-func toNNode*[NNode](ntype: NType[NNode]): NNode =
+func toNNode*[NNode](ntype: NType[NNode], exported: bool = false): 
+  NNode =
+
   ## Convert to NNode
   case ntype.kind:
     of ntkProc:
@@ -253,7 +255,9 @@ func toNNode*[NNode](ntype: NType[NNode]): NNode =
 
     of ntkIdent:
       if ntype.genParams.len == 0:
-        return newNIdent[NNode](ntype.head)
+        result = newNIdent[NNode](ntype.head)
+        if exported:
+          return newNTree[NNode](nnkPostfix, newNIdent[NNode]("*"), result)
 
       else:
         if ntype.head in ["ref", "ptr", "var"]:
@@ -279,8 +283,13 @@ func toNNode*[NNode](ntype: NType[NNode]): NNode =
           result = newNTree[NNode](nnkNilLit)
 
         else:
-          result = newNTree[NNode](
-            nnkBracketExpr, newNIdent[NNode](ntype.head))
+          result = newNIdent[NNode](ntype.head)
+
+          if exported:
+            result = newNTree[NNode](nnkPostfix, newNIdent[NNode]("*"), result)
+
+          result = newNTree[NNode](nnkBracketExpr, result)
+
           for param in ntype.genParams:
             result.add toNNode[NNode](param)
 
@@ -563,10 +572,14 @@ func parseNType*(impl: PNode): NType[PNode] =
   ## Convert type described in `NimNode` into `NType`
   newNTypeNNode(impl)
 
+func parseNType*(impl: NimNode): NType[NimNode] =
+  ## Convert type described in `NimNode` into `NType`
+  newNTypeNNode(impl)
+
 # proc newNType*(typ: PType): NType[PNode] =
 
 
-func newNType*(impl: PNode): NType[PNode] {.deprecated.} =
+func newNType*(impl: PNode): NType[PNode] {.deprecated: "Use parseNType".} =
   ## Convert type described in `NimNode` into `NType`
   newNTypeNNode(impl)
 
