@@ -18,6 +18,14 @@ const
   nnkLiteralKinds* = nnkStrKinds + nnkIntKinds + nnkFloatKinds
   nnkTokenKinds* = nnkLiteralKinds + {nnkIdent, nnkSym}
 
+  nnkProcKinds* = {
+    nnkProcTy,
+  }
+
+  dekTypeKinds* = {
+    nnkObjectTy
+  }
+
   nnkProcDeclKinds* = {
     nnkProcDef,
     nnkFuncDef,
@@ -265,6 +273,9 @@ func newPLit*(i: int): PNode =
 func newPLit*(i: BiggestInt): PNode =
   ## Create new integer literal `PNode`
   newIntTypeNode(i, PType(kind: tyInt))
+
+func newPLit*(n: typeof(nil)): PNode =
+  PNode(kind: nkNilLit)
 
 func newPLit*(c: char): PNode =
   newIntTYpeNode(BiggestInt(c), PType(kind: tyChar))

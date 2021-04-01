@@ -91,6 +91,36 @@ func returnType*[N](t: NType[N]): Option[NType[N]] =
   if t.rType.isSome():
     result = some(t.rtype.get().getIt())
 
+func directUsedTypes*[N](ntype: NType[N]): seq[NType[N]] =
+  case ntype.kind:
+    of ntkGenericSpec, ntkAnonTuple, ntkIdent:
+      result = ntype.genParams
+
+    of ntkProc, ntkNamedTuple:
+      for arg in ntype.arguments:
+        result.add arg.vtype
+
+
+      if ntype.returnType().isSome():
+        result.add ntype.returnType().get()
+
+    of ntkVarargs:
+      result.add ntype.vaType()
+
+    else:
+      discard
+
+func allUsedTypes*[N](ntype: NType[N]): seq[NType[N]] =
+  result.add ntype
+  for argType in directUsedTypes(ntype):
+    result.add allUsedTypes(argType)
+
+func isPrimitiveHead*[N](ntype: NType[N]): bool =
+  ## `ntype` uses some primitive built-in for the head, like `ref`, `var`,
+  ## `sink` etc.
+  return ntype.kind in {ntkIdent} and ntype.head in [
+    "ref", "var", "sink", "ptr"]
+
 
 #=============================  Predicates  ==============================#
 func `==`*(l, r: NType): bool =
@@ -174,7 +204,7 @@ func add*[NNode](ntype: var NType[NNode], nt: varargs[NType[NNode]]) =
 func contains*(arg: set[NimNodeKind], pkind: TNodeKind): bool =
   pkind.toNNK() in arg
 
-func toNNode*[NNode](ntype: NType[NNode], exported: bool = false): 
+func toNNode*[NNode](ntype: NType[NNode], exported: bool = false):
   NNode =
 
   ## Convert to NNode

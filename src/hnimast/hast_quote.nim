@@ -28,12 +28,14 @@ func quoteAux(body: NimNode, resCall: string): NimNode =
         let bodyLit = newLit body[0].strVal()
         return quote do:
           newPTree(nnkAccQuoted, newPIdent(`bodyLit`))
+
       else:
         var res: string
         for node in body:
           res &= node.repr
 
         return parseExpr(res)
+
     of nnkStrKinds:
       result.add newLit body.strVal
 
@@ -122,6 +124,52 @@ func quoteAux(body: NimNode, resCall: string): NimNode =
         for subnode in body:
           result.add quoteAux(subnode, resCall)
 
+type NodeAuxTypes = SomeInteger | SomeFloat | string
+
+func toPNodeAux*(value: PNode | NodeAuxTypes): PNode =
+  when value is PNode:
+    return value
+
+  else:
+    return newPLit(value)
+
+func isSameCategory(kind1, kind2: NimNodeKind): bool =
+  (kind1 in nnkStrKinds and kind2 in nnkStrKinds) or
+  (kind1 in nnkIntKinds and kind2 in nnkIntKinds) or
+  (kind1 in nnkFloatKinds and kind2 in nnkFloatKinds) or
+  (kind1 in {nnkIdent, nnkSym} and kind2 in {nnkIdent, nnkSym})
+
+func newPQuoteTree*(
+    kind: NimNodeKind, subnodes: varargs[PNode, toPnodeAux]): PNode =
+
+  if kind in nnkTokenKinds:
+    assert subnodes.len == 1 and isSameCategory(
+      subnodes[0].kind.toNNK(), kind),
+      $subnodes.len & " " & $subnodes[0].kind & " " & $kind
+    return subnodes[0]
+
+  else:
+    newPTree(kind, subnodes)
+
+func toNimNodeAux*(value: NimNode | NodeAuxTypes): NimNode =
+  when value is NimNode:
+    return value
+
+  else:
+    return newLit(value)
+
+func newNQuoteTree*(
+    kind: NimNodeKind, subnodes: varargs[NimNode, toNimNodeAux]): NimNode =
+
+
+  if kind in nnkTokenKinds:
+    assert subnodes.len == 1 and isSameCategory(
+      subnodes[0].kind, kind),
+      $subnodes.len & " " & $subnodes[0].kind & " " & $kind
+    return subnodes[0]
+
+  else:
+    newTree(kind, subnodes)
 
 macro pquote*(mainBody: untyped): untyped =
   ## `quote` macro to generate `PNode` builder. Similarly to `superquote`
@@ -148,9 +196,9 @@ macro pquote*(mainBody: untyped): untyped =
   ## `@@@([arg1, arg2])` if needed.
 
 
-  result = quoteAux(mainBody, "newPTree")
+  result = quoteAux(mainBody, "newPQuoteTree")
 
 macro nquote*(mainBody: untyped): untyped =
   ## DSL and set of features is identical to `pquote`, but generates
   ## `NimNode` instead of `PNode`.
-  result = quoteAux(mainBody, "newTree")
+  result = quoteAux(mainBody, "newNQuoteTree")
