@@ -402,6 +402,13 @@ func newNType*[NNode](
   NType[NNode](kind: ntkIdent, head: name, genParams: toSeq(gparams))
 
 
+func newPType*[N](name: string, gparams: openarray[NType[N]]):
+  NType[N] =
+  ## Make `NType`
+
+  NType[N](kind: ntkIdent, head: name, genParams: toSeq(gparams))
+
+
 func newProcNType*[NNode](
   args: seq[(string, NType[NNode])],
   rtype: NType[NNode], pragma: Pragma[NNode]): NType[NNode] =
