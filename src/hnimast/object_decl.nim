@@ -541,6 +541,7 @@ func toNNode*[NNode, A](
       newEmptyNNode[NNOde](),
       newNTree[NNode](
         nnkRecList,
+        @[newCommentStmtNNode[NNode](obj.docComment)] &
         obj.flds.mapIt(toNNode(it, annotConv))))) # loud LISP sounds
 
 func toNNode*[NNode](

@@ -32,6 +32,9 @@ type
         ## - `head[T0, T1]` :: Regular generic type
         ## - `T0 | T1` :: Constrained generic alternatives
         ## - `(T0, T1)` :: Anonymous tuples
+        ##
+        # - FIXME :: Not clear how generic type contraints are represented.
+        #   Things like `[T: string | float]`.
 
       of ntkProc, ntkNamedTuple:
         rType*: Option[SingleIt[NType[NNode]]] ## Optional return type
@@ -204,8 +207,10 @@ func add*[NNode](ntype: var NType[NNode], nt: varargs[NType[NNode]]) =
 func contains*(arg: set[NimNodeKind], pkind: TNodeKind): bool =
   pkind.toNNK() in arg
 
-func toNNode*[NNode](ntype: NType[NNode], exported: bool = false):
-  NNode =
+func toNNode*[NNode](
+    ntype: NType[NNode], exported: bool = false, 
+    inParam: bool = false
+  ): NNode =
 
   ## Convert to NNode
   case ntype.kind:
@@ -275,7 +280,11 @@ func toNNode*[NNode](ntype: NType[NNode], exported: bool = false):
       for entry in items(ntype.genParams):
         buf.add toNNode[NNode](entry)
 
-      result = foldInfix(buf, "|")
+      result = foldl(buf, nnkInfix.newNTree(
+        newNIdent[NNode]("|"), a, b)) # foldInfix(buf, "|")
+
+      if inParam:
+        result = newNTree[NNode](nnkPar, result)
 
     of ntkVarargs:
       result = newNTree[NNode](nnkBracketExpr, newNIdent[NNode]("varargs"))
@@ -306,7 +315,7 @@ func toNNode*[NNode](ntype: NType[NNode], exported: bool = false):
 
           result = newNTree[NNode](
             ty,
-            toNNode[NNode](ntype.genParams[0])
+            toNNode[NNode](ntype.genParams[0], inParam = true)
           )
 
         elif ntype.head == "nil":
@@ -401,6 +410,7 @@ func newNType*[NNode](
   ## Make `NType`
   NType[NNode](kind: ntkIdent, head: name, genParams: toSeq(gparams))
 
+func newPType*(kind: NTypeKind): NType[PNode] = NType[PNode](kind: kind)
 
 func newPType*[N](name: string, gparams: openarray[NType[N]]):
   NType[N] =

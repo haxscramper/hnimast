@@ -63,6 +63,7 @@ type
     oakObjectToplevel ## Toplevel annotaion for object
     oakObjectField ## Annotation for object field
 
+
 template currIInfo*(): untyped =
   let (file, line, col) = instantiationInfo()
   LineInfo(filename: file, line: line, column: col)
@@ -138,6 +139,19 @@ func toString*(p: PNode): string =
   ## Convert any node to string without side effects
   {.noSideEffect.}:
     $p
+
+func toStr*(
+    info: LineInfo | tuple[filename: string, line: int, column: int],
+    shortPath: bool = true
+  ): string =
+
+  if shortPath:
+    let spl = info.filename.split("/")[^1]
+    return &"{info.line}:{info.column}:{spl}"
+
+  else:
+    return &"{info.line}:{info.column}:{info.filename}"
+
 
 func toShow*[N](node: N): string = "'" & toString(node) & "'"
 
@@ -255,6 +269,21 @@ func newCommentStmtNNode*[NNode](comment: string): NNode =
     result = newNTree[NNode](nnkCommentStmt)
     result.comment = comment
 
+template addPositionComment*[N](node: N): untyped =
+  newNTree[N](
+    nnkStmtList,
+    newCommentStmtNNode[N](toStr(instantiationInfo())),
+    node
+  )
+
+template newPositionPComment*(
+    pos:
+      LineInfo |
+      tuple[filename: string, line: int, column: int]
+  ): untyped {.dirty.} =
+
+  newCommentStmtNNode[PNode]($pos)
+
 func newEmptyNNode*[NNode](): NNode =
   ## Create new empty node of type `NNode`
   when NNode is NimNode:
@@ -277,8 +306,12 @@ func newPLit*(i: BiggestInt): PNode =
 func newPLit*(n: typeof(nil)): PNode =
   PNode(kind: nkNilLit)
 
+func newPLit*(b: bool): PNode =
+  if b: newPident("true") else: newPident("false")
+  # newIntTypeNode(BiggestInt(b), PType(kind: tyBool))
+
 func newPLit*(c: char): PNode =
-  newIntTYpeNode(BiggestInt(c), PType(kind: tyChar))
+  newIntTypeNode(BiggestInt(c), PType(kind: tyChar))
 
 func newPLit*(f: float): PNode =
   newFloatNode(nkFloatLit, f)
@@ -294,6 +327,12 @@ func newRStrLit*(st: string): PNode =
 func toStrLit*(node: PNode): PNode =
   {.noSideEffect.}:
     result = newPLit($node)
+
+
+func lineIInfo*(node: NimNode): NimNode =
+  ## Create tuple literal for `{.line: .}` pragma
+  let iinfo = node.lineInfoObj()
+  newLit((filename: iinfo.filename, line: iinfo.line))
 
 func newPIdentColonString*(key, value: string): PNode =
   nnkExprColonExpr.newPTree(newPIdent(key), newPLit(value))
@@ -336,6 +375,13 @@ func toBracketSeq*(elems: seq[NimNode]): NimNode =
   ## `@[<elements>]`
   # TODO use `NNode`
   nnkPrefix.newTree(ident "@", nnkBracket.newTree(elems))
+
+func setPosition*[N](target: var N, source: N) =
+  when N is NimNode:
+    target.copyLineInfo(source)
+
+  else:
+    target.info = source.info
 
 #=======================  Misc helper algorithms  ========================#
 

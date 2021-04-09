@@ -282,7 +282,7 @@ func toNNode*[N](alias: AliasDecl[N], standalone: bool = true): N =
 
 
 func `$`*[N](nd: seq[NimDecl[N]]): string =
-  mapIt(nd, $it).join("\n")
+  mapIt(nd, $it).join("\n\n")
 
 proc `iinfo=`*[N](nd: var NimDecl[N], iinfo: LineInfo) =
   case nd.kind:
