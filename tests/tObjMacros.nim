@@ -483,4 +483,4 @@ suite "Parallel field pairs":
       let b = Private()
 
       hackPrivateParallelFieldPairs(a, b):
-        discard
+        echo name

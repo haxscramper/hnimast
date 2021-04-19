@@ -115,17 +115,15 @@ proc newPObjectDecl*(
   result.annotation = some annotate
   result.exported = exported
 
-
-func addField*[N](
-    obj: var ObjectDecl[N, Pragma[N]],
+func newObjectField*[N](
     name: string,
     cxtype: NType[N],
     docComment: string = "",
     codeComment: string = "",
     exported: bool = true
-  ) =
+  ): ObjectField[N, Pragma[N]] =
 
-  obj.flds.add PObjectField(
+  ObjectField[N, Pragma[N]](
     isTuple: false,
     isKind: false,
     name: name,
@@ -134,6 +132,74 @@ func addField*[N](
     codeComment: codeComment,
     exported: exported
   )
+
+func addField*[N](
+    obj: var ObjectDecl[N, Pragma[N]],
+    name: string,
+    cxtype: NType[N],
+    docComment: string = "",
+    codeComment: string = "",
+    exported: bool = true
+  ) {.deprecated: "use .addField(newObjectField())".} =
+
+  obj.flds.add newObjectField(
+    name, cxtype, docComment, codeComment, exported)
+
+func addField*[N](
+    obj: var ObjectDecl[N, Pragma[N]],
+    field: ObjectField[N, Pragma[N]]
+  ) =
+
+  obj.flds.add field
+
+func newObjectCaseField*[N](
+    name: string,
+    fieldType: NType[N],
+    docComment: string = "",
+    codeComment: string = "",
+    exported: bool = true
+  ): ObjectField[N, Pragma[N]] =
+
+  ObjectField[N, Pragma[N]](
+    isTuple: false,
+    isKind: true,
+    name: name,
+    fldType: fieldType,
+    docComment: docComment,
+    codeComment: codeComment,
+    exported: exported,
+  )
+
+func newObjectOfBranch*[N](ofValue: N): ObjectBranch[N, Pragma[N]] =
+  ObjectBranch[N, Pragma[N]](isElse: false, ofValue: ofValue)
+
+func newObjectElseBranch*[N](): ObjectBranch[N, Pragma[N]] =
+  ObjectBranch[N, Pragma[N]](isElse: true)
+
+func addField*[N](
+    branch: var ObjectBranch[N, Pragma[N]],
+    field: ObjectField[N, Pragma[N]]
+  ) = branch.flds.add field
+
+func addBranch*[N](
+    field: var ObjectField[N, Pragma[N]],
+    branch: ObjectBranch[N, Pragma[N]]
+  ) =
+
+  field.branches.add branch
+
+func addBranch*[N](
+    field: var ObjectField[N, Pragma[N]],
+    ofValue: N,
+    fields: varargs[ObjectField[N, Pragma[N]]]
+  ) =
+
+  var branch = newObjectOfBranch(ofValue)
+  for field in fields:
+    branch.addField(field)
+
+  field.addBranch(branch)
+
 
 #=============================  Predicates  ==============================#
 func markedAs*(fld: NObjectField[NPragma], str: string): bool =
@@ -531,6 +597,12 @@ func toNNode*[NNode, A](
     else:
       head
 
+
+  var comment: seq[NNode]
+  when NNode is PNode:
+    if obj.docComment.len > 0:
+      comment.add newCommentStmtNNode[NNode](obj.docComment)
+
   result = newNTree[NNode](
     nnkTypeDef,
     header,
@@ -541,8 +613,7 @@ func toNNode*[NNode, A](
       newEmptyNNode[NNOde](),
       newNTree[NNode](
         nnkRecList,
-        @[newCommentStmtNNode[NNode](obj.docComment)] &
-        obj.flds.mapIt(toNNode(it, annotConv))))) # loud LISP sounds
+        comment & obj.flds.mapIt(toNNode(it, annotConv))))) # loud LISP sounds
 
 func toNNode*[NNode](
   obj: ObjectDecl[NNode, PRagma[NNode]], standalone: bool = false): NNode =

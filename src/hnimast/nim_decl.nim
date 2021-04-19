@@ -61,8 +61,8 @@ type
   PNimTypeDecl* = NimTypeDecl[Pnode]
 
   PNimDecl* = NimDecl[Pnode]
-  PAliasDecl* = NimDecl[PNode]
-  NAliasDecl* = NimDecl[NimNode]
+  PAliasDecl* = AliasDecl[PNode]
+  NAliasDecl* = AliasDecl[NimNode]
 
   AnyNimDecl*[N] =
     ProcDecl[N]              |

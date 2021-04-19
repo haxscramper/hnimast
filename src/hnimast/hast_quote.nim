@@ -147,7 +147,7 @@ func quoteAux(body: NimNode, resCall: string, pos: NimNode): NimNode =
 
   # result.setPosition(pos)
 
-type NodeAuxTypes = SomeInteger | SomeFloat | string
+type NodeAuxTypes = SomeInteger | SomeFloat | string | bool
 
 func toPNodeAux*(value: PNode | NodeAuxTypes): PNode =
   when value is PNode:
