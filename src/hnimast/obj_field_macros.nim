@@ -28,7 +28,7 @@ proc getBranches*[NNode, A](
         ofValues.add ofSet
         result.add ObjectBranch[NNode, A](
           declNode: some(branch),
-          ofValue: ofSet,
+          ofValue: @[ofSet],
           flds: branch[^1].getFields(cb),
           isElse: false
         )
@@ -89,7 +89,7 @@ proc getFieldDescriptions[NNode](node: NNode):
            node.sym.typ.n.notNil()
           :
 
-          fldType = newNType(node.sym.typ.n)
+          fldType = parseNType(node.sym.typ.n)
 
         else:
           fldTYpe = newNNType[NNode]("TYPE_DETECTION_ERROR")
@@ -339,12 +339,12 @@ proc discardNimNode(
                 )
               else:
                 ValFieldBranch(
-                  ofValue: ObjTree(
+                  ofValue: @[ObjTree(
                     styling: initPrintStyling(),
                     kind: okConstant,
                     constType: $fld.fldType,
-                    strLit: $it.ofValue.toStrLit()
-                  ),
+                    strLit: it.ofValue.mapIt($it.toStrLit()).join(", ")
+                  )],
                   isElse: false,
                   flds: it.flds.discardNimNode())
             ))
@@ -547,20 +547,22 @@ proc unrollFieldLoop[A](
           caseBlock.add nnkElse.newTree(
             newStmtList(
               newCommentStmtNode(
-                "Fallback for value `" & $branch.ofValue.toStrLit() &
+                "Fallback for value `" & branch.ofValue.mapIt(
+                  $it.toStrLit()).join(", ") &
                   "` of field " & fld.name),
               branchBody
             )
           )
         else:
           caseBlock.add nnkOfBranch.newTree(
-            branch.ofValue,
-            newStmtList(
+            branch.ofValue &
+            @[newStmtList(
               newCommentStmtNode(
-                "Branch for value `" & $branch.ofValue.toStrLit() &
+                "Branch for value `" & branch.ofValue.
+                  mapIt($it.toStrLit()).join(", ") &
                   "` of field " & fld.name),
               branchBody
-            )
+            )]
           )
 
       caseBlock = newStmtList(

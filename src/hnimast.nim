@@ -17,7 +17,8 @@ import hnimast/[
   enum_decl,
   idents_types,
   hast_quote,
-  nim_decl
+  nim_decl,
+  obj_field_macros
 ]
 
 export pnode_parse,
@@ -28,7 +29,8 @@ export pnode_parse,
   enum_decl,
   idents_types,
   hast_quote,
-  nim_decl
+  nim_decl,
+  obj_field_macros
 
 export pnode_parse, options, NimNodeKind
 

@@ -19,7 +19,7 @@ type
       of true:
         notOfValue*: NNode
       of false:
-        ofValue*: NNode ## Match value for case branch
+        ofValue*: seq[NNode] ## Match value for case branch
 
 
 
@@ -79,6 +79,7 @@ type
     case isElse*: bool
       of true:
         notOfValue*: NNode
+
       of false:
         ofValue*: NNode
 
@@ -128,7 +129,7 @@ func newObjectField*[N](
     isKind: false,
     name: name,
     fldType: cxtype,
-    docComment: codeComment,
+    docComment: docComment,
     codeComment: codeComment,
     exported: exported
   )
@@ -171,6 +172,9 @@ func newObjectCaseField*[N](
   )
 
 func newObjectOfBranch*[N](ofValue: N): ObjectBranch[N, Pragma[N]] =
+  ObjectBranch[N, Pragma[N]](isElse: false, ofValue: @[ ofValue ])
+
+func newObjectOfBranch*[N](ofValue: seq[N]): ObjectBranch[N, Pragma[N]] =
   ObjectBranch[N, Pragma[N]](isElse: false, ofValue: ofValue)
 
 func newObjectElseBranch*[N](): ObjectBranch[N, Pragma[N]] =
@@ -190,7 +194,7 @@ func addBranch*[N](
 
 func addBranch*[N](
     field: var ObjectField[N, Pragma[N]],
-    ofValue: N,
+    ofValue: N | seq[N],
     fields: varargs[ObjectField[N, Pragma[N]]]
   ) =
 
@@ -303,7 +307,7 @@ func eachCase*[A](
         )
       else:
         result.add nnkOfBranch.newTree(
-          branch.ofValue,
+          normalizeSet(branch.ofValue),
           branch.flds.mapIt(
             it.eachCase(objId, cb)).newStmtList()
         )
@@ -337,7 +341,7 @@ func eachParallelCase*[A](
         )
       else:
         result.add nnkOfBranch.newTree(
-          branch.ofValue,
+          normalizeSet(branch.ofValue),
           branch.flds.mapIt(
             it.eachParallelCase(objId, cb)).newStmtList()
         )
@@ -433,7 +437,7 @@ func eachStaticPath*[A](
           result.add nnkElifBranch.newTree(
             nnkInfix.newTree(
               ident "in", kind,
-              branch.ofValue.normalizeSet(forceBrace = true)),
+              normalizeSet(branch.ofValue)),
             cb(topFlds & branch.flds & trailFlds)
           )
 
@@ -454,16 +458,20 @@ func eachPath*[A](
       let thisPath =
         if branch.isElse:
           parent & @[NObjectPathElem[A](
-            isElse: true, kindField: nobranch, notOfValue: branch.notOfValue)]
+            isElse: true, kindField: nobranch,
+            notOfValue: branch.notOfValue)]
+
         else:
           parent & @[NObjectPathElem[A](
-            isElse: false, kindField: nobranch, ofValue: branch.ofValue)]
+            isElse: false, kindField: nobranch,
+            ofValue: normalizeSet(branch.ofValue))]
 
       let cbRes = cb(thisPath, branch.flds).nilToDiscard()
       if branch.isElse:
         branchBody.add nnkElse.newTree(cbRes)
       else:
-        branchBody.add nnkOfBranch.newTree(branch.ofValue, cbRes)
+        branchBody.add nnkOfBranch.newTree(
+          normalizeSet(branch.ofValue), cbRes)
 
       for fld in branch.flds:
         branchBody.add fld.eachPath(self, thisPath, cb)
@@ -522,8 +530,8 @@ func toNNode*[NNode, A](
   else:
     newNTree[NNode](
       nnkOfBranch,
-      branch.ofValue,
-      nnkRecList.newTree(branch.flds.mapIt(it.toNNode(annotConv))))
+      branch.ofValue & nnkRecList.newTree(
+        branch.flds.mapIt(it.toNNode(annotConv))))
 
 
 func toNNode*[NNode, A](
@@ -545,12 +553,15 @@ func toNNode*[NNode, A](
       head
 
 
-  let selector = newNTree[NNode](
+  var selector = newNTree[NNode](
     nnkIdentDefs,
     fieldName,
     toNNode[NNode](fld.fldType),
     newEmptyNNode[NNode]()
   )
+
+  when NNode is PNode:
+    selector.comment = fld.docComment
 
   if fld.isKind:
     return nnkRecCase.newTree(

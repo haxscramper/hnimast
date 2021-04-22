@@ -123,6 +123,7 @@ func getStrVal*(p: PNode): string =
       raiseArgumentError(
         "Cannot get string value from node of kind " & $p.kind)
 
+proc getStrVal*(s: PSym): string = s.name.s
 
 func dropStmtList*(p: PNode): PNode =
   case p.kind:
@@ -654,6 +655,13 @@ func normalizeSetImpl[NNode](node: NNode): seq[NNode] =
 
 
 
+func normalizeSet*[N](nodes: seq[N]): N =
+  var vals: seq[N]
+  for n in nodes:
+    vals.add normalizeSetImpl(n)
+
+  return newNTree[N](nnkCurly, vals)
+
 func normalizeSet*[NNode](node: NNode, forcebrace: bool = false): NNode =
   ## Convert any possible set representation (e.g. `{1}`, `{1, 2}`,
   ## `{2 .. 6}` as well as `2, 3` (in case branches). Return
@@ -725,16 +733,19 @@ proc parseIdentName*[N](node: N): tuple[exported: bool, name: N] =
     else:
       result.name = node
 
-proc addBranch*[N](main: var N, expr: N, body: varargs[N]) =
+proc addBranch*[N](main: var N, expr: N | seq[N], body: varargs[N]) =
   case main.kind.toNNK():
     of nnkCaseStmt:
       if body.len == 0:
         main.add newNTree[N](nnkElse, expr)
 
       else:
+        when expr isnot seq:
+          let expr = @[expr]
+
         main.add newNTree[N](
-          nnkOfBranch, expr,
-          newNTree[N](nnkStmtList, newEmptyNNode[N]() & toSeq(body)))
+          nnkOfBranch, expr & newNTree[N](
+            nnkStmtList, newEmptyNNode[N]() & toSeq(body)))
 
     else:
       raiseImplementKindError(main)
@@ -752,6 +763,8 @@ proc addBranch*[N](main: var N, expr: enum, body: varargs[N]) =
 proc addBranch*[N](main: var N, expr: string, body: varargs[N]) =
   addBranch(main, newNLit[N, string]($expr), body)
 
+proc addBranch*[N](main: var N, expr: seq[string], body: varargs[N]) =
+  addBranch(main, mapIt(expr, newNLit[N, string](it)), body)
 
 proc addBranch*[N, E](main: var N, expr: set[E], body: varargs[N]) =
   addBranch(main, newPLit(expr), body)
@@ -775,10 +788,11 @@ proc newPDotFieldExpr*(lhs, rhs: PNode | string): PNode =
   else:
     result.add newPIdent(rhs)
 
-proc newPDotCall*(
-    main: string | PNode, callName: string,
-    args: varargs[PNode]
-  ): PNode =
+proc newPDotCall*(main: PNode, callName: string, args: varargs[PNode]):
+  PNode =
+  newPTree(nnkDotExpr, toPNode(main), newPCall(callName, args))
 
-  var call = newPCall(callName, args)
-  result = newPTree(nnkDotExpr, toPNode(main), call)
+
+proc newPDotCall*(main: string, callName: string, args: varargs[PNode]):
+  PNode =
+  newPTree(nnkDotExpr, newPIdent(main), newPCall(callName, args))
