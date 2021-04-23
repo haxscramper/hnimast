@@ -55,6 +55,7 @@ type
     fldType: NType[N]
     exported: bool
     value: Option[N]
+    # pragma: Option[PRagma[N]]
     pragma: seq[Pragma[N]] # For some reason this shits blows (cannot
                            # instantiate my ass) up when I try to use
                            # `Option` - I don't fucking care what kind of
@@ -149,6 +150,7 @@ proc getFields*[N](node: N, isChecked: bool, level: int = 0): seq[ObjectField[N]
               declNode: some(node),
               isTuple: false,
               isKind: false,
+              pragma: descr.pragma,
               isChecked: isChecked,
               name: descr.name,
               fldType: descr.fldType,
@@ -197,7 +199,7 @@ proc getFields*[N](node: N, isChecked: bool, level: int = 0): seq[ObjectField[N]
           let descr = getFieldDescriptions[N](elem)
           case elem.kind.toNNK():
             of nnkRecCase: # Case field
-              result.add ObjectField[N](
+              var field = ObjectField[N](
                 declNode:  some(elem),
                 isTuple:   false,
                 isKind:    true,
@@ -206,9 +208,12 @@ proc getFields*[N](node: N, isChecked: bool, level: int = 0): seq[ObjectField[N]
                 name:      descr[0].name,
                 exported:  descr[0].exported,
                 fldType:   descr[0].fldType,
-                # FIXME IMPLEMENT
-                # pragma:    descr.pragma
               )
+
+              if descr[0].pragma.len > 0:
+                field.pragma = some descr[0].pragma[0]
+
+              result.add field
 
             of nnkIdentDefs: # Regular field definition
               result.add getFields(elem, true, level + 1)[0]
@@ -232,7 +237,7 @@ proc getFields*[N](node: N, isChecked: bool, level: int = 0): seq[ObjectField[N]
     of nnkIdentDefs:
       let descr = getFieldDescriptions(node)
       for idx, desc in descr:
-        result.add ObjectField[N](
+        var field = ObjectField[N](
           declNode:  some(node),
           isTuple:   false,
           isKind:    false,
@@ -240,8 +245,13 @@ proc getFields*[N](node: N, isChecked: bool, level: int = 0): seq[ObjectField[N]
           exported:  desc.exported,
           name:      desc.name,
           fldType:   desc.fldType,
-          value:     desc.value
+          value:     desc.value,
         )
+
+        if descr[0].pragma.len > 0:
+          field.pragma = some descr[0].pragma[0]
+
+        result.add field
 
       if node[0].kind == nnkPragmaExpr:
         result[^1].pragma = parseSomePragma(node[0])

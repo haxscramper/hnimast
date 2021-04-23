@@ -20,7 +20,7 @@ func indexOf*[N](pragma: PRagma[N], name: string): int =
   result = -1
   for idx, elem in pairs(pragma.elements):
     case elem.kind:
-      of nnkIdent:
+      of nnkIdent, nnkSym:
         if elem.eqIdent(name):
           return idx
 
