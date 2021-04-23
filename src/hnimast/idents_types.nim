@@ -2,6 +2,7 @@ import std/[options, sequtils, strutils, strformat, sugar]
 import hmisc/helpers
 import hmisc/macros/cl_logic
 import pragmas, hast_common
+import hmisc/algo/namegen
 
 type
   NTypeKind* = enum
@@ -124,6 +125,10 @@ func isPrimitiveHead*[N](ntype: NType[N]): bool =
   return ntype.kind in {ntkIdent} and ntype.head in [
     "ref", "var", "sink", "ptr"]
 
+func isPrimitive*[N](ntype: NType[N]): bool  =
+  nimNorm(ntype.head(ntype.head)) notin ["seq", "set", "openarray"] and
+  isReservedNimType(nimNorm(ntype.head))
+
 
 #=============================  Predicates  ==============================#
 func `==`*(l, r: NType): bool =
@@ -208,7 +213,7 @@ func contains*(arg: set[NimNodeKind], pkind: TNodeKind): bool =
   pkind.toNNK() in arg
 
 func toNNode*[NNode](
-    ntype: NType[NNode], exported: bool = false, 
+    ntype: NType[NNode], exported: bool = false,
     inParam: bool = false
   ): NNode =
 

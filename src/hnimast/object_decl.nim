@@ -44,6 +44,7 @@ type
         name*: string
 
     fldType*: NType[NNode] ## Type of field value
+    isChecked*: bool
     case isKind*: bool
       of true:
         selected*: int ## Index of selected branch
@@ -84,6 +85,7 @@ type
         ofValue*: NNode
 
 
+  ObjectPath*[N, A] = seq[ObjectPathElem[N, A]]
   NObjectBranch*[A] = ObjectBranch[NimNode, A]
   NObjectPathElem*[A] = ObjectPathElem[NimNode, A]
   NObjectField*[A] = ObjectField[NimNode, A]
@@ -213,13 +215,13 @@ func markedAs*(fld: NObjectField[NPragma], str: string): bool =
 
 # ~~~~ each field mutable ~~~~ #
 
-func eachFieldMut*[NNode, A](
+proc eachFieldMut*[NNode, A](
   obj: var ObjectDecl[NNode, A],
-  cb: (var ObjectField[NNode, A] ~> void)): void
+  cb: proc(field: var ObjectField[NNode, A])): void
 
-func eachFieldMut*[NNode, A](
+proc eachFieldMut*[NNode, A](
   branch: var ObjectBranch[NNode, A],
-  cb: (var ObjectField[NNode, A] ~> void)): void =
+  cb: proc(field: var ObjectField[NNode, A])): void =
   ## Execute callback on each field in mutable object branch,
   ## recursively.
   for fld in mitems(branch.flds):
@@ -229,9 +231,9 @@ func eachFieldMut*[NNode, A](
         eachFieldMut(branch, cb)
 
 
-func eachFieldMut*[NNode, A](
+proc eachFieldMut*[NNode, A](
   obj: var ObjectDecl[NNode, A],
-  cb: (var ObjectField[NNode, A] ~> void)): void =
+  cb: proc(field: var ObjectField[NNode, A])): void =
   ## Execute callback on each field in mutable object, recursively.
   for fld in mitems(obj.flds):
     cb(fld)
@@ -241,8 +243,10 @@ func eachFieldMut*[NNode, A](
 
 # ~~~~ each annotation mutable ~~~~ #
 
-func eachAnnotMut*[NNode, A](
-  branch: var ObjectBranch[NNode, A], cb: (var Option[A] ~> void)): void =
+proc eachAnnotMut*[NNode, A](
+    branch: var ObjectBranch[NNode, A],
+    cb: proc(opt: var Option[A])
+  ): void =
   ## Execute callback on each annotation in mutable branch,
   ## recursively - all fields in all branches are visited.
   for fld in mitems(branch.flds):
@@ -251,8 +255,8 @@ func eachAnnotMut*[NNode, A](
       for branch in mitems(fld.branches):
         eachAnnotMut(branch, cb)
 
-func eachAnnotMut*[NNode, A](
-  obj: var ObjectDecl[NNode, A], cb: (var Option[A] ~> void)): void =
+proc eachAnnotMut*[NNode, A](
+  obj: var ObjectDecl[NNode, A], cb: proc(opt: var Option[A])): void =
   ## Execute callback on each annotation in mutable object,
   ## recurisively - all fields and subfields are visited. Callback
   ## runs on both kind and non-kind fields. Annotation is not
@@ -269,13 +273,14 @@ func eachAnnotMut*[NNode, A](
 
 # ~~~~ each field immutable ~~~~ #
 
-func eachField*[NNode, A](
+proc eachField*[NNode, A](
   obj: ObjectDecl[NNode, A],
-  cb: (ObjectField[NNode, A] ~> void)): void
+  cb: proc(field: ObjectField[NNode, A])): void
 
-func eachField*[NNode, A](
-  branch: ObjectBranch[NNode, A],
-  cb: (ObjectField[NNode, A] ~> void)): void =
+proc eachField*[NNode, A](
+    branch: ObjectBranch[NNode, A],
+    cb: proc(field: ObjectField[NNode, A])
+  ): void =
   ## Execute callback on each field in branch, recursively
   for fld in items(branch.flds):
     cb(fld)
@@ -284,9 +289,10 @@ func eachField*[NNode, A](
         eachField(branch, cb)
 
 
-func eachField*[NNode, A](
-  obj: ObjectDecl[NNode, A],
-  cb: (ObjectField[NNode, A] ~> void)): void =
+proc eachField*[NNode, A](
+    obj: ObjectDecl[NNode, A],
+    cb: proc(field: ObjectField[NNode, A])
+  ): void =
   ## Execute callback on each field in object, recurisively.
   for fld in items(obj.flds):
     cb(fld)
@@ -296,8 +302,11 @@ func eachField*[NNode, A](
 
 # ~~~~ each alternative in case object ~~~~ #
 
-func eachCase*[A](
-  fld: NObjectField[A], objId: NimNode, cb: (NObjectField[A] ~> NimNode)): NimNode =
+proc eachCase*[A](
+    fld: NObjectField[A], objId: NimNode,
+    cb: proc(field: NObjectField[A]): NimNode
+  ): NimNode =
+
   if fld.isKind:
     result = nnkCaseStmt.newTree(newDotExpr(objId, ident fld.name))
     for branch in fld.branches:
@@ -318,8 +327,10 @@ func eachCase*[A](
   else:
     result = newStmtList(cb(fld))
 
-func eachCase*[A](
-  objId: NimNode, obj: NObjectDecl[A], cb: (NObjectField[A] ~> NimNode)): NimNode =
+proc eachCase*[A](
+    objId: NimNode, obj: NObjectDecl[A],
+    cb: proc(field: NObjectField[A]): NimNode
+  ): NimNode =
   ## Recursively generate case statement for object. `objid` is and
   ## identifier for object - case statement will use `<objid>.<fldId>`.
   ## `obj` is a description for structure. Callback `cb` will be executed
@@ -329,9 +340,11 @@ func eachCase*[A](
   for fld in obj.flds:
     result.add fld.eachCase(objid, cb)
 
-func eachParallelCase*[A](
-  fld: NObjectField[A], objId: (NimNode, NimNode),
-  cb: (NObjectField[A] ~> NimNode)): NimNode =
+proc eachParallelCase*[A](
+    fld: NObjectField[A], objId: (NimNode, NimNode),
+    cb: proc(field: NObjectField[A]): NimNode
+  ): NimNode =
+
   if fld.isKind:
     result = nnkCaseStmt.newTree(newDotExpr(objId[0], ident fld.name))
     for branch in fld.branches:
@@ -360,8 +373,10 @@ func eachParallelCase*[A](
   else:
     result = newStmtList(cb(fld))
 
-func eachParallelCase*[A](
-  objid: (NimNode, NimNode), obj: NObjectDecl[A], cb: (NObjectField[A] ~> NimNode)): NimNode =
+proc eachParallelCase*[A](
+    objid: (NimNode, NimNode), obj: NObjectDecl[A],
+    cb: proc(field: NObjectField[A]): NimNode
+  ): NimNode =
   ## Generate parallel case statement for two objects in `objid`. Run
   ## callback on each field. Generated case statement will have form
   ## `if lhs.fld == rhs.fld: case lhs.fld`
@@ -373,16 +388,21 @@ func eachParallelCase*[A](
 
 # ~~~~ each annotation immutable ~~~~ #
 
-func eachAnnot*[Node, A](
-  branch: ObjectBranch[Node, A], cb: (Option[A] ~> void)): void =
+proc eachAnnot*[Node, A](
+    branch: ObjectBranch[Node, A],
+    cb: proc(opt: Option[A])
+  ): void =
+
   for fld in items(branch.flds):
     cb(fld.annotation)
     if fld.isKind:
       for branch in items(fld.branches):
         eachAnnot(branch, cb)
 
-func eachAnnot*[Node, A](
-  obj: ObjectDecl[Node, A], cb: (Option[A] ~> void)): void =
+proc eachAnnot*[Node, A](
+    obj: ObjectDecl[Node, A],
+    cb: proc(opt: Option[A])
+  ): void =
 
   cb(obj.annotation)
 
@@ -395,10 +415,10 @@ func eachAnnot*[Node, A](
 
 # ~~~~ each static path ~~~~ #
 
-func eachStaticPath*[A](
+proc eachStaticPath*[A](
     kind: NimNode,
     obj: NObjectDecl[A],
-    cb: (seq[NObjectField[A]] ~> NimNode)
+    cb: proc(fields: seq[NObjectField[A]]): NimNode
   ): NimNode =
 
   var topFlds: seq[NObjectField[A]]
@@ -446,9 +466,10 @@ func eachStaticPath*[A](
 
 
 # ~~~~ Each path in case object ~~~~ #
-func eachPath*[A](
-  fld: NObjectField[A], self: NimNode, parent: NObjectPath[A],
-  cb: ((NObjectPath[A], seq[NObjectField[A]]) ~> NimNode)): NimNode =
+proc eachPath*[A](
+    fld: NObjectField[A], self: NimNode, parent: NObjectPath[A],
+    cb: proc(path: NObjectPath[A], fields: seq[NObjectField[A]]): NimNode
+  ): NimNode =
 
   if fld.isKind:
     result = nnkCaseStmt.newTree(newDotExpr(self, ident fld.name))
@@ -477,10 +498,10 @@ func eachPath*[A](
         branchBody.add fld.eachPath(self, thisPath, cb)
 
 
-func eachPath*[A](
+proc eachPath*[A](
     self: NimNode,
     obj: NObjectDecl[A],
-    cb: ((NObjectPath[A], seq[NObjectField[A]]) ~> NimNode)
+    cb: proc(path: NObjectPath[A], fields: seq[NObjectField[A]]): NimNode
   ): NimNode =
   ## Visit each group of fields in object described by `obj` and
   ## generate case statement with all possible object paths. Arguments
@@ -494,6 +515,18 @@ func eachPath*[A](
   for fld in items(obj.flds):
     if fld.isKind:
       result.add fld.eachPath(self, @[], cb)
+
+proc eachPath*[A](
+    self: NimNode,
+    obj: NObjectDecl[A],
+    cb: proc(fields: seq[NObjectField[A]]): NimNode
+  ): NimNode =
+
+  return eachPath(
+    self, obj,
+    proc(path: NObjectPath[A], fields: seq[NObjectField[A]]): NimNode =
+      cb(fields)
+  )
 
 
 func onPath*[A](self: NimNode, path: NObjectPath[A]): NimNode =
@@ -518,10 +551,10 @@ func onPath*[A](self: NimNode, path: NObjectPath[A]): NimNode =
 
 #========================  Other implementation  =========================#
 func toNNode*[NNode, A](
-  fld: ObjectField[NNode, A], annotConv: A ~> NNode): NNode
+  fld: ObjectField[NNode, A], annotConv: proc(annot: A): NNode): NNode
 
 func toNNode*[NNode, A](
-  branch: ObjectBranch[NNode, A], annotConv: A ~> NNode): NNode =
+  branch: ObjectBranch[NNode, A], annotConv: proc(annot: A): NNode): NNode =
   if branch.isElse:
     newNTree[NNode](
       nnkElse,
@@ -535,7 +568,7 @@ func toNNode*[NNode, A](
 
 
 func toNNode*[NNode, A](
-  fld: ObjectField[NNode, A], annotConv: A ~> NNode): NNode =
+  fld: ObjectField[NNode, A], annotConv: proc(annot: A): NNode): NNode =
 
   let head =
     if fld.exported:
@@ -593,7 +626,7 @@ func toExported*[NNode](ntype: NType[NNode], exported: bool): tuple[
 
 
 func toNNode*[NNode, A](
-  obj: ObjectDecl[NNode, A], annotConv: A ~> NNode): NNode =
+  obj: ObjectDecl[NNode, A], annotConv: proc(annot: A): NNode): NNode =
 
   let (head, genparams) = obj.name.toExported(obj.exported)
   let header =

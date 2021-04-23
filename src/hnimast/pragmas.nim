@@ -33,6 +33,9 @@ func getElem*(pragma: NPragma, name: string): Option[NimNode] =
       else:
         raiseImplementError("<>")
 
+func hasElem*[N](pragma: Pragma[N], name: string): bool =
+  pragma.getElem(name).isSome()
+
 func getElem*(optPragma: Option[NPragma], name: string): Option[NimNode] =
   ## Get element from optional annotation
   if optPragma.isSome():
