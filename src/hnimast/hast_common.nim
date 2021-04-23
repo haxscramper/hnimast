@@ -230,7 +230,6 @@ func newReturn*(expr: PNode): PNode =
   ## Create new return stetement
   nnkReturnStmt.newTree(@[expr])
 
-
 func newNIdent*[NNode](str: string): NNode =
   ## Create new `nnkIdent` node of type `NNode`
   when NNode is NimNode:
@@ -248,6 +247,12 @@ func newNTree*[NNode](
 
   else:
     newTree(kind.toNK(), subnodes)
+
+func newDiscardStmt*[N](expr: N): N =
+  newNTree[N](nnkDiscardStmt, expr)
+
+func newDiscardStmt*(): NimNode = newDiscardStmt(newEmptyNode())
+
 
 func newPTree*(kind: NimNodeKind, subnodes: varargs[PNode]): PNode =
   ## Create new `PNode` tree
@@ -854,3 +859,23 @@ proc newPDotCall*(main: PNode, callName: string, args: varargs[PNode]):
 proc newPDotCall*(main: string, callName: string, args: varargs[PNode]):
   PNode =
   newPTree(nnkDotExpr, newPIdent(main), newPCall(callName, args))
+
+proc isEmptyNode*[N](node: N): bool =
+  result = true
+  case node.kind:
+    of nnkEmpty:
+      return true
+
+    of nnkStmtList:
+      for subnode in node:
+        if not isEmptyNode(subnode):
+          return false
+
+    else:
+      return false
+
+proc isEmptyNode*[N](nodes: seq[N]): bool =
+  result = true
+  for node in nodes:
+    if not isEmptyNode(node):
+      return false

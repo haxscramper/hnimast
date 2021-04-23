@@ -257,7 +257,6 @@ proc eachField*[N](
         eachField(branch, cb)
 
 # ~~~~ each alternative in case object ~~~~ #
-
 proc eachCase*(
     fld: NObjectField, objId: NimNode,
     cb: proc(field: NObjectField): NimNode
@@ -267,19 +266,36 @@ proc eachCase*(
     result = nnkCaseStmt.newTree(newDotExpr(objId, ident fld.name))
     for branch in fld.branches:
       if branch.isElse:
-        result.add nnkElse.newTree(
-          branch.flds.mapIt(it.eachCase(objId, cb))
-        )
+        var body = nnkElse.newTree()
+        for field in branch.flds:
+          body.add eachCase(field, objId, cb)
+
+        if isEmptyNode(body):
+          result.add newDiscardStmt()
+
+        else:
+          result.add body
+
       else:
-        result.add nnkOfBranch.newTree(
-          normalizeSet(branch.ofValue),
-          branch.flds.mapIt(
-            it.eachCase(objId, cb)).newStmtList()
-        )
+        var body = newStmtList()
+        for field in branch.flds:
+          body.add eachCase(field, objId, cb)
+
+
+        if isEmptyNode(body):
+          result.add nnkOfBranch.newTree(
+            normalizeSet(branch.ofValue),
+            newDiscardStmt()
+          )
+
+        else:
+          result.add nnkOfBranch.newTree(
+            normalizeSet(branch.ofValue), body)
 
     let cbRes = cb(fld)
     if cbRes != nil:
-      result = newStmtList(cb(fld), result)
+      result = newStmtList(cbRes, result)
+
   else:
     result = newStmtList(cb(fld))
 
