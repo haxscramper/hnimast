@@ -4,11 +4,11 @@ import std/[macros, options, tables, sequtils]
 import hmisc/helpers
 
 type
-  Pragma*[NNode] = object
+  Pragma*[N] = object
     ## Body of pragma annotation;
     kind*: ObjectAnnotKind ## Position in object - no used when
                            ## generatic functions etc.
-    elements*: seq[NNode] ## List of pragma elements. For annotation
+    elements*: seq[N] ## List of pragma elements. For annotation
                          ## like `{.hello, world.}` this will contain
                          ## `@[hello, world]`
 
@@ -16,42 +16,54 @@ type
   PPragma* = Pragma[PNode] ## Pragma with pnode
 
 #===============================  Getters  ===============================#
+func indexOf*[N](pragma: PRagma[N], name: string): int =
+  result = -1
+  for idx, elem in pairs(pragma.elements):
+    case elem.kind:
+      of nnkIdent:
+        if elem.eqIdent(name):
+          return idx
+
+      of nnkCall:
+        if elem[0].eqIdent(name):
+          return idx
+
+      else:
+        raiseImplementKindError(elem)
+
+
 func getElem*(pragma: NPragma, name: string): Option[NimNode] =
   ## Get element named `name` if it is present.
   ## `getElem({.call.}, "call") -> call`
   ## `getElem({.call(arg).}, "call") -> call(arg)`
-  for elem in pragma.elements:
-    case elem.kind:
-      of nnkIdent:
-        if elem.eqIdent(name):
-          return some(elem)
-
-      of nnkCall:
-        if elem[0].eqIdent(name):
-          return some(elem)
-
-      else:
-        raiseImplementError("<>")
+  let idx = pragma.indexOf(name)
+  if idx != -1:
+    return some pragma.elements[idx]
 
 func hasElem*[N](pragma: Pragma[N], name: string): bool =
-  pragma.getElem(name).isSome()
+  pragma.indexOf(name) != -1
 
 func getElem*(optPragma: Option[NPragma], name: string): Option[NimNode] =
   ## Get element from optional annotation
   if optPragma.isSome():
     return optPragma.get().getElem(name)
 
-func len*[NNode](pragma: Pragma[NNode]): int =
+func removeElement*[N](pragma: var Pragma[N], name: string) =
+  var idx = pragma.indexOf(name)
+  if idx != -1:
+    pragma.elements.delete(idx)
+
+func len*[N](pragma: Pragma[N]): int =
   pragma.elements.len
 
-func add*[NNode](pragma: var Pragma[NNode], node: NNode) =
+func add*[N](pragma: var Pragma[N], node: N) =
   pragma.elements.add node
 
 func clear*[N](pragma: var PRagma[N]) =
   pragma.elements = @[]
 
 #============================  constructors  =============================#
-func newNNPragma*[NNode](): Pragma[NNode] = discard
+func newNNPragma*[N](): Pragma[N] = discard
 
 func parsePragma*[N](node: N): Pragma[N] =
   case toNNK(node.kind):
@@ -59,8 +71,27 @@ func parsePragma*[N](node: N): Pragma[N] =
       for entry in items(node):
         result.elements.add entry
 
+
+    of nnkPragmaExpr:
+      result = parsePragma(node[1])
+
     else:
+      raiseUnexpectedKindError(node, node.treeRepr())
+
+
+func parseSomePragma*[N](node: N): Option[Pragma[N]] =
+  case node.kind.toNNK():
+    of nnkIdent, nnkSym:
       discard
+
+    of nnkPostfix:
+      return parseSomePragma(node[1])
+
+    of nnkPragmaExpr:
+      return some parsePragma(node[1])
+
+    else:
+      raiseImplementKindError(node, node.treeRepr())
 
 
 func newNPragma*(names: varargs[string]): NPragma =
@@ -85,13 +116,13 @@ func newPPragma*(names: varargs[PNode]): PPragma =
 
 #========================  Other implementation  =========================#
 
-func toNNode*[NNode](pragma: Pragma[NNode]): NNode =
-  ## Convert pragma to `NNode`. If pragma has no elements empty node
+func toNNode*[N](pragma: Pragma[N]): N =
+  ## Convert pragma to `N`. If pragma has no elements empty node
   ## (`nnkEmptyNode`) will be returned.
   if pragma.elements.len == 0:
-    newEmptyNNode[NNode]()
+    newEmptyNNode[N]()
   else:
-    newTree[NNode](nnkPragma, pragma.elements)
+    newTree[N](nnkPragma, pragma.elements)
 
 
 func toNimNode*(pragma: NPragma): NimNode =

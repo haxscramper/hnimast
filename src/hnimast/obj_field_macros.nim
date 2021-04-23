@@ -2,6 +2,8 @@ import macroutils, sugar, options
 import strutils, strformat, macros, sequtils
 import hmisc/hexceptions
 
+import std/options
+export options
 import compiler/ast
 import hmisc/algo/[halgorithm, htree_mapping]
 import hmisc/helpers
@@ -12,33 +14,33 @@ export pragmas
 
 # TODO support multiple fields declared on the same line - `fld1, fld2: Type`
 
-proc getFields*[NNode, A](
-    node: NNode, cb: ParseCb[NNode, A], isChecked: bool, level: int = 0
-  ): seq[ObjectField[NNode, A]]
+proc getFields*[N](
+    node: N, isChecked: bool, level: int = 0
+  ): seq[ObjectField[N]]
 
-proc getBranches*[NNode, A](
-    node: NNode, cb: ParseCb[NNode, A], isChecked: bool
-  ): seq[ObjectBranch[NNode, A]] =
+proc getBranches*[N](
+    node: N, isChecked: bool
+  ): seq[ObjectBranch[N]] =
 
   assert node.kind.toNNK() == nnkRecCase, &"Cannot get branches from node kind {node.kind}"
   let caseType = $node[0][1]
-  var ofValues: seq[NNode]
+  var ofValues: seq[N]
   for branch in node[1..^1]:
     case branch.kind.toNNK():
       of nnkOfBranch:
         let ofSet = (newTree(nnkCurly, branch[0..^2])).normalizeSet()
         ofValues.add ofSet
-        result.add ObjectBranch[NNode, A](
+        result.add ObjectBranch[N](
           declNode: some(branch),
           ofValue: @[ofSet],
-          flds: branch[^1].getFields(cb, isChecked),
+          flds: branch[^1].getFields(isChecked),
           isElse: false
         )
 
       of nnkElse:
-        result.add ObjectBranch[NNode, A](
+        result.add ObjectBranch[N](
           declNode: some(branch),
-          flds: branch[0].getFields(cb, isChecked),
+          flds: branch[0].getFields(isChecked),
           isElse: true,
           notOfValue: ofValues.joinSets()
         )
@@ -48,25 +50,24 @@ proc getBranches*[NNode, A](
 
 
 type
-  FieldDesc[N, A] = object
+  FieldDesc[N] = object
     name: string
     fldType: NType[N]
     exported: bool
     value: Option[N]
-    annotation: Option[A]
+    pragma: seq[Pragma[N]] # For some reason this shits blows (cannot
+                           # instantiate my ass) up when I try to use
+                           # `Option` - I don't fucking care what kind of
+                           # compiler semcheck vomit lead to this, but for
+                           # now I use `seq`.
 
-proc getFieldDescriptions[NNode, A](
-    node: NNode, parseAnnotation: ParseCb[NNode, A]
-  ): seq[FieldDesc[NNode, A]] =
-
+proc getFieldDescriptions[N](node: N): seq[FieldDesc[N]] =
   case node.kind.toNNK():
     of nnkIdentDefs:
       let fldType = parseNType(node[^2])
       for ident in node[0 ..^ 3]:
-        var name: NNode
+        var name: N
         var exported = false
-        var annotation: Option[A]
-
         case ident.kind.toNNK():
           of nnkPostfix:
             exported = true
@@ -82,11 +83,17 @@ proc getFieldDescriptions[NNode, A](
           else:
             name = ident
 
-        result.add(FieldDesc[NNode](
+        var field = FieldDesc[N](
           name: $name,
           fldType: fldType,
           exported: exported,
-          value: none(NNode)))
+          value: none(N))
+
+        let val = parseSomePragma(ident)
+        if val.isSome():
+          field.pragma.add val
+
+        result.add(field)
 
       if node[2].kind.toNNK() != nnkEmpty:
         result[^1].value = some(node[2])
@@ -96,7 +103,7 @@ proc getFieldDescriptions[NNode, A](
       return getFieldDescriptions(node[0])
 
     of nnkSym:
-      var fldType: NType[NNode]
+      var fldType: NType[N]
       when node is PNode:
         if node.sym.notNil() and
            node.sym.typ.notNil() and
@@ -105,17 +112,17 @@ proc getFieldDescriptions[NNode, A](
           fldType = parseNType(node.sym.typ.n)
 
         else:
-          fldTYpe = newNNType[NNode]("TYPE_DETECTION_ERROR")
+          fldTYpe = newNNType[N]("TYPE_DETECTION_ERROR")
 
       else:
-        fldTYpe = newNNType[NNode]("TYPE_DETECTION_ERROR")
+        fldTYpe = newNNType[N]("TYPE_DETECTION_ERROR")
 
       result.add(
-        FieldDesc[NNode](
+        FieldDesc[N](
           name: $node,
           fldType: fldType,
           exported: false,
-          value: none(NNode)))
+          value: none(N)))
 
     else:
       raiseAssert(
@@ -123,18 +130,14 @@ proc getFieldDescriptions[NNode, A](
           &"{node.getInfo()}"
       )
 
-proc getFields*[NNode, A](
-    node: NNode, cb: ParseCb[NNode, A],
-    isChecked: bool, level: int = 0
-  ): seq[ObjectField[NNode, A]] =
-
+proc getFields*[N](node: N, isChecked: bool, level: int = 0): seq[ObjectField[N]] =
   # TODO ignore `void` fields
   case node.kind.toNNK():
     of nnkObjConstr:
-      return getFields(node[0], cb, isChecked, level + 1)
+      return getFields(node[0], isChecked, level + 1)
 
     of nnkSym, nnkCall, nnkDotExpr:
-      when NNode is PNode:
+      when node is PNode:
         if level == 0:
           raiseAssert(
             "Parsing PNode from symbol on the first level is not supported " & $level
@@ -142,7 +145,7 @@ proc getFields*[NNode, A](
         else:
           if node.kind.toNNK() == nnkSym:
             let descr = getFieldDescriptions(node)[0]
-            result = @[ObjectField[NNode, A](
+            result = @[ObjectField[N](
               declNode: some(node),
               isTuple: false,
               isKind: false,
@@ -161,64 +164,65 @@ proc getFields*[NNode, A](
         case kind:
           of nnkBracketExpr:
             let typeSym = node.getTypeImpl()[1]
-            result = getFields(typeSym.getTypeImpl(), cb, isChecked, level + 1)
+            result = getFields(typeSym.getTypeImpl(), isChecked, level + 1)
 
           of nnkObjectTy, nnkRefTy, nnkTupleTy, nnkTupleConstr:
-            result = getFields(node.getTypeImpl(), cb, isChecked, level + 1)
+            result = getFields(node.getTypeImpl(), isChecked, level + 1)
 
           else:
             raiseAssert("Unknown parameter kind: " & $kind)
 
     of nnkObjectTy:
-      return node[2].getFields(cb, false, level + 1)
+      return node[2].getFields(false, level + 1)
 
     of nnkRefTy, nnkPtrTy:
-      when NNode is PNode:
+      when node is PNode:
         if node[0].kind.toNNK() == nnkObjectTy:
-          return getFields(node[0], cb, false, level)
+          return getFields(node[0], false, level)
 
         else:
           raiseImplementKindError(node[0])
 
       else:
         return node.getTypeImpl()[0].getImpl()[2][0].getFields(
-          cb, false, level + 1)
+          false, level + 1)
 
     of nnkRecList:
       mixin items
       for elem in items(node):
         if elem.kind.toNNK() == nnkRecWhen:
-          result.add getFields(elem, cb, true, level + 1)
+          result.add getFields(elem, true, level + 1)
 
         elif elem.kind.toNNK() notin {nnkRecList, nnkNilLit}:
-          let descr = getFieldDescriptions(elem)
+          let descr = getFieldDescriptions[N](elem)
           case elem.kind.toNNK():
             of nnkRecCase: # Case field
-              # NOTE possible place for `cb` callbac
-              result.add ObjectField[NNode, A](
+              result.add ObjectField[N](
                 declNode:  some(elem),
                 isTuple:   false,
                 isKind:    true,
                 isChecked: isChecked,
-                branches:  getBranches(elem, cb, true),
+                branches:  getBranches(elem, true),
                 name:      descr[0].name,
                 exported:  descr[0].exported,
                 fldType:   descr[0].fldType,
+                # FIXME IMPLEMENT
+                # pragma:    descr.pragma
               )
 
             of nnkIdentDefs: # Regular field definition
-              result.add getFields(elem, cb, true, level + 1)[0]
+              result.add getFields(elem, true, level + 1)[0]
 
             else:
               discard
 
     of nnkTupleTy:
       for fld in items(node):
-        result.add fld.getFields(cb, isChecked, level + 1)
+        result.add fld.getFields(isChecked, level + 1)
 
     of nnkTupleConstr:
       for idx, sym in pairs(node):
-        result.add ObjectField[NNode, A](
+        result.add ObjectField[N](
           declNode: some(sym),
           isTuple: true,
           isChecked: isChecked,
@@ -228,7 +232,7 @@ proc getFields*[NNode, A](
     of nnkIdentDefs:
       let descr = getFieldDescriptions(node)
       for idx, desc in descr:
-        result.add ObjectField[NNode, A](
+        result.add ObjectField[N](
           declNode:  some(node),
           isTuple:   false,
           isKind:    false,
@@ -239,23 +243,22 @@ proc getFields*[NNode, A](
           value:     desc.value
         )
 
-      when not (A is void):
-        if node[0].kind == nnkPragmaExpr and cb != nil:
-          result[^1].annotation = some cb(node, oakObjectField)
+      if node[0].kind == nnkPragmaExpr:
+        result[^1].pragma = parseSomePragma(node[0])
 
     of nnkEmpty:
       discard
 
     of nnkRecWhen:
       for subnode in items(node):
-        result.add getFields(subnode, cb, isChecked, level + 1)
+        result.add getFields(subnode, isChecked, level + 1)
 
     of nnkElifBranch:
       # WARNING condition is dropped
-      result.add getFields(node[1], cb, isChecked, level + 1)
+      result.add getFields(node[1], isChecked, level + 1)
 
     of nnkElse:
-      result.add getFields(node[0], cb, isChecked, level + 1)
+      result.add getFields(node[0], isChecked, level + 1)
 
     of nnkNilLit:
       # Explicit `nil`
@@ -266,11 +269,11 @@ proc getFields*[NNode, A](
 
 template filterIt2(op, body: untyped): untyped = filterIt(body, op)
 
-proc getKindFields*[Node, A](
-  flds: seq[ObjectField[Node, A]]): seq[ObjectField[Node, A]] =
+proc getKindFields*[Node](
+  flds: seq[ObjectField[Node]]): seq[ObjectField[Node]] =
   for fld in flds:
     if fld.isKind:
-      var fld =  ObjectField[Node, A](
+      var fld =  ObjectField[Node](
         declNode: fld.declNode,
         isTuple: false,
         isKind: true,
@@ -281,7 +284,7 @@ proc getKindFields*[Node, A](
       for it in fld.branches:
         if it.flds.len > 0:
           if it.isElse:
-            fld.branches.add ObjectBranch[Node, A](
+            fld.branches.add ObjectBranch[Node](
               declNode: it.declNode,
               notOfValue: it.notOfValue,
               isElse: true,
@@ -289,7 +292,7 @@ proc getKindFields*[Node, A](
             )
 
           else:
-            fld.branches.add ObjectBranch[Node, A](
+            fld.branches.add ObjectBranch[Node](
               declNode: it.declNode,
               ofValue: it.ofValue,
               isElse: false,
@@ -298,9 +301,9 @@ proc getKindFields*[Node, A](
 
       result.add fld
 
-proc getKindFields*[N, A](obj: ObjectDecl[N, A]): seq[ObjectField[N, A]] =
+proc getKindFields*[N](obj: ObjectDecl[N]): seq[ObjectField[N]] =
   ## Get *full* flattened list of all discriminant switch fields.
-  proc aux(field: ObjectField[N, A]): seq[ObjectField[N, A]] =
+  proc aux(field: ObjectField[N]): seq[ObjectField[N]] =
     if field.isKind:
       result.add field
       for branch in field.branches:
@@ -310,27 +313,23 @@ proc getKindFields*[N, A](obj: ObjectDecl[N, A]): seq[ObjectField[N, A]] =
   for field in obj.flds:
     result.add aux(field)
 
-proc isTaggedWith*(obj: ObjectField[NimNode, NPragma], name: string): bool =
-  obj.annotation.isSome() and obj.annotation.get().hasElem(name)
+proc isTaggedWith*(obj: ObjectField[NimNode], name: string): bool =
+  obj.pragma.isSome() and obj.pragma.get().hasElem(name)
 
 # proc isTaggedWith*(obj: ObjectField[PNode, PPragma], name: string): bool =
 #   obj.annotation.isSome() and obj.annotation.get().hasElem(name)
 
-proc getSubfields*[N, A](field: ObjectField[N, A]): seq[ObjectField[N, A]] =
+proc getSubfields*[N](field: ObjectField[N]): seq[ObjectField[N]] =
   for branch in field.branches:
     for field in branch.flds:
       result.add field
 
-iterator iterateFields*[N, A](objDecl: ObjectDecl[N, A]):
-  ObjectField[N, A] =
-
+iterator iterateFields*[N](objDecl: ObjectDecl[N]): ObjectField[N] =
   for field in objDecl.flds:
     iterateItDFS(field, it.getSubfields(), it.isKind, dfsPostorder):
       yield it
 
-proc getBranchFields*[N, A](objDecl: ObjectDecl[N, A]):
-  seq[ObjectField[N, A]] =
-
+proc getBranchFields*[N](objDecl: ObjectDecl[N]): seq[ObjectField[N]] =
   for field in objDecl.flds:
     iterateItDFS(field, it.getSubfields(), it.isKind, dfsPostorder):
       if it.isKind:
@@ -345,8 +344,7 @@ proc discardNimNode*(ntype: NType[NimNode]): NType[ObjTree] =
     genParams: ntype.genparams.mapIt(it.discardNimNode())
   )
 
-proc discardNimNode(
-  input: seq[ObjectField[NimNode, void]]): seq[ValField] =
+proc discardNimNode(input: seq[ObjectField[NimNode]]): seq[ValField] =
   for fld in input:
     case fld.isKind:
       of true:
@@ -389,7 +387,7 @@ proc discardNimNode(
           fldType: fld.fldType.discardNimNode()
         )
 
-func parsePragma*[NNode](node: NNode, position: ObjectAnnotKind): Pragma[NNode] =
+func parsePragma*[N](node: N, position: ObjectAnnotKind): Pragma[N] =
   result.kind = position
   case position:
     of oakObjectField:
@@ -436,11 +434,7 @@ func getFuckingTypeImpl(node: NimNode, getImpl: bool): NimNode =
     else:
       raiseImplementKindError(node, node.treeRepr())
 
-proc parseObject*[NNode, A](
-    inNode: NNode,
-    cb: ParseCb[NNode, A],
-    parseImpl: bool = true
-  ): ObjectDecl[NNode, A] =
+proc parseObject*[N](inNode: N, parseImpl: bool = true): ObjectDecl[N] =
   ## Parse object implementation
   ##
   ## - @arg{parseImpl} :: If `inNode` is a symbol used to selecting between
@@ -457,7 +451,7 @@ proc parseObject*[NNode, A](
         inNode[0][0]
 
       of nnkSym:
-        when NNode is PNode:
+        when N is PNode:
           raiseImplementError(
             "Parsing PNode from symbol on the first level is not supported")
 
@@ -472,9 +466,9 @@ proc parseObject*[NNode, A](
 
   let declBody = tern(node.kind == nnkTypeDef, node[2], node)
 
-  result = ObjectDecl[NNode, A](
+  result = ObjectDecl[N](
     declNode: some(node),
-    flds: declBody.getFields(cb, false)
+    flds: declBody.getFields(false)
   )
 
 
@@ -484,37 +478,30 @@ proc parseObject*[NNode, A](
     let (exported, name) = parseIdentName(node[0])
 
     result.exported = exported
-    result.name = newNNType[NNode](name.getStrVal())
+    result.name = newNNType[N](name.getStrVal())
 
 
-    when not (A is void):
-      if node[0].kind.toNNK() == nnkPragmaExpr and cb != nil:
-        result.annotation = some cb(node[0][1], oakObjectToplevel)
+    if node[0].kind.toNNK() == nnkPragmaExpr:
+      result.pragma = some parsePragma(node[0][1])
 
   elif inNode.kind == nnkSym:
-    result.name = newNNtype[NNode](inNode.getStrVal())
-
-  # else:
-  #   result.name = newNNtype[NNode](node.getTypeImpl[0])
-  #   echo node.treeRepr()
-
+    result.name = newNNtype[N](inNode.getStrVal())
 
 
 macro makeFieldsLiteral*(node: typed): untyped =
-  result = node.getFields(
-    noParseCb, false).discardNimNode.makeConstructAllFields()
-
+  result = node.getFields(false).discardNimNode.makeConstructAllFields()
 
 type
   GenParams = object
     lhsObj, rhsObj, lhsName, rhsName, idxName, valIdxName, isKindName, fldName: string
     hackFields: bool
 
-proc unrollFieldLoop[A](
-  flds: seq[ObjectField[NimNode, A]],
-  body: NimNode,
-  fldIdx: int,
-  genParam: GenParams): tuple[node: NimNode, fldIdx: int] =
+proc unrollFieldLoop(
+    flds: seq[ObjectField[NimNode]],
+    body: NimNode,
+    fldIdx: int,
+    genParam: GenParams
+  ): tuple[node: NimNode, fldIdx: int] =
 
   result.node = newStmtList()
 
@@ -535,6 +522,7 @@ proc unrollFieldLoop[A](
           let `lhsId` = `ident(genParam.lhsObj)`[`tupleIdx`]
           let `rhsId` = `ident(genParam.rhsObj)`[`tupleIdx`]
           const `ident(genParam.fldName)`: string = `fldName`
+
       else:
         let
           fldId = ident(fld.name)
@@ -563,7 +551,7 @@ proc unrollFieldLoop[A](
                     break
 
               tmp
-          # echo tmp.toStrLit()
+
           tmp
         else:
           superquote do:
@@ -716,8 +704,7 @@ fields **as defined** in object while second one shows order of fields
     fldName: "name"
   )
 
-  let (unrolled, _) = getFields(
-    lhsObj, noParseCb, false).unrollFieldLoop(body, 0, genParams)
+  let (unrolled, _) = getFields(lhsObj, false).unrollFieldLoop(body, 0, genParams)
 
   result = superquote do:
     block: ## Toplevel
@@ -744,8 +731,8 @@ macro hackPrivateParallelFieldPairs*(lhsObj, rhsObj: typed, body: untyped): unty
     hackFields: true
   )
 
-  let (unrolled, _) = getFields(
-    lhsObj, noParseCb, false).unrollFieldLoop(body, 0, genParams)
+  let (unrolled, _) = getFields(lhsObj, false).unrollFieldLoop(body, 0, genParams)
+
   let section = newCommentStmtNode(
     "Type: " & $lhsObj.getTypeInst().toStrLit())
   result = superquote do:

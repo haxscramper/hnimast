@@ -6,33 +6,30 @@ import hmisc/types/colorstring
 import hast_common
 
 type
-  ParseCb*[NNode, Annot] = proc(
-    pragma: NNode, kind: ObjectAnnotKind): Annot
-
-  ObjectBranch*[NNode, Annot] = object
+  ObjectBranch*[N] = object
     ## Single branch of case object
-    declNode*: Option[NNode]
-    annotation*: Option[Annot]
-    flds*: seq[ObjectField[NNode, Annot]] ## Fields in the case branch
+    declNode*: Option[N]
+    pragma*: Option[PRagma[N]]
+    flds*: seq[ObjectField[N]] ## Fields in the case branch
     case isElse*: bool ## Whether this branch is placed under `else` in
                   ## case object.
       of true:
-        notOfValue*: NNode
+        notOfValue*: N
       of false:
-        ofValue*: seq[NNode] ## Match value for case branch
+        ofValue*: seq[N] ## Match value for case branch
 
 
 
-  ObjectField*[NNode, Annot] = object
-    declNode*: Option[NNode]
+  ObjectField*[N] = object
+    declNode*: Option[N]
     docComment*: string
     codeComment*: string
 
     # TODO:DOC
     ## More complex representation of object's field - supports
     ## recursive fields with case objects.
-    annotation*: Option[Annot]
-    value*: Option[NNode]
+    pragma*: Option[Pragma[N]]
+    value*: Option[N]
     exported*: bool
     case isTuple*: bool # REVIEW REFACTOR move tuples into separate
                         # object instead of mixing them into `object`
@@ -43,17 +40,17 @@ type
       of false:
         name*: string
 
-    fldType*: NType[NNode] ## Type of field value
+    fldType*: NType[N] ## Type of field value
     isChecked*: bool
     case isKind*: bool
       of true:
         selected*: int ## Index of selected branch
-        branches*: seq[ObjectBranch[NNode, Annot]] ## List of all
+        branches*: seq[ObjectBranch[N]] ## List of all
         ## branches as `value-branch` pairs.
       of false:
         discard
 
-  ObjectDecl*[NNode, Annot] = object
+  ObjectDecl*[N] = object
     iinfo*: LineInfo
     docComment*: string
     codeComment*: string
@@ -62,48 +59,45 @@ type
     # TODO `flatFields` iterator to get all values with corresponding
     # parent `ofValue` branches. `for fld, ofValues in obj.flatFields()`
     exported*: bool
-    annotation*: Option[Annot]
+    pragma*: Option[Pragma[N]]
     # namedObject*: bool ## This object's type has a name? (tuples
     # ## does not have name for a tyep)
     # namedFields*: bool ## Fields have dedicated names? (anonymous
     # ## tuple does not have a name for fields)
-    name*: NType[NNode] ## Name for an object
+    name*: NType[N] ## Name for an object
     # TODO rename to objType
-    flds*: seq[ObjectField[NNode, Annot]]
-    declNode*: Option[NNode]
+    flds*: seq[ObjectField[N]]
+    declNode*: Option[N]
 
   # FieldBranch*[Node] = ObjectBranch[Node, void]
   # Field*[Node] = ObjectField[Node, void]
 
-  ObjectPathElem*[NNode, Annot] = object
-    kindField*: ObjectField[NNode, Annot]
+  ObjectPathElem*[N] = object
+    kindField*: ObjectField[N]
     case isElse*: bool
       of true:
-        notOfValue*: NNode
+        notOfValue*: N
 
       of false:
-        ofValue*: NNode
+        ofValue*: N
 
 
-  ObjectPath*[N, A] = seq[ObjectPathElem[N, A]]
-  NObjectBranch*[A] = ObjectBranch[NimNode, A]
-  NObjectPathElem*[A] = ObjectPathElem[NimNode, A]
-  NObjectField*[A] = ObjectField[NimNode, A]
-  NObjectDecl*[A] = ObjectDecl[NimNode, A]
-  NObjectPath*[A] = seq[NObjectPathElem[A]]
+  ObjectPath*[N] = seq[ObjectPathElem[N]]
+  NObjectBranch* = ObjectBranch[NimNode]
+  NObjectPathElem* = ObjectPathElem[NimNode]
+  NObjectField* = ObjectField[NimNode]
+  NObjectDecl* = ObjectDecl[NimNode]
+  NObjectPath* = seq[NObjectPathElem]
 
-  PObjectDecl* = ObjectDecl[PNode, Pragma[PNode]]
-  PObjectField* = ObjectField[PNode, Pragma[PNode]]
-  PObjectBranch*[A] = ObjectBranch[PNode, A]
-
-const noParseCb*: ParseCb[NimNode, void] = nil
-const noParseCbPNode*: ParseCb[PNode, void] = nil
+  PObjectDecl* = ObjectDecl[PNode]
+  PObjectField* = ObjectField[PNode]
+  PObjectBranch* = ObjectBranch[PNode]
 
 proc newPObjectDecl*(
   name: string,
   flds: seq[tuple[name: string, ftype: NType[PNode]]] = @[],
   exported: bool = true,
-  annotate: PPragma = PPragma(),
+  pragma: PPragma = PPragma(),
   docComment: string = "",
   codeComment: string = "",
   genParams: seq[NType[PNode]] = @[],
@@ -115,7 +109,7 @@ proc newPObjectDecl*(
   result.docComment = docComment
   result.codeComment = codeComment
   result.iinfo = iinfo
-  result.annotation = some annotate
+  result.pragma = some pragma
   result.exported = exported
 
 func newObjectField*[N](
@@ -124,9 +118,9 @@ func newObjectField*[N](
     docComment: string = "",
     codeComment: string = "",
     exported: bool = true
-  ): ObjectField[N, Pragma[N]] =
+  ): ObjectField[N] =
 
-  ObjectField[N, Pragma[N]](
+  ObjectField[N](
     isTuple: false,
     isKind: false,
     name: name,
@@ -137,7 +131,7 @@ func newObjectField*[N](
   )
 
 func addField*[N](
-    obj: var ObjectDecl[N, Pragma[N]],
+    obj: var ObjectDecl[N],
     name: string,
     cxtype: NType[N],
     docComment: string = "",
@@ -148,11 +142,7 @@ func addField*[N](
   obj.flds.add newObjectField(
     name, cxtype, docComment, codeComment, exported)
 
-func addField*[N](
-    obj: var ObjectDecl[N, Pragma[N]],
-    field: ObjectField[N, Pragma[N]]
-  ) =
-
+func addField*[N](obj: var ObjectDecl[N], field: ObjectField[N]) =
   obj.flds.add field
 
 func newObjectCaseField*[N](
@@ -161,9 +151,9 @@ func newObjectCaseField*[N](
     docComment: string = "",
     codeComment: string = "",
     exported: bool = true
-  ): ObjectField[N, Pragma[N]] =
+  ): ObjectField[N] =
 
-  ObjectField[N, Pragma[N]](
+  ObjectField[N](
     isTuple: false,
     isKind: true,
     name: name,
@@ -173,31 +163,27 @@ func newObjectCaseField*[N](
     exported: exported,
   )
 
-func newObjectOfBranch*[N](ofValue: N): ObjectBranch[N, Pragma[N]] =
-  ObjectBranch[N, Pragma[N]](isElse: false, ofValue: @[ ofValue ])
+func newObjectOfBranch*[N](ofValue: N): ObjectBranch[N] =
+  ObjectBranch[N](isElse: false, ofValue: @[ ofValue ])
 
-func newObjectOfBranch*[N](ofValue: seq[N]): ObjectBranch[N, Pragma[N]] =
-  ObjectBranch[N, Pragma[N]](isElse: false, ofValue: ofValue)
+func newObjectOfBranch*[N](ofValue: seq[N]): ObjectBranch[N] =
+  ObjectBranch[N](isElse: false, ofValue: ofValue)
 
-func newObjectElseBranch*[N](): ObjectBranch[N, Pragma[N]] =
-  ObjectBranch[N, Pragma[N]](isElse: true)
+func newObjectElseBranch*[N](): ObjectBranch[N] =
+  ObjectBranch[N](isElse: true)
 
 func addField*[N](
-    branch: var ObjectBranch[N, Pragma[N]],
-    field: ObjectField[N, Pragma[N]]
+    branch: var ObjectBranch[N],
+    field: ObjectField[N]
   ) = branch.flds.add field
 
-func addBranch*[N](
-    field: var ObjectField[N, Pragma[N]],
-    branch: ObjectBranch[N, Pragma[N]]
-  ) =
-
+func addBranch*[N](field: var ObjectField[N], branch: ObjectBranch[N]) =
   field.branches.add branch
 
 func addBranch*[N](
-    field: var ObjectField[N, Pragma[N]],
+    field: var ObjectField[N],
     ofValue: N | seq[N],
-    fields: varargs[ObjectField[N, Pragma[N]]]
+    fields: varargs[ObjectField[N]]
   ) =
 
   var branch = newObjectOfBranch(ofValue)
@@ -208,20 +194,20 @@ func addBranch*[N](
 
 
 #=============================  Predicates  ==============================#
-func markedAs*(fld: NObjectField[NPragma], str: string): bool =
-  fld.annotation.getElem(str).isSome()
+func markedAs*(fld: NObjectField, str: string): bool =
+  fld.pragma.getElem(str).isSome()
 
 #===============================  Getters  ===============================#
 
 # ~~~~ each field mutable ~~~~ #
 
-proc eachFieldMut*[NNode, A](
-  obj: var ObjectDecl[NNode, A],
-  cb: proc(field: var ObjectField[NNode, A])): void
+proc eachFieldMut*[N](
+  obj: var ObjectDecl[N],
+  cb: proc(field: var ObjectField[N])): void
 
-proc eachFieldMut*[NNode, A](
-  branch: var ObjectBranch[NNode, A],
-  cb: proc(field: var ObjectField[NNode, A])): void =
+proc eachFieldMut*[N](
+  branch: var ObjectBranch[N],
+  cb: proc(field: var ObjectField[N])): void =
   ## Execute callback on each field in mutable object branch,
   ## recursively.
   for fld in mitems(branch.flds):
@@ -231,9 +217,9 @@ proc eachFieldMut*[NNode, A](
         eachFieldMut(branch, cb)
 
 
-proc eachFieldMut*[NNode, A](
-  obj: var ObjectDecl[NNode, A],
-  cb: proc(field: var ObjectField[NNode, A])): void =
+proc eachFieldMut*[N](
+  obj: var ObjectDecl[N],
+  cb: proc(field: var ObjectField[N])): void =
   ## Execute callback on each field in mutable object, recursively.
   for fld in mitems(obj.flds):
     cb(fld)
@@ -243,43 +229,13 @@ proc eachFieldMut*[NNode, A](
 
 # ~~~~ each annotation mutable ~~~~ #
 
-proc eachAnnotMut*[NNode, A](
-    branch: var ObjectBranch[NNode, A],
-    cb: proc(opt: var Option[A])
-  ): void =
-  ## Execute callback on each annotation in mutable branch,
-  ## recursively - all fields in all branches are visited.
-  for fld in mitems(branch.flds):
-    cb(fld.annotation)
-    if fld.isKind:
-      for branch in mitems(fld.branches):
-        eachAnnotMut(branch, cb)
+proc eachField*[N](
+  obj: ObjectDecl[N],
+  cb: proc(field: ObjectField[N])): void
 
-proc eachAnnotMut*[NNode, A](
-  obj: var ObjectDecl[NNode, A], cb: proc(opt: var Option[A])): void =
-  ## Execute callback on each annotation in mutable object,
-  ## recurisively - all fields and subfields are visited. Callback
-  ## runs on both kind and non-kind fields. Annotation is not
-  ## guaranteed to be `some`, and it might be possible for callback to
-  ## make it `none` (removing unnecessary annotations for example)
-
-  cb(obj.annotation)
-
-  for fld in mitems(obj.flds):
-    cb(fld.annotation)
-    if fld.isKind:
-      for branch in mitems(fld.branches):
-        branch.eachAnnotMut(cb)
-
-# ~~~~ each field immutable ~~~~ #
-
-proc eachField*[NNode, A](
-  obj: ObjectDecl[NNode, A],
-  cb: proc(field: ObjectField[NNode, A])): void
-
-proc eachField*[NNode, A](
-    branch: ObjectBranch[NNode, A],
-    cb: proc(field: ObjectField[NNode, A])
+proc eachField*[N](
+    branch: ObjectBranch[N],
+    cb: proc(field: ObjectField[N])
   ): void =
   ## Execute callback on each field in branch, recursively
   for fld in items(branch.flds):
@@ -289,9 +245,9 @@ proc eachField*[NNode, A](
         eachField(branch, cb)
 
 
-proc eachField*[NNode, A](
-    obj: ObjectDecl[NNode, A],
-    cb: proc(field: ObjectField[NNode, A])
+proc eachField*[N](
+    obj: ObjectDecl[N],
+    cb: proc(field: ObjectField[N])
   ): void =
   ## Execute callback on each field in object, recurisively.
   for fld in items(obj.flds):
@@ -302,9 +258,9 @@ proc eachField*[NNode, A](
 
 # ~~~~ each alternative in case object ~~~~ #
 
-proc eachCase*[A](
-    fld: NObjectField[A], objId: NimNode,
-    cb: proc(field: NObjectField[A]): NimNode
+proc eachCase*(
+    fld: NObjectField, objId: NimNode,
+    cb: proc(field: NObjectField): NimNode
   ): NimNode =
 
   if fld.isKind:
@@ -327,9 +283,9 @@ proc eachCase*[A](
   else:
     result = newStmtList(cb(fld))
 
-proc eachCase*[A](
-    objId: NimNode, obj: NObjectDecl[A],
-    cb: proc(field: NObjectField[A]): NimNode
+proc eachCase*(
+    objId: NimNode, obj: NObjectDecl,
+    cb: proc(field: NObjectField): NimNode
   ): NimNode =
   ## Recursively generate case statement for object. `objid` is and
   ## identifier for object - case statement will use `<objid>.<fldId>`.
@@ -340,9 +296,9 @@ proc eachCase*[A](
   for fld in obj.flds:
     result.add fld.eachCase(objid, cb)
 
-proc eachParallelCase*[A](
-    fld: NObjectField[A], objId: (NimNode, NimNode),
-    cb: proc(field: NObjectField[A]): NimNode
+proc eachParallelCase*(
+    fld: NObjectField, objId: (NimNode, NimNode),
+    cb: proc(field: NObjectField): NimNode
   ): NimNode =
 
   if fld.isKind:
@@ -373,9 +329,9 @@ proc eachParallelCase*[A](
   else:
     result = newStmtList(cb(fld))
 
-proc eachParallelCase*[A](
-    objid: (NimNode, NimNode), obj: NObjectDecl[A],
-    cb: proc(field: NObjectField[A]): NimNode
+proc eachParallelCase*(
+    objid: (NimNode, NimNode), obj: NObjectDecl,
+    cb: proc(field: NObjectField): NimNode
   ): NimNode =
   ## Generate parallel case statement for two objects in `objid`. Run
   ## callback on each field. Generated case statement will have form
@@ -388,41 +344,14 @@ proc eachParallelCase*[A](
 
 # ~~~~ each annotation immutable ~~~~ #
 
-proc eachAnnot*[Node, A](
-    branch: ObjectBranch[Node, A],
-    cb: proc(opt: Option[A])
-  ): void =
-
-  for fld in items(branch.flds):
-    cb(fld.annotation)
-    if fld.isKind:
-      for branch in items(fld.branches):
-        eachAnnot(branch, cb)
-
-proc eachAnnot*[Node, A](
-    obj: ObjectDecl[Node, A],
-    cb: proc(opt: Option[A])
-  ): void =
-
-  cb(obj.annotation)
-
-  for fld in items(obj.flds):
-    cb(fld.annotation.get())
-    if fld.isKind:
-      for branch in items(fld.branches):
-        branch.eachAnnot(cb)
-
-
-# ~~~~ each static path ~~~~ #
-
-proc eachStaticPath*[A](
+proc eachStaticPath*(
     kind: NimNode,
-    obj: NObjectDecl[A],
-    cb: proc(fields: seq[NObjectField[A]]): NimNode
+    obj: NObjectDecl,
+    cb: proc(fields: seq[NObjectField]): NimNode
   ): NimNode =
 
-  var topFlds: seq[NObjectField[A]]
-  var trailFlds: seq[NObjectField[A]]
+  var topFlds: seq[NObjectField]
+  var trailFlds: seq[NObjectField]
 
   var kindCount = 0
 
@@ -466,9 +395,9 @@ proc eachStaticPath*[A](
 
 
 # ~~~~ Each path in case object ~~~~ #
-proc eachPath*[A](
-    fld: NObjectField[A], self: NimNode, parent: NObjectPath[A],
-    cb: proc(path: NObjectPath[A], fields: seq[NObjectField[A]]): NimNode
+proc eachPath*(
+    fld: NObjectField, self: NimNode, parent: NObjectPath,
+    cb: proc(path: NObjectPath, fields: seq[NObjectField]): NimNode
   ): NimNode =
 
   if fld.isKind:
@@ -478,12 +407,12 @@ proc eachPath*[A](
       let nobranch = (fld.withIt do: it.branches = @[])
       let thisPath =
         if branch.isElse:
-          parent & @[NObjectPathElem[A](
+          parent & @[NObjectPathElem(
             isElse: true, kindField: nobranch,
             notOfValue: branch.notOfValue)]
 
         else:
-          parent & @[NObjectPathElem[A](
+          parent & @[NObjectPathElem(
             isElse: false, kindField: nobranch,
             ofValue: normalizeSet(branch.ofValue))]
 
@@ -498,14 +427,14 @@ proc eachPath*[A](
         branchBody.add fld.eachPath(self, thisPath, cb)
 
 
-proc eachPath*[A](
+proc eachPath*(
     self: NimNode,
-    obj: NObjectDecl[A],
-    cb: proc(path: NObjectPath[A], fields: seq[NObjectField[A]]): NimNode
+    obj: NObjectDecl,
+    cb: proc(path: NObjectPath, fields: seq[NObjectField]): NimNode
   ): NimNode =
   ## Visit each group of fields in object described by `obj` and
   ## generate case statement with all possible object paths. Arguments
-  ## for callback - `NObjectPath[A]` is a sequence of kind field values that
+  ## for callback - `NObjectPath` is a sequence of kind field values that
   ## *must be active in order for execution to reach this path* in
   ## case statement. Second argument is a list of fields that can be
   ## accessed at that path.
@@ -516,20 +445,20 @@ proc eachPath*[A](
     if fld.isKind:
       result.add fld.eachPath(self, @[], cb)
 
-proc eachPath*[A](
+proc eachPath*(
     self: NimNode,
-    obj: NObjectDecl[A],
-    cb: proc(fields: seq[NObjectField[A]]): NimNode
+    obj: NObjectDecl,
+    cb: proc(fields: seq[NObjectField]): NimNode
   ): NimNode =
 
   return eachPath(
     self, obj,
-    proc(path: NObjectPath[A], fields: seq[NObjectField[A]]): NimNode =
+    proc(path: NObjectPath, fields: seq[NObjectField]): NimNode =
       cb(fields)
   )
 
 
-func onPath*[A](self: NimNode, path: NObjectPath[A]): NimNode =
+func onPath*(self: NimNode, path: NObjectPath): NimNode =
   ## Generate check for object `self` to check if it is currently on
   ## path.
   var checks: seq[NimNode]
@@ -550,90 +479,84 @@ func onPath*[A](self: NimNode, path: NObjectPath[A]): NimNode =
 
 
 #========================  Other implementation  =========================#
-func toNNode*[NNode, A](
-  fld: ObjectField[NNode, A], annotConv: proc(annot: A): NNode): NNode
+func toNNode*[N](fld: ObjectField[N]): N
 
-func toNNode*[NNode, A](
-  branch: ObjectBranch[NNode, A], annotConv: proc(annot: A): NNode): NNode =
+func toNNode*[N](branch: ObjectBranch[N]): N =
   if branch.isElse:
-    newNTree[NNode](
+    newNTree[N](
       nnkElse,
-      nnkRecList.newTree(branch.flds.mapIt(it.toNNode(annotConv))))
+      nnkRecList.newTree(branch.flds.mapIt(toNNode(it))))
 
   else:
-    newNTree[NNode](
+    newNTree[N](
       nnkOfBranch,
       branch.ofValue & nnkRecList.newTree(
-        branch.flds.mapIt(it.toNNode(annotConv))))
+        branch.flds.mapIt(toNNode(it))))
 
 
-func toNNode*[NNode, A](
-  fld: ObjectField[NNode, A], annotConv: proc(annot: A): NNode): NNode =
-
+func toNNode*[N](fld: ObjectField[N]): N =
   let head =
     if fld.exported:
-      newNTree[NNode](nnkPostfix,
-                      newNIdent[NNode]("*"),
-                      newNIdent[NNode](fld.name))
+      newNTree[N](nnkPostfix,
+                      newNIdent[N]("*"),
+                      newNIdent[N](fld.name))
     else:
-      newNIdent[NNode](fld.name)
+      newNIdent[N](fld.name)
 
   let fieldName =
-    if fld.annotation.isSome():
-      let pragma = annotConv(fld.annotation.get())
-      newNTree[NNode](nnkPragmaExpr, head, pragma)
+    if fld.pragma.isSome():
+      let pragma = fld.pragma.get().toNNode()
+      newNTree[N](nnkPragmaExpr, head, pragma)
+
     else:
       head
 
-
-  var selector = newNTree[NNode](
+  var selector = newNTree[N](
     nnkIdentDefs,
     fieldName,
-    toNNode[NNode](fld.fldType),
-    newEmptyNNode[NNode]()
+    toNNode[N](fld.fldType),
+    newEmptyNNode[N]()
   )
 
-  when NNode is PNode:
+  when N is PNode:
     selector.comment = fld.docComment
 
   if fld.isKind:
     return nnkRecCase.newTree(
-      @[selector] & fld.branches.mapIt(toNNode[NNode](it, annotConv)))
+      @[selector] & fld.branches.mapIt(toNNode[N](it)))
 
   else:
     return selector
 
-func toExported*[NNode](ntype: NType[NNode], exported: bool): tuple[
-  head, genparams: NNode] =
+func toExported*[N](ntype: NType[N], exported: bool): tuple[
+  head, genparams: N] =
   result.head =
     if exported:
-      newNTree[NNode](
+      newNTree[N](
         nnkPostfix,
-        newNIdent[NNode]("*"),
-        newNIdent[NNode](ntype.head)
+        newNIdent[N]("*"),
+        newNIdent[N](ntype.head)
       )
     else:
-      newNIdent[NNode](ntype.head)
+      newNIdent[N](ntype.head)
 
   result.genparams =
     block:
-      let maps = ntype.genParams.mapIt(toNNode[NNode](it))
+      let maps = ntype.genParams.mapIt(toNNode[N](it))
       if maps.len == 0:
-        newEmptyNNode[NNode]()
+        newEmptyNNode[N]()
       else:
-        newNTree[NNode](nnkGenericParams, maps)
+        newNTree[N](nnkGenericParams, maps)
 
 
 
-func toNNode*[NNode, A](
-  obj: ObjectDecl[NNode, A], annotConv: proc(annot: A): NNode): NNode =
-
+func toNNode*[N](obj: ObjectDecl[N], standalone: bool = false): N =
   let (head, genparams) = obj.name.toExported(obj.exported)
   let header =
-    if obj.annotation.isSome():
-      let node = annotConv obj.annotation.get()
+    if obj.pragma.isSome():
+      let node = toNNode(obj.pragma.get())
       if node.kind != nnkEmpty:
-        newNTree[NNode](nnkPragmaExpr, head, node)
+        newNTree[N](nnkPragmaExpr, head, node)
 
       else:
         head
@@ -642,49 +565,29 @@ func toNNode*[NNode, A](
       head
 
 
-  var comment: seq[NNode]
-  when NNode is PNode:
+  var comment: seq[N]
+  when N is PNode:
     if obj.docComment.len > 0:
-      comment.add newCommentStmtNNode[NNode](obj.docComment)
+      comment.add newCommentStmtNNode[N](obj.docComment)
 
-  result = newNTree[NNode](
+  result = newNTree[N](
     nnkTypeDef,
     header,
     genparams,
-    newNTree[NNode](
+    newNTree[N](
       nnkObjectTy,
-      newEmptyNNode[NNode](),
-      newEmptyNNode[NNOde](),
-      newNTree[NNode](
+      newEmptyNNode[N](),
+      newEmptyNNode[N](),
+      newNTree[N](
         nnkRecList,
-        comment & obj.flds.mapIt(toNNode(it, annotConv))))) # loud LISP sounds
-
-func toNNode*[NNode](
-  obj: ObjectDecl[NNode, PRagma[NNode]], standalone: bool = false): NNode =
-  result = toNNode[NNode](
-    obj, annotConv =
-      proc(pr: Pragma[NNode]): NNode {.closure.} =
-        return toNNode[NNode](pr)
-  )
+        comment & obj.flds.mapIt(toNNode(it))))) # loud LISP sounds
 
   if standalone:
-    result = newNTree[NNode](
-      nnkTypeSection,
-      result
-    )
+    result = newNTree[N](nnkTypeSection, result)
 
-func toNimNode*(obj: NObjectDecl[NPragma]): NimNode =
-  # static: echo typeof obj
+
+func toNimNode*(obj: NObjectDecl): NimNode =
   toNNode[NimNode](obj)
-
-
-func toNNode*[N](fld: ObjectField[N, PRagma[N]]): N =
-  result = toNNode[N](
-    fld, annotConv =
-      proc(pr: Pragma[N]): N {.closure.} =
-        return toNNode[N](pr)
-  )
-
 
 type
   ObjKind* = enum
@@ -703,14 +606,6 @@ type
     orkReference
     orkPointer
 
-  # ObjAccs = object
-  #   # TODO:DOC
-  #   case isIdx*: bool
-  #     of true:
-  #       idx*: int
-  #     of false:
-  #       name*: string
-
   ObjAccessor* = object
     case kind*: ObjKind
       of okConstant:
@@ -726,7 +621,6 @@ type
         key*: string
 
   ObjPath* = seq[ObjAccessor]
-  # ObjPath = seq[ObjAccs]
 
   ObjTree* = object
     ##[
@@ -792,8 +686,8 @@ type
 
 
 type
-  ValField* = ObjectField[ObjTree, void]
-  ValFieldBranch* = ObjectBranch[ObjTree, void]
+  ValField* = ObjectField[ObjTree]
+  ValFieldBranch* = ObjectBranch[ObjTree]
 
 
 func newOType*(name: string, gparams: seq[string] = @[]): NType[ObjTree] =
@@ -814,7 +708,7 @@ proc prettyPrintConverter*(val: PNode, path: seq[int] = @[0]): ObjTree =
   )
 
 #=============================  Predicates  ==============================#
-func `==`*[Node, A](lhs, rhs: ObjectField[Node, A]): bool
+func `==`*[Node](lhs, rhs: ObjectField[Node]): bool
 
 func `==`*(lhs, rhs: ObjTree): bool =
   lhs.kind == rhs.kind and
@@ -839,14 +733,14 @@ func `==`*(lhs, rhs: ObjTree): bool =
           subnodesEq(lhs, rhs, fldPairs)
     )
 
-func `==`*[Node, A](lhs, rhs: ObjectField[Node, A]): bool =
+func `==`*[Node](lhs, rhs: ObjectField[Node]): bool =
   lhs.isKind == rhs.isKind and
     (
       case lhs.isKind:
         of true:
           lhs.name == rhs.name and
           lhs.fldType == rhs.fldType and
-          (when A is void: true else: subnodesEq(lhs, rhs, branches))
+          subnodesEq(lhs, rhs, branches)
         of false:
           true
     )
@@ -935,3 +829,51 @@ func getAtPath*(obj: var ObjTree, path: ObjPath): var ObjTree =
 
     else:
       raiseImplementError("")
+
+
+
+func eachPragmaMut*[N](
+    branch: var ObjectBranch[N],
+    cb: proc(opt: var Option[Pragma[N]])) =
+  ## Execute callback on each annotation in mutable branch,
+  ## recursively - all fields in all branches are visited.
+  for fld in mitems(branch.flds):
+    cb(fld.pragma)
+    if fld.isKind:
+      for branch in mitems(fld.branches):
+        eachPragmaMut(branch, cb)
+
+func eachPragmaMut*[N](
+    obj: var ObjectDecl[N], cb: proc(pragma: var Option[Pragma[N]])) =
+  ## Execute callback on each annotation in mutable object,
+  ## recurisively - all fields and subfields are visited. Callback
+  ## runs on both kind and non-kind fields. Annotation is not
+  ## guaranteed to be `some`, and it might be possible for callback to
+  ## make it `none` (removing unnecessary annotations for example)
+
+  cb(obj.pragma)
+
+  for fld in mitems(obj.flds):
+    cb(fld.pragma)
+    if fld.isKind:
+      for branch in mitems(fld.branches):
+        branch.eachPragmaMut(cb)
+
+func eachPragma*[N](
+    branch: ObjectBranch[N],
+    cb: proc(pragma: Option[PRagma[N]])
+  ) =
+
+  for fld in items(branch.flds):
+    cb(fld.pragma)
+    if fld.isKind:
+      for branch in items(fld.branches):
+        eachPragma(branch, cb)
+
+func eachPragma*[N](obj: ObjectDecl[N], cb: proc(opt: Option[Pragma[N]])) =
+  cb(obj.pragma)
+  for fld in items(obj.flds):
+    cb(fld.pragma)
+    if fld.isKind:
+      for branch in items(fld.branches):
+        branch.eachPragma(cb)

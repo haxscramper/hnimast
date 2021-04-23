@@ -32,7 +32,7 @@ type
         enumDecl*: EnumDecl[N]
 
       of ntdkObjectDecl:
-        objectDecl*: ObjectDecl[N, Pragma[N]]
+        objectDecl*: ObjectDecl[N]
 
       of ntdkAliasDecl:
         aliasDecl*: AliasDecl[N]
@@ -46,7 +46,7 @@ type
         enumdecl*: EnumDecl[N]
 
       of nekObjectDecl:
-        objectdecl*: ObjectDecl[N, Pragma[N]]
+        objectdecl*: ObjectDecl[N]
 
       of nekAliasDecl:
         aliasDecl*: AliasDecl[N]
@@ -65,15 +65,15 @@ type
   NAliasDecl* = AliasDecl[NimNode]
 
   AnyNimDecl*[N] =
-    ProcDecl[N]              |
-    AliasDecl[N]             |
-    ProcDecl[N]              |
-    ObjectDecl[N, Pragma[N]] |
-    EnumDecl[N]              |
-    AliasDecl[N]             |
+    ProcDecl[N]   |
+    AliasDecl[N]  |
+    ProcDecl[N]   |
+    ObjectDecl[N] |
+    EnumDecl[N]   |
+    AliasDecl[N]  |
     NimTypeDecl[N]
 
-func `==`*[N, A](a, b: ObjectBranch[N, A]): bool =
+func `==`*[N](a, b: ObjectBranch[N]): bool =
   a.isElse == b.isElse and
   a.flds == b.flds and
   a.annotation == b.annotation and
@@ -162,7 +162,7 @@ func toNNode*[N](entry: NimDecl[N], standalone: bool = true): N =
 
 
 
-func toNimTypeDecl*[N](odc: ObjectDecl[N, Pragma[N]]): NimTypeDecl[N] =
+func toNimTypeDecl*[N](odc: ObjectDecl[N]): NimTypeDecl[N] =
   NimTypeDecl[N](kind: ntdkObjectDecl, objectdecl: odc)
 
 func toNimTypeDecl*[N](adc: AliasDecl[N]): NimTypeDecl[N] =
@@ -188,7 +188,7 @@ func toNimTypeDecl*[N](entry: NimDecl[N]): NimTypeDecl[N] =
 func toNimDecl*[N](prd: ProcDecl[N]): NimDecl[N] =
   NimDecl[N](kind: nekProcDecl, procdecl: prd)
 
-func toNimDecl*[N](odc: ObjectDecl[N, Pragma[N]]): NimDecl[N] =
+func toNimDecl*[N](odc: ObjectDecl[N]): NimDecl[N] =
   NimDecl[N](kind: nekObjectDecl, objectdecl: odc)
 
 func toNimDecl*[N](adc: AliasDecl[N]): NimDecl[N] =
