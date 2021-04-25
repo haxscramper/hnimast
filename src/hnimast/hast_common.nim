@@ -546,8 +546,59 @@ proc typeLispRepr*(node: NimNode, colored: bool = true): string =
           result &= node.getTypeInst().typeLispRepr(colored)
 
         of nskEnumField:
-          result &= node.getImpl().lispRepr()
-          result &= node.getTypeInst().typeLispRepr(colored)
+          let impl = node.getType().getTypeInst().getImpl()[2]
+          var fNum = BiggestInt(0)
+          for f in impl:
+            var fStr: string
+            var fName: string
+            case f.kind
+              of nnkEmpty: continue # skip first node of `enumTy`
+              of nnkSym, nnkIdent:
+                fStr = f.strVal()
+                fName = f.strVal()
+
+              of nnkEnumFieldDef:
+                fName = f[0].strVal()
+                case f[1].kind
+                  of nnkStrLit:
+                    fStr = f[1].strVal
+
+                  of nnkTupleConstr:
+                    fStr = f[1][1].strVal
+                    fNum = f[1][0].intVal
+
+                  of nnkIntLit:
+                    fStr = f[0].strVal
+                    fNum = f[1].intVal
+
+                  else:
+                    discard
+
+              else:
+                discard
+
+
+
+            if fName == node.strVal():
+              if fName == fStr:
+                return $fNum
+
+              else:
+                return &["(", $fNum, ", ", fStr, ")"]
+
+            else:
+              inc fNum
+
+          # for field in inst:
+          #   case field.kind:
+          #     of nnkEnumFieldDef:
+          #       if field[0].strVal() == node.strVal():
+          #         return field[1].lispRepr()
+
+          #     of nnkSym, nnkIdent:
+
+          #   else:
+          #     echov field.lispRepr(), node.strVal()
 
         else:
           raiseImplementKindError(node.symKind)
