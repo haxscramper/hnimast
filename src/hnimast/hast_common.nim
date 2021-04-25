@@ -527,18 +527,66 @@ proc treeRepr*(
 
   return aux(pnode, 0, @[])
 
+proc typeLispRepr*(node: NimNode, colored: bool = true): string =
+  case node.kind:
+    of nnkSym:
+      case node.symKind:
+        of nskType:
+          result = toStrLit(node).strVal().toRed(colored)
+
+        of nskField:
+          let inst = node.getType()
+          case inst.kind:
+            of nnkEnumTy:
+              result = toBlue("enum/", colored)
+
+            else:
+              discard
+
+          result &= node.getTypeInst().typeLispRepr(colored)
+
+        of nskEnumField:
+          result &= node.getImpl().lispRepr()
+          result &= node.getTypeInst().typeLispRepr(colored)
+
+        else:
+          raiseImplementKindError(node.symKind)
+
+    of nnkEnumTy:
+      result = "enum".toRed(colored)
+
+    else:
+      raiseImplementKindError(node, node.treeRepr())
 
 proc treeRepr1*(
     pnode: NimNode,
     colored: bool = true,
-    indexed: bool = false,
-    maxdepth: int = 120
+    pathIndexed: bool = false,
+    positionIndexed: bool = true,
+    maxdepth: int = 120,
   ): string =
+  ## Advanced `treeRepr` version.
+  ##
+  ## - show symbol kinds and types
+  ## - use colored representation for literals and comments
+  ## - support max depth limit using @arg{maxdepth}
+  ## - optionally show full index path for each entry
+  ## - show node position index
+  ## - differentiate between `NilLit` and *actually* `nil` nodes
 
   proc aux(n: NimNode, level: int, idx: seq[int]): string =
     let pref =
-      if indexed:
+      if pathIndexed:
         idx.join("", ("[", "]")) & "    "
+
+      elif positionIndexed:
+        if level > 0:
+          "  ".repeat(level - 1) & "\e[38;5;240m#" & $idx[^1] & "\e[0m  "
+            # toItalic("\e[48;5;238m#" & $idx[^1], colored) & " "
+
+        else:
+          "  "
+
       else:
         "  ".repeat(level)
 
@@ -555,13 +603,20 @@ proc treeRepr1*(
         result &= " \"" & toYellow(n.getStrVal(), colored) & "\""
 
       of nnkIntKinds:
-        result &= " " & toBlue($n.intVal, colored)
+        result &= " " & toCyan($n.intVal, colored)
 
       of nnkFloatKinds:
         result &= " " & toMagenta($n.floatVal, colored)
 
-      of nnkIdent, nnkSym:
+      of nnkIdent:
         result &= " " & toGreen(n.strVal(), colored)
+
+      of nnkSym:
+        result &= [
+          " ", toBlue(($n.symKind())[3..^1], colored),
+          " ", toGreen(n.strVal(), colored),
+          " <", n.typeLispRepr(), ">"
+        ]
 
       of nnkCommentStmt:
         let lines = split(n.strVal(), '\n')
@@ -651,9 +706,8 @@ func makeConstructAllFields*[T](val: T): NimNode =
 
     else:
       result = nnkObjConstr.newTree(parseExpr $typeof(T))
-      for name, fld in fieldPairs(val):
+      for name, fld in fieldPairs(when val is ref: val[] else: val):
         when (fld is Option) and not (fld is Option[void]):
-          # debugecho name, " ", typeof(fld)
           if fld.isSome():
             result.add nnkExprColonExpr.newTree(
               ident(name),
@@ -690,7 +744,7 @@ func makeInitCalls*[A](hset: HashSet[A]): NimNode =
 
 #=======================  Enum set normalization  ========================#
 func normalizeSetImpl[NNode](node: NNode): seq[NNode] =
-   case node.kind.toNNK():
+  case node.kind.toNNK():
     of nnkIdent, nnkIntLit, nnkCharLit, nnkDotExpr:
       return @[ node ]
 
@@ -862,6 +916,9 @@ proc newPDotCall*(main: string, callName: string, args: varargs[PNode]):
 
 proc isEmptyNode*[N](node: N): bool =
   result = true
+  if isNil(node):
+    return true
+
   case node.kind:
     of nnkEmpty:
       return true

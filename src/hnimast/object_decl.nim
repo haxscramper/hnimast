@@ -6,7 +6,7 @@ import hmisc/types/colorstring
 import hast_common
 
 type
-  ObjectBranch*[N] = object
+  ObjectBranch*[N] = ref object
     ## Single branch of case object
     declNode*: Option[N]
     pragma*: Option[PRagma[N]]
@@ -20,7 +20,7 @@ type
 
 
 
-  ObjectField*[N] = object
+  ObjectField*[N] = ref object
     declNode*: Option[N]
     docComment*: string
     codeComment*: string
@@ -50,7 +50,7 @@ type
       of false:
         discard
 
-  ObjectDecl*[N] = object
+  ObjectDecl*[N] = ref object
     iinfo*: LineInfo
     docComment*: string
     codeComment*: string
@@ -420,16 +420,15 @@ proc eachPath*(
     result = nnkCaseStmt.newTree(newDotExpr(self, ident fld.name))
     for branch in fld.branches:
       var branchBody = newStmtList()
-      let nobranch = (fld.withIt do: it.branches = @[])
       let thisPath =
         if branch.isElse:
           parent & @[NObjectPathElem(
-            isElse: true, kindField: nobranch,
+            isElse: true, kindField: fld,
             notOfValue: branch.notOfValue)]
 
         else:
           parent & @[NObjectPathElem(
-            isElse: false, kindField: nobranch,
+            isElse: false, kindField: fld,
             ofValue: normalizeSet(branch.ofValue))]
 
       let cbRes = cb(thisPath, branch.flds).nilToDiscard()
@@ -483,6 +482,7 @@ func onPath*(self: NimNode, path: NObjectPath): NimNode =
       checks.add newInfix(
         "notin", newDotExpr(self, ident elem.kindField.name),
         normalizeSet(elem.notOfValue, forceBrace = true))
+
     else:
       checks.add newInfix(
         "in", newDotExpr(self, ident elem.kindField.name),
@@ -490,6 +490,7 @@ func onPath*(self: NimNode, path: NObjectPath): NimNode =
 
   if checks.len == 0:
     return newLit(true)
+
   else:
     result = checks.foldl(newInfix("and", a, b))
 
@@ -499,15 +500,16 @@ func toNNode*[N](fld: ObjectField[N]): N
 
 func toNNode*[N](branch: ObjectBranch[N]): N =
   if branch.isElse:
-    newNTree[N](
+    result = newNTree[N](
       nnkElse,
       nnkRecList.newTree(branch.flds.mapIt(toNNode(it))))
 
   else:
-    newNTree[N](
+    result = newNTree[N](
       nnkOfBranch,
       branch.ofValue & nnkRecList.newTree(
         branch.flds.mapIt(toNNode(it))))
+
 
 
 func toNNode*[N](fld: ObjectField[N]): N =
@@ -538,11 +540,13 @@ func toNNode*[N](fld: ObjectField[N]): N =
     selector.comment = fld.docComment
 
   if fld.isKind:
-    return nnkRecCase.newTree(
+    result = nnkRecCase.newTree(
       @[selector] & fld.branches.mapIt(toNNode[N](it)))
 
   else:
-    return selector
+    result = selector
+
+
 
 func toExported*[N](ntype: NType[N], exported: bool): tuple[
   head, genparams: N] =
@@ -600,6 +604,7 @@ func toNNode*[N](obj: ObjectDecl[N], standalone: bool = false): N =
 
   if standalone:
     result = newNTree[N](nnkTypeSection, result)
+
 
 
 func toNimNode*(obj: NObjectDecl): NimNode =
@@ -705,6 +710,8 @@ type
   ValField* = ObjectField[ObjTree]
   ValFieldBranch* = ObjectBranch[ObjTree]
 
+func fields*[N](objectDecl: OBjectDecl[N]): seq[OBjectField[N]] =
+  objectDecl.flds
 
 func newOType*(name: string, gparams: seq[string] = @[]): NType[ObjTree] =
   NType[ObjTree](
