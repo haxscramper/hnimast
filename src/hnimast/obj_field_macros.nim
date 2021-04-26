@@ -19,7 +19,30 @@ type
   SymTable[N] = object
     ## Mapping of type symbol names to the symbols themselves
     table: Table[string, N]
-    enumCache: Table[string, seq[string]]
+    enumCache: Table[string, EnumValueGroup[N]]
+
+proc fieldTypeNode*[N](field: N): N =
+  case field.kind.toNNK():
+    of nnkRecCase:
+      return fieldTypeNode(field[0])
+
+    of nnkIdentDefs:
+      return field[1]
+
+    else:
+      raiseUnexpectedKindError(field, field.treeRepr())
+
+proc enumValueGroup*[N](
+    sym: SymTable[N], field: N): EnumValueGroup[N] =
+
+  ## Get list of enum fields associated with enum @arg{enumName}
+  ##
+  ## - NOTE :: If `enumName` is not in the symbol table empty value group
+  ##   is returned and no exception is raised.
+  let enumName = field.fieldTypeNode().strVal()
+
+  if enumName in sym.enumCache:
+    return sym.enumCache[enumName]
 
 proc getFields*[N](
     node: N, isCheckedOn: Option[N], sym: SymTable[N], level: int = 0
@@ -34,7 +57,8 @@ proc getBranches*[N](
   for branch in node[1..^1]:
     case branch.kind.toNNK():
       of nnkOfBranch:
-        let ofSet = (newTree(nnkCurly, branch[0..^2])).normalizeSet()
+        let ofSet = (newTree(nnkCurly, branch[0..^2])).normalizeSet(
+          sym.enumValueGroup(isCheckedOn.get()))
         ofValues.add ofSet
         result.add ObjectBranch[N](
           declNode: some(branch),
@@ -48,7 +72,7 @@ proc getBranches*[N](
           declNode: some(branch),
           flds: branch[0].getFields(isCheckedOn, sym),
           isElse: true,
-          notOfValue: ofValues.joinSets()
+          notOfValue: ofValues
         )
 
       else:
@@ -395,10 +419,10 @@ proc discardNimNode(input: seq[ObjectField[NimNode]]): seq[ValField] =
                 ValFieldBranch(
                   isElse: true,
                   flds: it.flds.discardNimNode(),
-                  notOfValue: ObjTree(
+                  notOfValue: @[ObjTree(
                     styling: initPrintStyling(),
                     # TODO save set representation
-                  )
+                  )]
                 )
               else:
                 ValFieldBranch(
@@ -484,7 +508,8 @@ proc bodySymTable*(inNode: NimNode): SymTable[NimNode] =
               symtable.table[$node] = node
               if impl.kind == nnkEnumTy:
                 echov impl.treeRepr1()
-                symtable.enumCache[$node] = mapIt(impl, it.toStrLit().strVal())
+                symtable.enumCache[$node] = EnumValueGroup[NimNode](
+                  enumFields: splitEnumImpl(impl))
 
           else:
             discard
@@ -499,7 +524,8 @@ proc bodySymTable*(inNode: NimNode): SymTable[NimNode] =
   aux(inNode)
   return symtable
 
-proc parseObject*[N](inNode: N, parseImpl: bool = true): ObjectDecl[N] =
+proc parseObject*[N](
+    inNode: N, parseImpl: bool = true, constList: seq[N] = @[]): ObjectDecl[N] =
   ## Parse object implementation
   ##
   ## - @arg{parseImpl} :: If `inNode` is a symbol used to selecting between
@@ -508,6 +534,11 @@ proc parseObject*[N](inNode: N, parseImpl: bool = true): ObjectDecl[N] =
   ##   with all original `{.pragma.}` annotations for fields etc. So the
   ##   actual final type might be different from what `getTypeInst`
   ##   returns.
+  ##
+  ## - @arg{constList} :: List of `Sym` nodes for constants used in object
+  ##   body. not required, but allows to provide full branch set
+  ##   normalization - when some `const` was used for `of` branch it would
+  ##   be converted to correct list of enum values.
 
   let node =
     case inNode.kind.toNNK():

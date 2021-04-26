@@ -14,7 +14,7 @@ type
     case isElse*: bool ## Whether this branch is placed under `else` in
                   ## case object.
       of true:
-        notOfValue*: N
+        notOfValue*: seq[N]
       of false:
         ofValue*: seq[N] ## Match value for case branch
 
@@ -284,13 +284,13 @@ proc eachCase*(
 
         if isEmptyNode(body):
           result.add nnkOfBranch.newTree(
-            normalizeSet(branch.ofValue),
+            nnkCurly.newTree(branch.ofValue),
             newDiscardStmt()
           )
 
         else:
           result.add nnkOfBranch.newTree(
-            normalizeSet(branch.ofValue), body)
+            nnkCurly.newTree(branch.ofValue), body)
 
     let cbRes = cb(fld)
     if cbRes != nil:
@@ -326,10 +326,9 @@ proc eachParallelCase*(
         )
       else:
         result.add nnkOfBranch.newTree(
-          normalizeSet(branch.ofValue),
+          nnkCurly.newTree(branch.ofValue),
           branch.flds.mapIt(
-            it.eachParallelCase(objId, cb)).newStmtList()
-        )
+            it.eachParallelCase(objId, cb)).newStmtList())
 
     let
       fldId = ident fld.name
@@ -402,9 +401,8 @@ proc eachStaticPath*(
           result.add nnkElifBranch.newTree(
             nnkInfix.newTree(
               ident "in", kind,
-              normalizeSet(branch.ofValue)),
-            cb(topFlds & branch.flds & trailFlds)
-          )
+              nnkCurly.newTree(branch.ofValue)),
+            cb(topFlds & branch.flds & trailFlds))
 
 
 
@@ -424,19 +422,19 @@ proc eachPath*(
         if branch.isElse:
           parent & @[NObjectPathElem(
             isElse: true, kindField: fld,
-            notOfValue: branch.notOfValue)]
+            notOfValue: nnkCurly.newTree(branch.notOfValue))]
 
         else:
           parent & @[NObjectPathElem(
             isElse: false, kindField: fld,
-            ofValue: normalizeSet(branch.ofValue))]
+            ofValue: nnkCurly.newTree(branch.ofValue))]
 
       let cbRes = cb(thisPath, branch.flds).nilToDiscard()
       if branch.isElse:
         branchBody.add nnkElse.newTree(cbRes)
       else:
         branchBody.add nnkOfBranch.newTree(
-          normalizeSet(branch.ofValue), cbRes)
+          nnkCurly.newTree(branch.ofValue), cbRes)
 
       for fld in branch.flds:
         branchBody.add fld.eachPath(self, thisPath, cb)
@@ -481,12 +479,12 @@ func onPath*(self: NimNode, path: NObjectPath): NimNode =
     if elem.isElse:
       checks.add newInfix(
         "notin", newDotExpr(self, ident elem.kindField.name),
-        normalizeSet(elem.notOfValue, forceBrace = true))
+        nnkCurly.newTree(elem.notOfValue))
 
     else:
       checks.add newInfix(
         "in", newDotExpr(self, ident elem.kindField.name),
-        normalizeSet(elem.ofValue, forceBrace = true))
+        nnkCurly.newTree(elem.ofValue))
 
   if checks.len == 0:
     return newLit(true)

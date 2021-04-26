@@ -527,6 +527,56 @@ proc treeRepr*(
 
   return aux(pnode, 0, @[])
 
+type
+  EnumFieldDef*[N] = object
+    decl*: N
+    name*: string
+    strVal*: string
+    intVal*: BiggestInt
+
+  EnumValueGroup*[N] = object
+    enumFields*: seq[EnumFieldDef[N]]
+    enumConsts*: Table[string, seq[EnumFieldDef[N]]]
+
+proc splitEnumImpl*[N](impl: N): seq[EnumFieldDef[N]] =
+  var fNum = BiggestInt(0)
+  for field in impl:
+    var fStr: string
+    var fName: string
+    case field.kind
+      of nnkEmpty: continue # skip first node of `enumTy`
+      of nnkSym, nnkIdent:
+        fStr = field.strVal()
+        fName = field.strVal()
+
+      of nnkEnumFieldDef:
+        fName = field[0].strVal()
+        case field[1].kind
+          of nnkStrLit:
+            fStr = field[1].strVal
+
+          of nnkTupleConstr:
+            fStr = field[1][1].strVal
+            fNum = field[1][0].intVal
+
+          of nnkIntLit:
+            fStr = field[0].strVal
+            fNum = field[1].intVal
+
+          else:
+            discard
+
+      else:
+        discard
+
+    result.add EnumFieldDef[N](
+      decl: field, strVal: fStr, name: fName, intVal: fNum)
+
+    inc fNum
+
+
+
+
 proc typeLispRepr*(node: NimNode, colored: bool = true): string =
   case node.kind:
     of nnkSym:
@@ -547,58 +597,14 @@ proc typeLispRepr*(node: NimNode, colored: bool = true): string =
 
         of nskEnumField:
           let impl = node.getType().getTypeInst().getImpl()[2]
-          var fNum = BiggestInt(0)
-          for f in impl:
-            var fStr: string
-            var fName: string
-            case f.kind
-              of nnkEmpty: continue # skip first node of `enumTy`
-              of nnkSym, nnkIdent:
-                fStr = f.strVal()
-                fName = f.strVal()
 
-              of nnkEnumFieldDef:
-                fName = f[0].strVal()
-                case f[1].kind
-                  of nnkStrLit:
-                    fStr = f[1].strVal
-
-                  of nnkTupleConstr:
-                    fStr = f[1][1].strVal
-                    fNum = f[1][0].intVal
-
-                  of nnkIntLit:
-                    fStr = f[0].strVal
-                    fNum = f[1].intVal
-
-                  else:
-                    discard
+          for field in impl.splitEnumImpl():
+            if field.name == node.strVal():
+              if field.name == field.strVal:
+                return $field.intVal
 
               else:
-                discard
-
-
-
-            if fName == node.strVal():
-              if fName == fStr:
-                return $fNum
-
-              else:
-                return &["(", $fNum, ", ", fStr, ")"]
-
-            else:
-              inc fNum
-
-          # for field in inst:
-          #   case field.kind:
-          #     of nnkEnumFieldDef:
-          #       if field[0].strVal() == node.strVal():
-          #         return field[1].lispRepr()
-
-          #     of nnkSym, nnkIdent:
-
-          #   else:
-          #     echov field.lispRepr(), node.strVal()
+                return &["(", $field.intVal, ", ", field.strVal, ")"]
 
         else:
           raiseImplementKindError(node.symKind)
@@ -794,15 +800,24 @@ func makeInitCalls*[A](hset: HashSet[A]): NimNode =
   result = newCall("toHashSet", result)
 
 #=======================  Enum set normalization  ========================#
-func normalizeSetImpl[NNode](node: NNode): seq[NNode] =
+func flattenSet*[N](node: N, group: EnumValueGroup[N]): seq[N] =
   case node.kind.toNNK():
-    of nnkIdent, nnkIntLit, nnkCharLit, nnkDotExpr:
+    of nnkIdent:
+      if node.strVal() in group.enumConsts:
+        for value in group.enumConsts[node.strVal()]:
+          result &= newNIdent[N](value.strVal)
+
+      else:
+        result &= node
+
+
+    of nnkIntLit, nnkCharLit, nnkDotExpr:
       return @[ node ]
 
     of nnkCurly:
       mixin items
       for subnode in items(node):
-        result &= normalizeSetImpl(subnode)
+        result &= flattenSet(subnode, group)
 
     of nnkInfix:
       assert node[0].getStrVal() == ".."
@@ -823,29 +838,30 @@ func normalizeSetImpl[NNode](node: NNode): seq[NNode] =
 
 
 
-func normalizeSet*[N](nodes: seq[N]): N =
+func normalizeSet*[N](nodes: seq[N], group: EnumValueGroup[N]): N =
   var vals: seq[N]
   for n in nodes:
-    vals.add normalizeSetImpl(n)
+    vals.add flattenSet(n, group)
 
   return newNTree[N](nnkCurly, vals)
 
-func normalizeSet*[NNode](node: NNode, forcebrace: bool = false): NNode =
+func normalizeSet*[N](
+    node: N, group: EnumValueGroup[N], forcebrace: bool = false): N =
   ## Convert any possible set representation (e.g. `{1}`, `{1, 2}`,
   ## `{2 .. 6}` as well as `2, 3` (in case branches). Return
   ## `nnkCurly` node with all values listed one-by-one (if identifiers
   ## were used) or in ranges (if original node contained `..`)
-  let vals = normalizeSetImpl(node)
+  let vals = flattenSet(node, group)
   if vals.len == 1 and not forcebrace:
     return vals[0]
 
   else:
-    return newNTree[NNode](nnkCurly, vals)
+    return newNTree[N](nnkCurly, vals)
 
-func joinSets*[NNode](nodes: seq[NNode]): NNode =
+func joinSets*[NNode](nodes: seq[NNode], group: EnumValueGroup[NNode]): NNode =
   ## Concatenate multiple sets in one element. Result will be wrapped
   ## in `Curly` node.
-  let vals = nodes.mapIt(it.normalizeSetImpl()).concat()
+  let vals = nodes.mapIt(it.flattenSet(group)).concat()
   result = newTree[NNode](nnkCurly, vals)
 
 proc parseEnumSet*[Enum](
