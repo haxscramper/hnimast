@@ -76,10 +76,10 @@ type
     kindField*: ObjectField[N]
     case isElse*: bool
       of true:
-        notOfValue*: N
+        notOfValue*: seq[N]
 
       of false:
-        ofValue*: N
+        ofValue*: seq[N]
 
 
   ObjectPath*[N] = seq[ObjectPathElem[N]]
@@ -422,12 +422,12 @@ proc eachPath*(
         if branch.isElse:
           parent & @[NObjectPathElem(
             isElse: true, kindField: fld,
-            notOfValue: nnkCurly.newTree(branch.notOfValue))]
+            notOfValue: branch.notOfValue)]
 
         else:
           parent & @[NObjectPathElem(
             isElse: false, kindField: fld,
-            ofValue: nnkCurly.newTree(branch.ofValue))]
+            ofValue: branch.ofValue)]
 
       let cbRes = cb(thisPath, branch.flds).nilToDiscard()
       if branch.isElse:

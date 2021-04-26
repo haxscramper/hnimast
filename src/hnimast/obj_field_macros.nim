@@ -57,12 +57,12 @@ proc getBranches*[N](
   for branch in node[1..^1]:
     case branch.kind.toNNK():
       of nnkOfBranch:
-        let ofSet = (newTree(nnkCurly, branch[0..^2])).normalizeSet(
+        let ofSet = (newTree(nnkCurly, branch[0..^2])).flattenSet(
           sym.enumValueGroup(isCheckedOn.get()))
         ofValues.add ofSet
         result.add ObjectBranch[N](
           declNode: some(branch),
-          ofValue: @[ofSet],
+          ofValue: ofSet,
           flds: branch[^1].getFields(isCheckedOn, sym),
           isElse: false
         )
