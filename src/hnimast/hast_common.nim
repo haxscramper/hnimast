@@ -17,6 +17,8 @@ const
   nnkFloatKinds* = { nnkFloatLit .. nnkFloat128Lit }
   nnkLiteralKinds* = nnkStrKinds + nnkIntKinds + nnkFloatKinds
   nnkTokenKinds* = nnkLiteralKinds + {nnkIdent, nnkSym}
+  nnkIdentKinds* = {nnkIdent, nnkSym}
+
 
   nnkProcKinds* = {
     nnkProcTy,
@@ -606,6 +608,13 @@ proc typeLispRepr*(node: NimNode, colored: bool = true): string =
               else:
                 return &["(", $field.intVal, ", ", field.strVal, ")"]
 
+        of nskTemplate:
+          let impl = node.getImpl()
+          return impl.toStrLit().strVal().toYellow(colored)
+
+        of nskConst:
+          return node.getImpl().toStrLit().strVal().toBlue(colored)
+
         else:
           raiseImplementKindError(node.symKind)
 
@@ -800,6 +809,44 @@ func makeInitCalls*[A](hset: HashSet[A]): NimNode =
   result = newCall("toHashSet", result)
 
 #=======================  Enum set normalization  ========================#
+func valuesInRange*[N](lowVal, highVal: N, group: EnumValueGroup[N]): seq[EnumFieldDef[N]] =
+  var values: seq[EnumFieldDef[N]]
+  var inRange: bool = false
+  for value in group.enumFields:
+    case lowVal.kind.toNNK():
+      of nnkIdentKinds:
+        if value.name == lowVal.strVal():
+          inRange = true
+
+      of nnkIntKinds:
+        if value.intVal == lowVal.intVal():
+          inRange = true
+
+      else:
+        raiseImplementKindError(lowVal)
+
+
+
+    if inRange:
+      values.add value
+
+    case highVal.kind.toNNK():
+      of nnkIdentKinds:
+        if value.name == highVal.strVal():
+          inRange = false
+          break
+
+      of nnkIntKinds:
+        if value.intVal == highVal.intVal():
+          inRange = false
+          break
+
+      else:
+        raiseImplementKindError(highVal)
+
+  return values
+
+
 func flattenSet*[N](node: N, group: EnumValueGroup[N]): seq[N] =
   case node.kind.toNNK():
     of nnkIdent:
@@ -820,8 +867,18 @@ func flattenSet*[N](node: N, group: EnumValueGroup[N]): seq[N] =
         result &= flattenSet(subnode, group)
 
     of nnkInfix:
+      let lowVal = node[1]
+      let highVal = node[2]
       assert node[0].getStrVal() == ".."
-      result = @[ node ]
+      if lowVal.kind.toNNK() in nnkIdentKinds and
+         highVal.kind.toNNK() in nnkIdentKinds:
+
+        for val in valuesInRange(lowVal, highVal, group):
+          result.add val.decl
+
+
+      else:
+        result = @[ node ]
 
     else:
       {.cast(noSideEffect).}:

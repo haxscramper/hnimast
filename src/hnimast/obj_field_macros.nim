@@ -21,6 +21,56 @@ type
     table: Table[string, N]
     enumCache: Table[string, EnumValueGroup[N]]
 
+proc addConst*[N](sym: var SymTable[N], c: N) =
+  case c.kind.toNNK():
+    of nnkTupleConstr:
+      let name = c[0].strVal()
+      var val = c[1]
+      let inst = val.getTypeInst()
+
+      echov c.treeRepr1()
+      echov inst.treeRepr1()
+
+      if val.kind.toNNK() == nnkSym:
+        val = val.getImpl()
+
+      echov val.treeRepr1()
+
+      var
+        enumName: string
+
+      case inst.kind.toNNK():
+        of nnkBracketExpr:
+          assert inst[0].getStrVal() == "set"
+          enumName = inst[1].getStrVal()
+
+        of nnkSym:
+          enumName = inst.getStrVal()
+
+        else:
+          raiseImplementKindError(inst)
+
+
+      case val.kind.toNNK():
+        of nnkCurly:
+          sym.enumCache[enumName].enumConsts[name] = valuesInRange(
+            val[0][0], val[0][1], sym.enumCache[enumName])
+
+        of nnkIntLit:
+          sym.enumCache[enumName].enumConsts[name] = valuesInRange(
+            val, val, sym.enumCache[enumName])
+
+        else:
+          raiseImplementKindError(val)
+
+
+
+    else:
+      raiseImplementKindError(c)
+
+      # sym.enumCache[name].enumConsts[c.]
+
+
 proc fieldTypeNode*[N](field: N): N =
   case field.kind.toNNK():
     of nnkRecCase:
@@ -493,7 +543,6 @@ func getFuckingTypeImpl(node: NimNode, getImpl: bool): NimNode =
 
 proc bodySymTable*(inNode: NimNode): SymTable[NimNode] =
   ## Return list of unique symbols used in node
-  echo inNode.treeRepr1()
   var symcache: HashSet[string]
   var symtable: SymTable[NimNode]
   proc aux(node: NimNode) =
@@ -507,7 +556,6 @@ proc bodySymTable*(inNode: NimNode): SymTable[NimNode] =
               symcache.incl hash
               symtable.table[$node] = node
               if impl.kind == nnkEnumTy:
-                echov impl.treeRepr1()
                 symtable.enumCache[$node] = EnumValueGroup[NimNode](
                   enumFields: splitEnumImpl(impl))
 
@@ -560,6 +608,9 @@ proc parseObject*[N](
   var sym: SymTable[N]
   when N is NimNode:
     sym = inNode.getFuckingTypeImpl(true).bodySymTable()
+
+  for c in constList:
+    sym.addConst(c)
 
   if node.kind notin {nnkTypeDef, nnkObjectTy}:
     raiseImplementKindError(node, node.treeRepr())
