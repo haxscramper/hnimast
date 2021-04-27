@@ -30,7 +30,7 @@ type
     ## recursive fields with case objects.
     pragma*: Option[Pragma[N]]
     value*: Option[N]
-    exported*: bool
+    isExported*: bool
     case isTuple*: bool # REVIEW REFACTOR move tuples into separate
                         # object instead of mixing them into `object`
                         # wrapper.
@@ -194,7 +194,7 @@ func addBranch*[N](
 
 
 #=============================  Predicates  ==============================#
-func markedAs*(fld: NObjectField, str: string): bool =
+func isMarkedWith*(fld: NObjectField, str: string): bool =
   fld.pragma.getElem(str).isSome()
 
 #===============================  Getters  ===============================#
@@ -512,7 +512,7 @@ func toNNode*[N](branch: ObjectBranch[N]): N =
 
 func toNNode*[N](fld: ObjectField[N]): N =
   let head =
-    if fld.exported:
+    if fld.isExported:
       newNTree[N](nnkPostfix,
                       newNIdent[N]("*"),
                       newNIdent[N](fld.name))
@@ -851,7 +851,12 @@ func getAtPath*(obj: var ObjTree, path: ObjPath): var ObjTree =
     else:
       raiseImplementError("")
 
+func hasPragma*[N](decl: ObjectDecl[N], name: string): bool =
+  decl.pragma.isSome() and decl.pragma.get().hasElem(name)
 
+func getPragmaArgs*[N](decl: ObjectDecl[N], name: string): seq[N] =
+  for arg in decl.pragma.getElem(name).get()[1 ..^ 1]:
+    result.add arg
 
 func eachPragmaMut*[N](
     branch: var ObjectBranch[N],

@@ -547,7 +547,11 @@ proc splitEnumImpl*[N](impl: N): seq[EnumFieldDef[N]] =
     var fName: string
     case field.kind
       of nnkEmpty: continue # skip first node of `enumTy`
-      of nnkSym, nnkIdent:
+      of nnkSym:
+        fStr = field.strVal()
+        fName = field.strVal()
+
+      of nnkIdent:
         fStr = field.strVal()
         fName = field.strVal()
 
@@ -647,11 +651,11 @@ proc treeRepr1*(
 
       elif positionIndexed:
         if level > 0:
-          "  ".repeat(level - 1) & "\e[38;5;240m#" & $idx[^1] & "\e[0m  "
-            # toItalic("\e[48;5;238m#" & $idx[^1], colored) & " "
+          "  ".repeat(level - 1) & "\e[38;5;240m#" & $idx[^1] & "\e[0m" &
+            "\e[38;5;237m/" & alignLeft($level, 2) & "\e[0m" & " "
 
         else:
-          "  "
+          "    "
 
       else:
         "  ".repeat(level)
@@ -703,8 +707,13 @@ proc treeRepr1*(
 
         for newIdx, subn in n:
           result &= aux(subn, level + 1, idx & newIdx)
+          if level + 1 > maxDepth:
+            break
+
           if newIdx < n.len - 1:
             result &= "\n"
+
+
 
   return aux(pnode, 0, @[])
 

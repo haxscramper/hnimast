@@ -338,8 +338,11 @@ func parseEnumImpl*[NNode](en: NNode): EnumDecl[NNode] =
     of nnkTypeSection:
       result = parseEnumImpl(en[0])
 
+    of nnkObjectTy:
+      raiseUnexpectedKindError(en)
+
     else:
-      raiseImplementError(&"#[ IMPLEMENT {en.kind} ]#")
+      raiseImplementKindError(en)
 
 func parseEnum*[NNode](node: NNode): EnumDecl[NNode] =
   return parseEnumImpl(node)

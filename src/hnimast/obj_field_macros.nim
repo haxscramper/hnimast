@@ -28,13 +28,8 @@ proc addConst*[N](sym: var SymTable[N], c: N) =
       var val = c[1]
       let inst = val.getTypeInst()
 
-      echov c.treeRepr1()
-      echov inst.treeRepr1()
-
       if val.kind.toNNK() == nnkSym:
         val = val.getImpl()
-
-      echov val.treeRepr1()
 
       var
         enumName: string
@@ -63,13 +58,8 @@ proc addConst*[N](sym: var SymTable[N], c: N) =
         else:
           raiseImplementKindError(val)
 
-
-
     else:
       raiseImplementKindError(c)
-
-      # sym.enumCache[name].enumConsts[c.]
-
 
 proc fieldTypeNode*[N](field: N): N =
   case field.kind.toNNK():
@@ -148,22 +138,7 @@ proc getFieldDescriptions[N](node: N): seq[FieldDesc[N]] =
     of nnkIdentDefs:
       let fldType = parseNType(node[^2])
       for ident in node[0 ..^ 3]:
-        var name: N
-        var exported = false
-        case ident.kind.toNNK():
-          of nnkPostfix:
-            exported = true
-            name = ident[1]
-
-          of nnkPragmaExpr:
-            if ident[0].kind.toNNK() == nnkPostfix:
-              name = ident[1]
-
-            else:
-              name = ident[0]
-
-          else:
-            name = ident
+        let (exported, name) = parseIdentName(ident)
 
         var field = FieldDesc[N](
           name: $name,
@@ -269,8 +244,12 @@ proc getFields*[N](
           raiseImplementKindError(node[0])
 
       else:
-        return node.getTypeImpl()[0].getImpl()[2][0].getFields(
-          none(N), sym, level + 1)
+        if node[0].kind == nnkObjectTy:
+          return getFields(node[0], none(N), sym, level)
+
+        else:
+          return node.getTypeImpl()[0].getImpl()[2][0].getFields(
+            none(N), sym, level + 1)
 
     of nnkRecList:
       mixin items
@@ -292,7 +271,7 @@ proc getFields*[N](
                 isChecked: isCheckedOn.isSome(),
                 branches:  getBranches(elem, some(elem), sym),
                 name:      descr[0].name,
-                exported:  descr[0].exported,
+                isExported:  descr[0].exported,
                 fldType:   descr[0].fldType,
               )
 
@@ -328,7 +307,7 @@ proc getFields*[N](
           isTuple:   false,
           isKind:    false,
           isChecked: isCheckedOn.isSome(),
-          exported:  desc.exported,
+          isExported:  desc.exported,
           name:      desc.name,
           fldType:   desc.fldType,
           value:     desc.value,
@@ -430,6 +409,7 @@ iterator iterateFields*[N](
     iterateItDFS(field, it.getSubfields(), it.isKind, order):
       yield it
 
+
 proc getBranchFields*[N](
     objDecl: ObjectDecl[N], preorder: bool = true): seq[ObjectField[N]] =
   ## - @arg{preorder} :: @pass{[[code:iterateFields().preorder]]}
@@ -514,17 +494,17 @@ func parsePPragma*(node: PNode, position: ObjectAnnotKind): Pragma[PNode] =
   parsePragma(node, position)
 
 
-func getFuckingTypeImpl(node: NimNode, getImpl: bool): NimNode =
+func getTypeImplBody*(node: NimNode, getImpl: bool): NimNode =
   case node.kind:
     of nnkSym:
       if getImpl:
-        result = getFuckingTypeImpl(node.getTypeImpl(), getImpl)
+        result = getTypeImplBody(node.getTypeImpl(), getImpl)
 
       else:
         let inst = node.getTypeInst()
         case inst.kind:
           of nnkBracketExpr:
-            result = getFuckingTypeImpl(inst[1].getImpl(), getImpl)
+            result = getTypeImplBody(inst[1].getImpl(), getImpl)
 
           else:
             raiseImplementKindError(inst)
@@ -533,10 +513,13 @@ func getFuckingTypeImpl(node: NimNode, getImpl: bool): NimNode =
       raiseImplementError("Cannot get type implementation from ident")
 
     of nnkBracketExpr:
-      result = getFuckingTypeImpl(node[1], getImpl)
+      result = getTypeImplBody(node[1], getImpl)
 
     of nnkObjectTy, nnkTypeDef:
       return node
+
+    of nnkRefTy:
+      result = getTypeImplBody(node[0], getImpl)
 
     else:
       raiseImplementKindError(node, node.treeRepr())
@@ -552,12 +535,18 @@ proc bodySymTable*(inNode: NimNode): SymTable[NimNode] =
           of nskType:
             let impl = node.getType()
             let hash = signatureHash(node)
-            if hash notin symcache:
-              symcache.incl hash
-              symtable.table[$node] = node
-              if impl.kind == nnkEnumTy:
-                symtable.enumCache[$node] = EnumValueGroup[NimNode](
-                  enumFields: splitEnumImpl(impl))
+
+            if impl.kind == nnkEnumTy:
+              let impl2 = node.getTypeInst().getImpl()[2]
+              if hash notin symcache:
+                symcache.incl hash
+                symtable.table[$node] = node
+                if impl.kind == nnkEnumTy:
+                  symtable.enumCache[$node] = EnumValueGroup[NimNode](
+                    enumFields: splitEnumImpl(impl2))
+
+            else:
+              discard
 
           else:
             discard
@@ -600,14 +589,16 @@ proc parseObject*[N](
             "Parsing PNode from symbol on the first level is not supported")
 
         else:
-          inNode.getFuckingTypeImpl(parseImpl)
+          inNode.getTypeImplBody(parseImpl)
 
       else:
         inNode
 
+  # echo node.treeRepr1(maxDepth = 2)
+
   var sym: SymTable[N]
   when N is NimNode:
-    sym = inNode.getFuckingTypeImpl(true).bodySymTable()
+    sym = inNode.getTypeImplBody(true).bodySymTable()
 
   for c in constList:
     sym.addConst(c)
