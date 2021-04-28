@@ -1,6 +1,6 @@
 import hast_common, idents_types, pragmas
 import std/[macros, tables, options, strutils, sequtils]
-import compiler/[ast, idents]
+import compiler/[ast]
 import hmisc/helpers
 import hmisc/types/colorstring
 import hast_common
@@ -502,8 +502,9 @@ proc eachPath*(
         branchBody.add nnkOfBranch.newTree(
           nnkCurly.newTree(branch.ofValue), cbRes)
 
-      for fld in branch.flds:
-        branchBody.add fld.eachPath(self, thisPath, cb)
+      {.warning[Deprecated]:off.}:
+        for fld in branch.flds:
+          branchBody.add fld.eachPath(self, thisPath, cb)
 
 
 proc eachPath*(
@@ -512,10 +513,11 @@ proc eachPath*(
     cb: proc(path: NObjectPath, fields: seq[NObjectField]): NimNode
   ): NimNode {.deprecated.} =
 
-  result = newStmtList cb(@[], obj.flds)
-  for fld in items(obj.flds):
-    if fld.isKind:
-      result.add fld.eachPath(self, @[], cb)
+  {.warning[Deprecated]:off.}:
+    result = newStmtList cb(@[], obj.flds)
+    for fld in items(obj.flds):
+      if fld.isKind:
+        result.add fld.eachPath(self, @[], cb)
 
 proc eachPath*(
     self: NimNode,
@@ -523,11 +525,12 @@ proc eachPath*(
     cb: proc(fields: seq[NObjectField]): NimNode
   ): NimNode {.deprecated.} =
 
-  return eachPath(
-    self, obj,
-    proc(path: NObjectPath, fields: seq[NObjectField]): NimNode =
-      cb(fields)
-  )
+  {.warning[Deprecated]:off.}:
+    return eachPath(
+      self, obj,
+      proc(path: NObjectPath, fields: seq[NObjectField]): NimNode =
+        cb(fields)
+    )
 
 
 func onPath*(self: NimNode, path: NObjectPath): NimNode =

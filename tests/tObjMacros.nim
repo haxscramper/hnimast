@@ -1,10 +1,8 @@
-import sugar, strutils, sequtils, strformat, options
+import std/[strutils, sequtils, strformat, options]
 import compiler/ast
 import ../src/hnimast/[obj_field_macros, object_decl]
 import ../src/hnimast
 import hmisc/types/colorstring
-
-import hpprint, hpprint/objdiff
 
 import unittest
 

@@ -312,8 +312,9 @@ func newProcDeclNode*(
   impl: NimNode, pragma: NPragma = NPragma(), exported: bool = true,
   comment: string = ""): NimNode {.deprecated.} =
 
-  newProcDeclNNode[NimNode](
-    head, rtype, args, impl, pragma, exported, comment)
+  {.warning[Deprecated]:off.}:
+    newProcDeclNNode[NimNode](
+      head, rtype, args, impl, pragma, exported, comment)
 
 
 func newProcDeclNode*(
@@ -387,15 +388,16 @@ func newProcDeclNode*[NNode](
   pragma: Pragma[NNode] = Pragma[NNode](),
   exported: bool = true,
   comment: string = ""): NNode {.deprecated.} =
-  newProcDeclNNode(
-    head,
-    some(rtype),
-    toNIdentDefs[NNode](args),
-    impl,
-    pragma,
-    exported,
-    comment
-  )
+  {.warning[Deprecated]:off.}:
+    newProcDeclNNode(
+      head,
+      some(rtype),
+      toNIdentDefs[NNode](args),
+      impl,
+      pragma,
+      exported,
+      comment
+    )
 
 func newProcDeclNode*[NNode](
   head: NNode,
@@ -408,15 +410,16 @@ func newProcDeclNode*[NNode](
   pragma: Pragma[NNode] = Pragma[NNode](),
   exported: bool = true,
   comment: string = ""): NNode {.deprecated.} =
-  newProcDeclNNode(
-    head,
-    none(NType[NNode]),
-    toNIdentDefs[NNode](args),
-    impl,
-    pragma,
-    exported,
-    comment
-  )
+  {.warning[Deprecated]:off.}:
+    newProcDeclNNode(
+      head,
+      none(NType[NNode]),
+      toNIdentDefs[NNode](args),
+      impl,
+      pragma,
+      exported,
+      comment
+    )
 
 proc parseProc*[N](node: N): ProcDecl[N] =
   result = newProcDecl[N](":tmp")

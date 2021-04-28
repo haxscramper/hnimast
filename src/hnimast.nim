@@ -8,6 +8,8 @@ export base_errors
 
 import std/[options, macros]
 import compiler/[ast, idents, lineinfos, renderer]
+export idents, lineinfos
+
 import hnimast/[
   pnode_parse,
   hast_common,
@@ -31,6 +33,7 @@ export pnode_parse,
   hast_quote,
   nim_decl,
   obj_field_macros
+
 
 export pnode_parse, options, NimNodeKind
 
