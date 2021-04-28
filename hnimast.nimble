@@ -11,7 +11,8 @@ srcDir        = "src"
 requires "nim >= 1.4.0"
 requires "hmisc >= 0.10.1"
 requires "macroutils"
-requires "compiler"
+requires "compiler >= 1.4.0"
+requires "nimble <= 0.13.0"
 
 task docgen, "Generate documentation":
   exec("hmisc-putils docgen")

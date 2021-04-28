@@ -1,4 +1,4 @@
-import sugar, strutils, sequtils, strformat, macros
+import std/[strutils, macros]
 
 import ../src/hnimast
 import ../src/hnimast/obj_field_macros
@@ -19,7 +19,7 @@ func parseAnnot(body: NimNode, kind: ObjectAnnotKind): Annot =
 macro makeAnnots(body: untyped): untyped =
   for section in body:
     for obj in section:
-      let parsed = obj.parseObject(parseAnnot)
+      let parsed = obj.parseObject()
 
 makeAnnots:
   type
