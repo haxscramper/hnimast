@@ -678,7 +678,7 @@ func parseNidentDefs*[N](node: N): NIdentDefs[N] =
     result.idents.add arg
 
   if node[^2].kind != nnkEmpty:
-    result.vtype = newNType(node[^2])
+    result.vtype = parseNType(node[^2])
 
   else:
     # FIXME just putting `N` for `NType` results in 'object constructor

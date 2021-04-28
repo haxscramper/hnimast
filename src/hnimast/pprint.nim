@@ -5,8 +5,10 @@ import hmisc/macros/cl_logic
 
 import ../hnimast, nim_decl
 
-import std/[options, strutils, strformat, sequtils, streams, sugar, macros]
-import compiler/[ast, idents, lineinfos]
+import std/[options, strutils, strformat, sequtils, streams, # sugar,
+            macros]
+import compiler/[ast, # idents,
+                 lineinfos]
 
 proc str(n: PNode): string = `$`(n)
 

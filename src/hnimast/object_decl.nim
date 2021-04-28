@@ -263,8 +263,6 @@ proc newDot*[N](self: N, field: ObjectField[N]): N =
 proc newDot*[N](self: string, field: ObjectField[N]): N =
   newNTree[N](nnkDotExpr, newNIdent[N](self), newNIdent[N](field.name))
 
-
-
 #===============================  Getters  ===============================#
 
 # ~~~~ each field mutable ~~~~ #
@@ -480,7 +478,7 @@ proc eachStaticPath*(
 proc eachPath*(
     fld: NObjectField, self: NimNode, parent: NObjectPath,
     cb: proc(path: NObjectPath, fields: seq[NObjectField]): NimNode
-  ): NimNode =
+  ): NimNode {.deprecated: "Use `mapPath` insetad".} =
 
   if fld.isKind:
     result = nnkCaseStmt.newTree(newDotExpr(self, ident fld.name))
@@ -512,14 +510,7 @@ proc eachPath*(
     self: NimNode,
     obj: NObjectDecl,
     cb: proc(path: NObjectPath, fields: seq[NObjectField]): NimNode
-  ): NimNode =
-  ## Visit each group of fields in object described by `obj` and
-  ## generate case statement with all possible object paths. Arguments
-  ## for callback - `NObjectPath` is a sequence of kind field values that
-  ## *must be active in order for execution to reach this path* in
-  ## case statement. Second argument is a list of fields that can be
-  ## accessed at that path.
-  ## TODO:DOC add example
+  ): NimNode {.deprecated.} =
 
   result = newStmtList cb(@[], obj.flds)
   for fld in items(obj.flds):
@@ -530,7 +521,7 @@ proc eachPath*(
     self: NimNode,
     obj: NObjectDecl,
     cb: proc(fields: seq[NObjectField]): NimNode
-  ): NimNode =
+  ): NimNode {.deprecated.} =
 
   return eachPath(
     self, obj,
@@ -843,7 +834,6 @@ func initObjTree*(): ObjTree =
   # TODO:DOC
   ObjTree(styling: initPrintStyling())
 
-
 #=======================  Annotation and styling  ========================#
 
 func annotate*(tree: var ObjTree, annotation: string): void =
@@ -1144,6 +1134,12 @@ proc mapPath*(
     caseExpr: proc(path: seq[NObjectField]): NimNode,
     cb: proc(path: NObjectPath, fields: seq[NObjectField]): NimNode
   ): NimNode =
+  ## Visit each group of fields in object described by `obj` and generate
+  ## case statement with all possible object paths. Arguments for callback
+  ## - `NObjectPath` is a sequence of kind field values that *must be
+  ## active in order for execution to reach this path* in case statement.
+  ## Second argument is a list of fields that can be accessed at that path.
+
   result = newStmtList cb(@[], obj.flds).fixEmptyStmt()
   for fld in items(obj.flds):
     if fld.isKind:
@@ -1151,6 +1147,14 @@ proc mapPath*(
 
 
 template mapItPath*(objectDecl: NObjectDecl, expr, body: untyped): untyped =
+  ##[
+
+Convenience template for [[code:mapPath()]]
+
+- @arg{expr} :: `case` builder expressions, [[code:mapPath().caseExpr]]
+- @arg{body} :: group body converter expression, [[code:mapPath().cb]]
+
+]##
   mapPath(
     objectDecl,
     proc(path {.inject.}: seq[NObjectField]): NimNode = expr,

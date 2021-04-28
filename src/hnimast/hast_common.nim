@@ -1,4 +1,4 @@
-import std/[macros, sequtils, strformat, strutils, tables, sets]
+import std/[macros, sequtils, strformat, strutils, tables, sets, options]
 import compiler/[ast, idents, lineinfos, renderer]
 import hmisc/types/colorstring
 import hmisc/helpers
@@ -124,6 +124,10 @@ func getStrVal*(p: PNode): string =
     else:
       raiseArgumentError(
         "Cannot get string value from node of kind " & $p.kind)
+
+func getIntVal*(n: PNode): BiggestInt = n.intVal
+func getIntVal*(n: NimNode): BiggestInt = n.intVal()
+
 
 proc getStrVal*(s: PSym): string = s.name.s
 
@@ -551,6 +555,7 @@ type
     intVal*: BiggestInt
 
   EnumValueGroup*[N] = object
+    wrapConvert*: Option[string]
     enumFields*: seq[EnumFieldDef[N]]
     enumConsts*: Table[string, seq[EnumFieldDef[N]]]
 
@@ -838,11 +843,11 @@ func valuesInRange*[N](lowVal, highVal: N, group: EnumValueGroup[N]): seq[EnumFi
   for value in group.enumFields:
     case lowVal.kind.toNNK():
       of nnkIdentKinds:
-        if value.name == lowVal.strVal():
+        if value.name == lowVal.getStrVal():
           inRange = true
 
       of nnkIntKinds:
-        if value.intVal == lowVal.intVal():
+        if value.intVal == lowVal.getIntVal():
           inRange = true
 
       else:
@@ -855,12 +860,12 @@ func valuesInRange*[N](lowVal, highVal: N, group: EnumValueGroup[N]): seq[EnumFi
 
     case highVal.kind.toNNK():
       of nnkIdentKinds:
-        if value.name == highVal.strVal():
+        if value.name == highVal.getStrVal():
           inRange = false
           break
 
       of nnkIntKinds:
-        if value.intVal == highVal.intVal():
+        if value.intVal == highVal.getIntVal():
           inRange = false
           break
 
@@ -873,8 +878,8 @@ func valuesInRange*[N](lowVal, highVal: N, group: EnumValueGroup[N]): seq[EnumFi
 func flattenSet*[N](node: N, group: EnumValueGroup[N]): seq[N] =
   case node.kind.toNNK():
     of nnkIdent:
-      if node.strVal() in group.enumConsts:
-        for value in group.enumConsts[node.strVal()]:
+      if node.getStrVal() in group.enumConsts:
+        for value in group.enumConsts[node.getStrVal()]:
           result &= newNIdent[N](value.strVal)
 
       else:
@@ -914,6 +919,14 @@ func flattenSet*[N](node: N, group: EnumValueGroup[N]): seq[N] =
 
         raiseArgumentError(
           "Cannot normalize set: " & str & " - unknown kind")
+
+  if group.wrapConvert.isSome():
+    let convert = group.wrapConvert.get()
+    var res: seq[N]
+    for item in result:
+      res.add newNTree(nnkCall, newNIdent[N](convert), item)
+
+    return res
 
 
 

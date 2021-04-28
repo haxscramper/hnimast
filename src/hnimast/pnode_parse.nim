@@ -1,4 +1,5 @@
-import compiler/[parser, llstream, idents, options, pathutils, astalgo]
+import compiler/[parser, llstream, idents, options, pathutils# , astalgo
+]
 import compiler/[ast, lineinfos]
 
 type ParseError = ref object of CatchableError

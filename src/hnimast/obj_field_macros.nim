@@ -1,12 +1,12 @@
 import macroutils
 import hmisc/hexceptions
 
-import std/[options, sets, sugar, options, tables,
+import std/[options, sets, options, tables,
             strutils, strformat, macros, sequtils]
 
 export options
 import compiler/ast
-import hmisc/algo/[halgorithm, htree_mapping]
+import hmisc/algo/[halgorithm, htree_mapping, namegen]
 import hmisc/helpers
 import hmisc/types/colorstring
 import object_decl, idents_types, hast_common, pragmas
@@ -24,7 +24,7 @@ type
 proc addConst*[N](sym: var SymTable[N], c: N) =
   case c.kind.toNNK():
     of nnkTupleConstr:
-      let name = c[0].strVal()
+      let name = c[0].getStrVal()
       var val = c[1]
       let inst = val.getTypeInst()
 
@@ -79,10 +79,14 @@ proc enumValueGroup*[N](
   ##
   ## - NOTE :: If `enumName` is not in the symbol table empty value group
   ##   is returned and no exception is raised.
-  let enumName = field.fieldTypeNode().strVal()
+  let enumName = field.fieldTypeNode().getStrVal()
 
   if enumName in sym.enumCache:
     return sym.enumCache[enumName]
+
+  else:
+    if isReservedNimType(enumName):
+      return EnumValueGroup[N](wrapConvert: some(enumName))
 
 proc getFields*[N](
     node: N, isCheckedOn: Option[N], sym: SymTable[N], level: int = 0
@@ -208,13 +212,15 @@ proc getFields*[N](
               declNode:  some(node),
               isTuple:   false,
               isKind:    false,
-              pragma:    descr.pragma,
               isChecked: isCheckedOn.isSome(),
               name:      descr.name,
               fldType:   descr.fldType,
-              exported:  descr.exported,
+              isExported:  descr.exported,
               value:     descr.value
             )]
+
+            if descr.pragma.len > 0:
+              result[0].pragma = some descr.pragma[0]
 
           else:
             raiseImplementError("")
@@ -600,8 +606,8 @@ proc parseObject*[N](
   when N is NimNode:
     sym = inNode.getTypeImplBody(true).bodySymTable()
 
-  for c in constList:
-    sym.addConst(c)
+    for c in constList:
+      sym.addConst(c)
 
   if node.kind notin {nnkTypeDef, nnkObjectTy}:
     raiseImplementKindError(node, node.treeRepr())
@@ -787,34 +793,33 @@ Allows to iterate two objects at once, while keeping track of `kind`
 fields for each type. The body is unrolled and variables are injected
 for each field.
 
-## Injected variables
+* Injected variables
 
-:name: name of the current field
-:lhs, rhs: value of current fields
-:fldIdx: int. Index of current field in the object.
-:valIdx: int. Index of current *value field* in the object
-:lhsObj, rhsObj: Original objects being iterated. [1]_
-:isKind:
-  bool. Whether or not current field is used as case parameter for object
+- @inject{name} :: name of the current field
+- @inject{lhs}, @inject{rhs} :: value of current fields
+- @inject{fldIdx} :: int. Index of current field in the object.
+- @inject{valIdx} :: int. Index of current *value field* in the object
+- @inject{lhsObj}, @inject{rhsObj} :: Original objects being iterated. [fn:1]
+- @inject{isKind} :: bool. Whether or not current field is used as case
+  parameter for object
 
-[1] Useful when iterating over results of expression
+[fn:1] Useful when iterating over results of expression
 
-## Notes
+* Notes
 
-### Limitations
+** Limitations
 
-- Private fields cannot be accessed directly - compilation will fail.
-  Can be fixed by defining getter with the same name as a field (e.g
-  for field `kind` define `func kind(t: T): KindType`). Dirty workaround
-  is to use `hackPrivateParallelFieldPairs` - it can access private
-  fields (but does not work if your private private field has a
-  non-exported type)
+- Private fields cannot be accessed directly - compilation will fail. Can
+  be fixed by defining getter with the same name as a field (e.g for field
+  `kind` define `func kind(t: T): KindType`). Dirty workaround is to use
+  `hackPrivateParallelFieldPairs` - it can access private fields (but does
+  not work if your private private field has a non-exported type)
 
-### `fldIdx` and `valIdx`
+** `fldIdx` and `valIdx`
 
 Difference between `fldIdx` and `valIdx`. First one describes order of
-fields **as defined** in object while second one shows order of fields
-**as accessed** in object. For example, in object like this:
+fields **as defined** in object while second one shows order of fields **as
+accessed** in object. For example, in object like this:
 
 .. code-block:: nim
     type

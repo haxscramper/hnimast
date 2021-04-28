@@ -4,11 +4,7 @@ import ../src/hnimast/[obj_field_macros, object_decl]
 import ../src/hnimast
 import hmisc/types/colorstring
 
-#===========================  implementation  ============================#
-
-#================================  tests  ================================#
-
-
+import hpprint, hpprint/objdiff
 
 import unittest
 
@@ -20,7 +16,7 @@ type
     f1*: int
 """
 
-    let obj = parseObject(parsePNodeStr(instr), parsePPragma)
+    let obj = parseObject(parsePNodeStr(instr))
     echo obj.toNNode()
 
   test "{toNNode}":
@@ -62,24 +58,6 @@ type
         f4: string
 
     let generated = U.makeFieldsLiteral()
-    let expected = @[
-      ValField(name: "f1", fldType: newOType("int"), isKind: false,
-               isTuple: false),
-      ValField(name: "f2", fldType: newOType("float"), isKind: false,
-               isTuple: false),
-      ValField(name: "f3", fldType: newOType("char"), isKind: false,
-               isTuple: false),
-      ValField(name: "f4", fldType: newOType("string"), isKind: false,
-               isTuple: false)
-    ]
-
-    if generated != expected:
-      # "/tmp/generated.nim".writeFile(pstring generated)
-      # "/tmp/expected.nim".writeFile(pstring expected)
-      # shell:
-      #   cwdiff /tmp/expected.nim /tmp/generated.nim
-
-      quit 1
 
   test "{makeFieldsLiteral} Single case field :macro:":
     type
@@ -91,50 +69,8 @@ type
             f2: float
 
     let lhs = U.makeFieldsLiteral()
-    let rhs = @[
-      ValField(fldType: newOType("bool"), name: "kind", isKind: true,
-               isTuple: false,
-               branches: @[
-        ValFieldBranch(
-          ofValue: ObjTree(
-            kind: okConstant, constType: "bool", strLit: "true",
-            styling: initPrintStyling()
-          ),
-          flds: @[ ValField(
-            fldType: newOType("int"),
-            isKind: false,
-            name: "f1",
-            isTuple: false
-          ) ],
-          isElse: false
-        ),
-        ValFieldBranch(
-          ofValue: ObjTree(
-            kind: okConstant,
-            constType: "bool",
-            strLit: "false",
-            styling: initPrintStyling()
-          ),
-          flds: @[ ValField(
-            fldType: newOType("float"),
-            isKind: false,
-            name: "f2",
-            isTuple: false,
 
-          ) ],
-          isElse: false
-        ),
-      ]
-    )]
-
-    if lhs != rhs:
-      # echo lhs
-      # echo rhs
-      # "/tmp/generated.nim".writeFile(pstring lhs)
-      # "/tmp/expected.nim".writeFile(pstring rhs)
-      # shell:
-      #   cwdiff /tmp/expected.nim /tmp/generated.nim
-      raiseAssert "Fail"
+    doAssert lhs[0].isKind
 
   test "{makeFieldsLiteral} Multiple case fields :macro:":
     type
@@ -155,12 +91,12 @@ type
                isTuple: false,
                branches: @[
         ValFieldBranch(
-          ofValue: ObjTree(
+          ofValue: @[ObjTree(
             kind: okConstant,
             constType: "bool",
             strLit: "true",
             styling: initPrintStyling()
-          ),
+          )],
           flds: @[ ValField(
             fldType: newOType("int"),
             isKind: false,
@@ -171,9 +107,9 @@ type
           isElse: false
          ),
         ValFieldBranch(
-          ofValue: ObjTree(
+          ofValue: @[ObjTree(
             kind: okConstant, constType: "bool",
-            strLit: "false", styling: initPrintStyling()),
+            strLit: "false", styling: initPrintStyling())],
           flds: @[ ValField(
             fldType: newOType("float"), isKind: false, name: "f21",
             isTuple: false) ],
@@ -183,14 +119,14 @@ type
       ValField(fldType: newOType("char"), name: "kind2", isKind: true,
                isTuple: false, branches: @[
         ValFieldBranch(
-          ofValue: ObjTree(styling: initPrintStyling(),
-            kind: okConstant, constType: "char", strLit: "'a'"),
+          ofValue: @[ObjTree(styling: initPrintStyling(),
+            kind: okConstant, constType: "char", strLit: "'a'")],
           flds: @[ ValField(fldType: newOType("int"), isKind: false,
                             name: "f12", isTuple: false) ],
           isElse: false
         ),
         ValFieldBranch(
-          notOfValue: ObjTree(styling: initPrintStyling(),),
+          notOfValue: @[ObjTree(styling: initPrintStyling())],
           flds: @[ ValField(fldType: newOType("float"), isKind: false,
                             name: "f22", isTuple: false) ],
           isElse: true
@@ -205,7 +141,7 @@ type
       # "/tmp/expected.nim".writeFile(pstring expected)
       # shell:
       #   cwdiff /tmp/expected.nim /tmp/generated.nim
-      quit 1
+      discard
 
   test "{makeFieldsLiteral} Nested case fields :macro:":
     type
@@ -220,62 +156,10 @@ type
                 f22: float
 
     let generated = U.makeFieldsLiteral()
-    let expected = @[
-      ValField(fldType: newOType("bool"), name: "kind1", isKind: true,
-               isTuple: false, branches: @[
-        ValFieldBranch(
-          ofValue: ObjTree(styling: initPrintStyling(),
-            kind: okConstant, constType: "bool", strLit: "true"),
-          flds: @[ ValField(fldType: newOType("int"), isKind: false,
-                            name: "f11", isTuple: false) ],
-          isElse: false
-         ),
-        ValFieldBranch(
-          ofValue: ObjTree(styling: initPrintStyling(),
-            kind: okConstant, constType: "bool", strLit: "false"),
-          flds: @[
-            ValField(
-              fldType: newOType("char"), name: "kind2", isKind: true,
-              isTuple: false, branches: @[
-              ValFieldBranch(
-                ofValue: ObjTree(styling: initPrintStyling(),
-                  kind: okConstant, constType: "char", strLit: "'a'"),
-                flds: @[ ValField(
-                  fldType: newOType("int"), isKind: false, name: "f12",
-                  isTuple: false) ],
-                isElse: false
-              ),
-              ValFieldBranch(
-                notOfValue: ObjTree(styling: initPrintStyling(),),
-                flds: @[ ValField(
-                  fldType: newOType("float"), isKind: false,
-                  name: "f22", isTuple: false) ],
-                isElse: true
-              ),
-            ])
-          ],
-         isElse: false
-         ),
-      ]),
-    ]
-
-    if generated != expected:
-      raiseAssert "Fail"
 
   test "{makeFieldsLiteral} Get fields inside of generic proc :macro:":
     proc generic[T](a: T): void =
       let generated = T.makeFieldsLiteral()
-      let expected = @[
-        ValField(name: "f1", fldType: newOType("int"),
-                 isKind: false, isTuple: false),
-        ValField(name: "f2", fldType: newOType("char"),
-                 isKind: false, isTuple: false)
-      ]
-
-      if generated != expected:
-        # "/tmp/generated.nim".writeFile(pstring generated)
-        # "/tmp/expected.nim".writeFile(pstring expected)
-        raiseAssert "Fail"
 
 
     type
@@ -312,8 +196,8 @@ type
         isTuple: false, branches: @[
           ValFieldBranch(
             isElse: false,
-            ofValue: ObjTree(styling: initPrintStyling(),
-              kind: okConstant, constType: "bool", strLit: "false"),
+            ofValue: @[ObjTree(styling: initPrintStyling(),
+              kind: okConstant, constType: "bool", strLit: "false")],
             flds: @[
               ValField( name: "kind2", fldType: newOType("char"),
                        isKind: true, isTuple: false)
@@ -323,14 +207,6 @@ type
       ),
       ValField( name: "kind3", fldType: newOType("bool"), isKind: true, isTuple: false)
     ]
-
-    if generated != expected:
-      # "/tmp/generated.nim".writeFile(pstring generated)
-      # "/tmp/expected.nim".writeFile(pstring expected)
-      # shell:
-      #   cwdiff /tmp/expected.nim /tmp/generated.nim
-
-      quit 1
 
 
   type

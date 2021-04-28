@@ -48,14 +48,14 @@ suite "HNimAst":
       for stmt in body:
         for obj in stmt:
           if obj.kind == nnkTypeDef:
-            let obj = obj.parseObject(parseNimPragma)
-            if obj.annotation.isSome():
-              for call in obj.annotation.get().elements:
+            let obj = parseObject(obj)
+            if obj.pragma.isSome():
+              for call in obj.pragma.get().elements:
                 discard
 
             for field in obj.flds:
-              if field.annotation.isSome():
-                for call in field.annotation.get().elements:
+              if field.pragma.isSome():
+                for call in field.pragma.get().elements:
                   discard
 
     parse:
@@ -89,16 +89,16 @@ suite "HNimAst":
               f4: float
 
 
-  test "{parseObject} filter pragma annotations":
+  test "{parseObject} filter pragma pragmas":
     macro parse(body: untyped): untyped =
-      var obj = body[0][0].parseObject(parseNimPragma)
-      for call in obj.annotation.get().elements:
+      var obj = body[0][0].parseObject()
+      for call in obj.pragma.get().elements:
         discard
 
-      obj.annotation = none(NPragma)
+      obj.pragma = none(NPragma)
 
-      obj.eachFieldMut do(fld: var ObjectField[NimNode, NPragma]):
-        fld.annotation = none(NPragma)
+      obj.eachFieldMut do(fld: var ObjectField[NimNode]):
+        fld.pragma = none(NPragma)
 
       result = nnkTypeSection.newTree obj.toNimNode()
 
@@ -109,11 +109,9 @@ suite "HNimAst":
 
   test "{eachCase}":
     macro mcr(body: untyped): untyped =
-      let obj = body[0][0].parseObject(parseNimPragma)
+      let obj = body[0][0].parseObject()
       let objid = ident "hjhh"
-      let impl = objid.eachCase(obj) do(
-        fld: NObjectField[NPragma]
-      ) -> NimNode:
+      let impl = objid.eachCase(obj) do(fld: NObjectField) -> NimNode:
         let fld = ident fld.name
         quote do:
           echo `objid`.`fld`
@@ -147,12 +145,12 @@ suite "HNimAst":
     ## Automatically generate comparison proc for case objects.
     macro mcr(body: untyped): untyped =
       let
-        obj = body[0][0].parseObject(parseNimPragma)
+        obj = body[0][0].parseObject()
         lhs = ident "lhs"
         rhs = ident "rhs"
 
       let impl = (lhs, rhs).eachParallelCase(obj) do(
-        fld: NObjectField[NPragma]) -> NimNode:
+        fld: NObjectField) -> NimNode:
         let fld = ident fld.name
         quote do:
           if `lhs`.`fld` != `rhs`.`fld`:
@@ -191,11 +189,11 @@ suite "HNimAst":
 
   test "{eachPath}":
     macro mcr(body: untyped): untyped =
-      let obj = body[0][0].parseObject(parseNimPragma)
+      let obj = body[0][0].parseObject()
       let self = ident "self"
       let impl = self.eachPath(obj) do(
-        path: NObjectPath[NPragma],
-        flds: seq[NObjectField[NPragma]]
+        path: NObjectPath,
+        flds: seq[NObjectField]
       ) -> NimNode:
         discard
 
@@ -309,7 +307,7 @@ type Type = object
   hello: float
 """.parsePNodeStr()
 
-    var obj = parseObject(node, parsePPragma)
+    var obj = parseObject(node)
     obj.exported = true
     echo obj.toNNode()
 

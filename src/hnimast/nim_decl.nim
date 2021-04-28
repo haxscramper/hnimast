@@ -76,7 +76,7 @@ type
 func `==`*[N](a, b: ObjectBranch[N]): bool =
   a.isElse == b.isElse and
   a.flds == b.flds and
-  a.annotation == b.annotation and
+  a.pragma == b.pragma and
   (
     case a.isElse:
       of true: a.notOfValue == b.notOfValue
