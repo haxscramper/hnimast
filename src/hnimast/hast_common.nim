@@ -401,6 +401,20 @@ func setPosition*[N](target: var N, source: N) =
   else:
     target.info = source.info
 
+
+
+proc newIdent*(str: string): NimNode = newIdentNode(str)
+
+proc newDot*[N](self: N, name: string): N =
+  newNTree[N](nnkDotExpr, self, newNIdent[N](name))
+
+proc newSet*[N](elements: varargs[N]): N = newNTree[N](nnkCurly, elements)
+proc newDot*[N](lhs, rhs: N): N = newNTree[N](nnkCurly, lhs, rhs)
+
+proc newExprColon*[N](lhs, rhs: N): N =
+  newNTree[N](nnkExprColonExpr, lhs, rhs)
+
+
 #=======================  Misc helper algorithms  ========================#
 
 
@@ -980,6 +994,9 @@ proc parseIdentName*[N](node: N): tuple[exported: bool, name: N] =
       result.name = node[1]
       result.exported = true
 
+    of nnkIdentDefs:
+      result = parseIdentName(node[0])
+
     else:
       result.name = node
 
@@ -1069,3 +1086,10 @@ proc isEmptyNode*[N](nodes: seq[N]): bool =
   for node in nodes:
     if not isEmptyNode(node):
       return false
+
+proc fixEmptyStmt*(node: NimNode): NimNode =
+  if isEmptyNode(node):
+    newDiscardStmt()
+
+  else:
+    node

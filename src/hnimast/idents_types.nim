@@ -815,3 +815,11 @@ func newCallNode*(
   args: seq[NimNode]): NimNode =
   ## Create call node `dotHead.name[@gentypes](@args)`
   newCallNode(dotHead, name, toSeq(args), toSeq(genTypes))
+
+proc newVar*[N](name: string, varType: NType[N], default: N = nil): N =
+  newNTree[N](nnkVarSection, newNTree[N](
+    nnkIdentDefs,
+    newNIdent[N](name),
+    toNNode[N](varType),
+    (if isNil(default): newEmptyNNode[N]() else: default)
+  ))
