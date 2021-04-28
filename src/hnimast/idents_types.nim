@@ -607,6 +607,9 @@ func newNTypeNNode*[NNode](node: NNode): NType[NNode] =
       # `ptr [CXString]`
       result = newNTypeNNode(node[0])
 
+    of nnkPragmaExpr:
+      result = newNTypeNNode(node[0])
+
     else:
       raiseImplementError(
         &"Implement NType conversion for '{node.kind}' '" &

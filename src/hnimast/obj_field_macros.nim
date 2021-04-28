@@ -48,8 +48,17 @@ proc addConst*[N](sym: var SymTable[N], c: N) =
 
       case val.kind.toNNK():
         of nnkCurly:
-          sym.enumCache[enumName].enumConsts[name] = valuesInRange(
-            val[0][0], val[0][1], sym.enumCache[enumName])
+          var values: seq[EnumFieldDef[N]]
+          for item in val[0]:
+            if item.kind.toNNK() == nnkRange:
+              values.add valuesInRange(
+                item[0], item[1], sym.enumCache[enumName])
+
+            else:
+              values.add valuesInRange(
+                item, item, sym.enumCache[enumName])
+
+          sym.enumCache[enumName].enumConsts[name] = values
 
         of nnkIntLit:
           sym.enumCache[enumName].enumConsts[name] = valuesInRange(
@@ -105,6 +114,7 @@ proc getBranches*[N](
           sym.enumValueGroup(isCheckedOn.get()))
         ofValues.add ofSet
         result.add ObjectBranch[N](
+          docComment: branch.getDocComment(),
           declNode: some(branch),
           ofValue: ofSet,
           flds: branch[^1].getFields(isCheckedOn, sym),
@@ -113,6 +123,7 @@ proc getBranches*[N](
 
       of nnkElse:
         result.add ObjectBranch[N](
+          docComment: branch.getDocComment(),
           declNode: some(branch),
           flds: branch[0].getFields(isCheckedOn, sym),
           isElse: true,
@@ -209,6 +220,7 @@ proc getFields*[N](
           if node.kind.toNNK() == nnkSym:
             let descr = getFieldDescriptions(node)[0]
             result = @[ObjectField[N](
+              docComment: node.getDocComment(),
               declNode:  some(node),
               isTuple:   false,
               isKind:    false,
@@ -271,6 +283,7 @@ proc getFields*[N](
           case elem.kind.toNNK():
             of nnkRecCase: # Case field
               var field = ObjectField[N](
+                docComment: elem.getDocComment(),
                 declNode:  some(elem),
                 isTuple:   false,
                 isKind:    true,
@@ -299,6 +312,7 @@ proc getFields*[N](
     of nnkTupleConstr:
       for idx, sym in pairs(node):
         result.add ObjectField[N](
+          docComment: sym.getDocComment(),
           declNode: some(sym),
           isTuple: true,
           isChecked: isCheckedOn.isSome(),
@@ -309,6 +323,7 @@ proc getFields*[N](
       let descr = getFieldDescriptions(node)
       for idx, desc in descr:
         var field = ObjectField[N](
+          docComment: node.getDocComment(),
           declNode:  some(node),
           isTuple:   false,
           isKind:    false,
@@ -355,6 +370,7 @@ proc getKindFields*[Node](
   for fld in flds:
     if fld.isKind:
       var fld =  ObjectField[Node](
+        docComment: fld.docComment,
         declNode: fld.declNode,
         isTuple: false,
         isKind: true,
@@ -366,6 +382,7 @@ proc getKindFields*[Node](
         if it.flds.len > 0:
           if it.isElse:
             fld.branches.add ObjectBranch[Node](
+              docComment: it.docComment,
               declNode: it.declNode,
               notOfValue: it.notOfValue,
               isElse: true,
@@ -374,6 +391,7 @@ proc getKindFields*[Node](
 
           else:
             fld.branches.add ObjectBranch[Node](
+              docComment: it.docComment,
               declNode: it.declNode,
               ofValue: it.ofValue,
               isElse: false,
@@ -568,7 +586,8 @@ proc bodySymTable*(inNode: NimNode): SymTable[NimNode] =
   return symtable
 
 proc parseObject*[N](
-    inNode: N, parseImpl: bool = true, constList: seq[N] = @[]): ObjectDecl[N] =
+    inNode: N, parseImpl: bool = true,
+    constList: seq[N] = @[]): ObjectDecl[N] =
   ## Parse object implementation
   ##
   ## - @arg{parseImpl} :: If `inNode` is a symbol used to selecting between
@@ -615,8 +634,11 @@ proc parseObject*[N](
   let declBody = tern(node.kind == nnkTypeDef, node[2], node)
 
   result = ObjectDecl[N](
+    docComment: node.getDocComment(),
     declNode: some(node),
     flds: declBody.getFields(none(N), sym))
+
+  result.base = declBody.getSomeBase()
 
   if node.kind == nnkTypeDef:
     let (exported, name) = parseIdentName(node[0])

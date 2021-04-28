@@ -11,6 +11,8 @@ type
     declNode*: Option[N]
     pragma*: Option[PRagma[N]]
     flds*: seq[ObjectField[N]] ## Fields in the case branch
+    docComment*: string
+    codeComment*: string
     case isElse*: bool ## Whether this branch is placed under `else` in
                   ## case object.
       of true:
@@ -68,6 +70,7 @@ type
     # TODO rename to objType
     flds*: seq[ObjectField[N]]
     declNode*: Option[N]
+    base*: Option[N]
 
   # FieldBranch*[Node] = ObjectBranch[Node, void]
   # Field*[Node] = ObjectField[Node, void]

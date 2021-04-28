@@ -34,6 +34,7 @@ type
     signature*: NType[NNode] ## Signature of the proc as `ntProc` NType
     genParams*: seq[NType[NNode]] ## Generic parameters for proc
     impl*: NNode ## Implementation body
+    declNode*: Option[NNode]
 
   PProcDecl* = ProcDecl[PNode]
   NProcDecl* = ProcDecl[NimNode]
@@ -423,6 +424,7 @@ func newProcDeclNode*[NNode](
 
 proc parseProc*[N](node: N): ProcDecl[N] =
   result = newProcDecl[N](":tmp")
+  result.declNode = some(node)
 
   case toNNK(node.kind):
     of nnkProcDeclKinds:
@@ -453,12 +455,7 @@ proc parseProc*[N](node: N): ProcDecl[N] =
         result.arguments.add parseNidentDefs(arg)
 
       result.impl = node[6]
-
-      if node[6].kind in {nnkStmtList} and
-         node[6].len > 0 and
-         node[6][0].kind == nkCommentStmt
-        :
-        result.docComment = node[6][0].comment
+      result.docComment = node.getDocComment()
 
     else:
       raiseImplementError($node.kind & " " & $node.getInfo())

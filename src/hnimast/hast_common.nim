@@ -18,6 +18,7 @@ const
   nnkLiteralKinds* = nnkStrKinds + nnkIntKinds + nnkFloatKinds
   nnkTokenKinds* = nnkLiteralKinds + {nnkIdent, nnkSym}
   nnkIdentKinds* = {nnkIdent, nnkSym}
+  nnkWrapTy* = { nnkRefTy, nnkPtrTy }
 
 
   nnkProcKinds* = {
@@ -38,6 +39,7 @@ const
     nnkConverterDef
   }
 
+  nnkDeclKinds* = nnkProcDeclKinds + { nnkTypeDef }
 
   nkStrKinds* = { nkStrLit .. nkTripleStrLit }
   nkIntKinds* = { nkCharLit .. nkUInt64Lit }
@@ -505,10 +507,16 @@ proc treeRepr*(
       return pref & " ..."
 
     result &= pref & ($n.kind)[2..^1]
-    if n.comment.len > 0:
+    if n.comment.len > 0:#  and (
+    #   # Not a comment statement
+    #   n.kind != nkCommentStmt or
+    #   # Or a comment without duplicated `strVal`/`comment` fields`
+    #   # (n.kind == nkCommentStmt and n.comment != n.strVal)
+    # )
+
       result.add "\n"
       for line in split(n.comment, '\n'):
-        result.add pref & " " & toCyan(line) & "\n"
+        result.add pref & "  # " & toCyan(line) & "\n"
 
     case n.kind:
       of nkStrKinds:
@@ -524,17 +532,18 @@ proc treeRepr*(
         result &= " " & toGreen(n.getStrVal(), colored)
 
       of nkCommentStmt:
-        let lines = split(n.comment, '\n')
-        if lines.len > 1:
-          result &= "\n"
-          for idx, line in pairs(lines):
-            if idx != 0:
-              result &= "\n"
+        discard
+        # let lines = split(n.comment, '\n')
+        # if lines.len > 1:
+        #   result &= "\n"
+        #   for idx, line in pairs(lines):
+        #     if idx != 0:
+        #       result &= "\n"
 
-            result &= pref & toYellow(line)
+        #     result &= pref & toYellow(line)
 
-        else:
-          result &= toYellow(n.comment)
+        # else:
+        #   result &= toYellow(n.comment)
 
       else:
         if n.len > 0:
@@ -542,10 +551,25 @@ proc treeRepr*(
 
         for newIdx, subn in n:
           result &= aux(subn, level + 1, idx & newIdx)
+          if level + 1 > maxDepth:
+            break
+
           if newIdx < n.len - 1:
             result &= "\n"
 
   return aux(pnode, 0, @[])
+
+
+proc treeRepr1*(
+    pnode: PNode,
+    colored: bool = true,
+    pathIndexed: bool = false,
+    positionIndexed: bool = true,
+    maxdepth: int = 120,
+  ): string =
+
+  treeRepr(
+    pnode, colored, maxdepth = maxdepth, indexed = pathIndexed)
 
 type
   EnumFieldDef*[N] = object
@@ -1106,3 +1130,67 @@ proc fixEmptyStmt*(node: NimNode): NimNode =
 
   else:
     node
+
+proc getDocComment*[N](node: N): string =
+  when node is NimNode:
+    if node.kind notin {nnkCommentStmt} + nnkProcDeclKinds:
+      return ""
+
+  case node.kind.toNNK():
+    of nnkCommentStmt:
+      when node is NimNode:
+        return node.getStrVal()
+
+      else:
+        return node.comment
+
+    of nnkTypeDef:
+      return getDocComment(node[2])
+
+    of nnkObjectTy, nnkIdentDefs:
+      when node is PNode:
+        return node.comment
+
+    of nnkWrapTy:
+      return getDocComment(node[0])
+
+    of nnkProcDeclKinds:
+      # echo node.treeRepr1()
+      when node is PNode:
+        result.add node.comment
+        result.add "\n"
+
+      for subnode in node[6]:
+        result.add subnode.getDocComment()
+
+    of nnkAsgn, nnkStmtListExpr, nnkStmtList:
+      for subnode in node:
+        result.add getDocComment(subnode)
+
+    else:
+      when node is PNode:
+
+        proc nocomment(n: PNode) =
+          if n.comment != "":
+            raiseImplementKindError(node, node.treeRepr1(maxDepth = 3))
+          for s in n:
+            nocomment(s)
+
+        nocomment(node)
+
+proc getSomeBase*[N](node: N): Option[N] =
+  case node.kind.toNNK():
+    of nnkWrapTy:
+      result = getSomeBase(node[0])
+
+    of nnkObjectTy:
+      result = getSomeBase(node[1])
+
+    of nnkOfInherit:
+      result = some node[0]
+
+    of nnkEmpty:
+      discard
+
+    else:
+      discard

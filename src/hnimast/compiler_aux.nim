@@ -3,6 +3,8 @@ import hmisc/helpers
 import hmisc/types/[colortext]
 import std/[parseutils]
 
+import ./hast_common
+
 export colorizeToStr
 import std/[with]
 
@@ -28,6 +30,24 @@ proc getStdPath*(): AbsDir =
     ~".choosenim/toolchains" / ("nim-" & version) / "lib"
   )
 
+proc getFilePath*(config: ConfigRef, info: TLineInfo): AbsoluteFile =
+  ## Get absolute file path for declaration location of `node`
+  if info.fileIndex.int32 >= 0:
+    result = config.m.fileInfos[info.fileIndex.int32].fullPath
+
+proc getFilePath*(graph: ModuleGraph, node: PNode): AbsoluteFile =
+  ## Get absolute file path for declaration location of `node`
+  graph.config.getFilePath(node.getInfo())
+
+proc isObjectDecl*(node: PNode): bool =
+  node.kind == nkTypeDef and
+  (
+    node[2].kind == nkObjectTy or
+    (
+      node[2].kind in {nkPtrTy, nkRefTy} and
+      node[2][0].kind == nkObjectTy
+    )
+  )
 
 proc newModuleGraph*(
     file: AbsFile,
