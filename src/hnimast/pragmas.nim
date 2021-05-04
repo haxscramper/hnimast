@@ -75,6 +75,9 @@ func parsePragma*[N](node: N): Pragma[N] =
     of nnkPragmaExpr:
       result = parsePragma(node[1])
 
+    of nnkEmpty:
+      discard
+
     else:
       raiseUnexpectedKindError(node, node.treeRepr())
 

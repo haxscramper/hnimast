@@ -200,6 +200,18 @@ func addBranch*[N](
 func isMarkedWith*(fld: NObjectField, str: string): bool =
   fld.pragma.getElem(str).isSome()
 
+func isMarkedWith*(fld: NObjectField, pragma, arg: string): bool =
+  let pragma = fld.pragma.getElem(pragma)
+  if pragma.isSome() and pragma.get().len() > 1:
+    for element in pragma.get()[1]:
+      if element.kind in {nnkIdent, nnkSym} and element.strVal() == arg:
+        return true
+
+proc newCall*(obj: NObjectDecl): NimNode =
+  # TODO check if object is a ref or not and select corresponding name
+  return newCall("new" & obj.name.head)
+
+
 proc isFinalBranch*[N](field: ObjectField[N]): bool =
   if not field.isKind:
     return true

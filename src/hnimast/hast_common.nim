@@ -246,6 +246,8 @@ func newNIdent*[NNode](str: string): NNode =
   else:
     newPIdent(str)
 
+func newNIdent*[N](n: N): N = n
+
 func newNTree*[NNode](
   kind: NimNodeKind, subnodes: varargs[NNode]): NNode =
   ## Create new tree with `subnodes` and `kind`
@@ -283,10 +285,19 @@ func newCommentStmtNNode*[NNode](comment: string): NNode =
     result = newNTree[NNode](nnkCommentStmt)
     result.comment = comment
 
-template addPositionComment*[N](node: N): untyped =
+template addPositionComment*[N](node: N, msg: string = ""): untyped =
   newNTree[N](
     nnkStmtList,
-    newCommentStmtNNode[N](toStr(instantiationInfo())),
+    newCommentStmtNNode[N](toStr(instantiationInfo()) & " " & msg),
+    node
+  )
+
+template addPositionEcho*[N](node: N, msg: string = ""): untyped =
+  newNTree[N](
+    nnkStmtList,
+    newNTree[N](
+      nnkCall, newNIdent[N]("debugecho"),
+      newNLit[N, string](toStr(instantiationInfo()) & " " & msg)),
     node
   )
 
@@ -343,6 +354,11 @@ proc newPLit*[T](s: set[T]): PNode =
   for value in s:
     result.add newPLit(value)
 
+proc newLit*[T](s: set[T]): NimNode =
+  result = newTree(nnkCurly)
+  for value in s:
+    result.add nnkDotExpr.newTree(
+      ident($typeof(T)), ident(toString(value)))
 
 func newRStrLit*(st: string): PNode =
   result = nnkRStrLit.newPTree()
@@ -419,6 +435,45 @@ proc newDot*[N](lhs, rhs: N): N = newNTree[N](nnkCurly, lhs, rhs)
 
 proc newExprColon*[N](lhs, rhs: N): N =
   newNTree[N](nnkExprColonExpr, lhs, rhs)
+
+
+
+proc newCall*[N](arg1: N, name: string, args: varargs[N]): N =
+  ## Create new `Call` node using `arg1` as a first argumen, `name` as a
+  ## function name. This is a convenience function for constructing chained
+  ## one-or-more argument calls using
+  ## `obj.newCall("callName").newCall("anotherCall")`. NOTE that it does
+  ## not create `DotExpr` node.
+  result = newNTree[N](nnkCall, newNIdent[N](name))
+  result.add arg1
+  for arg in args:
+    result.add arg
+
+proc newWhile*[N](expr: N, body: varargs[N]): N =
+  result = newNTree[N](
+    nnkWhileStmt, expr, newNtree[N](nnkStmtList, body))
+
+proc addArgument*[N](n: N, name: string, expr: N) =
+  n.add newNTree[N](nnkExprEqExpr, newIdent(name), expr)
+
+proc newAnd*[N](a, b: N): N =
+  newNTree[N](nnkInfix, newNIdent[N]("and"), a, b)
+
+proc newOr*[N](a, b: N): N =
+  newNTree[N](nnkInfix, newNIdent[N]("or"), a, b)
+
+proc newNot*[N](a: N): N =
+  newNTree[N](nnkPrefix, newNIdent[N]("not"), a)
+
+proc newIn*[N; E: enum](a: N, b: set[E]): N =
+  newNTree[N](nnkInfix, newNIdent[N]("in"), a, newNLit[N, set[E]](b))
+
+
+proc newBreak*(target: NimNode = newEmptyNode()): NimNode =
+  newTree(nnkBreakStmt, target)
+
+proc newIfStmt*[N](cond, body: N): NimNode =
+  newNTree[N](nnkIfStmt, newNTree[N](nnkElifBranch, cond, body))
 
 
 #=======================  Misc helper algorithms  ========================#
@@ -528,8 +583,16 @@ proc treeRepr*(
       of nkFloatKinds:
         result &= " " & toMagenta($n.floatVal, colored)
 
-      of nkIdent, nkSym:
+      of nkIdent:
         result &= " " & toGreen(n.getStrVal(), colored)
+
+      of nkSym:
+        result &= [
+          " ", toBlue(($n.sym.kind)[2 ..^ 1], colored),
+          " ", toGreen(n.getStrVal(), colored)
+          # " <", n.typeLispRepr(), ">"
+        ]
+
 
       of nkCommentStmt:
         discard
@@ -807,8 +870,11 @@ func makeConstructAllFields*[T](val: T): NimNode =
     result = val.mapPairs(
       rhs.makeConstructAllFields()).toBracketSeq()
 
-  elif val is int | float | string | bool | enum | set:
+  elif val is int | float | string | bool | enum:
     result = newLit(val)
+
+  elif val is set:
+    result = hast_common.newLit(val)
 
   else:
     when val is Option:
@@ -1039,7 +1105,7 @@ proc parseIdentName*[N](node: N): tuple[exported: bool, name: N] =
 
 proc addBranch*[N](main: var N, expr: N | seq[N], body: varargs[N]) =
   case main.kind.toNNK():
-    of nnkCaseStmt:
+    of nnkCaseStmt, nnkIfStmt, nnkWhenStmt:
       if body.len == 0:
         main.add newNTree[N](nnkElse, expr)
 
@@ -1047,8 +1113,12 @@ proc addBranch*[N](main: var N, expr: N | seq[N], body: varargs[N]) =
         when expr isnot seq:
           let expr = @[expr]
 
+        var kind = nnkElifBranch
+        if main.kind.toNNK() == nnkCaseStmt:
+          kind = nnkOfBranch
+
         main.add newNTree[N](
-          nnkOfBranch, expr & newNTree[N](
+          kind, expr & newNTree[N](
             nnkStmtList, newEmptyNNode[N]() & toSeq(body)))
 
     else:
@@ -1056,7 +1126,11 @@ proc addBranch*[N](main: var N, expr: N | seq[N], body: varargs[N]) =
 
 proc newNLit*[N, T](item: T): N =
   when N is NimNode:
-    newLit(item)
+    when item is set:
+      hast_common.newLit(item)
+
+    else:
+      newLit(item)
 
   else:
     newPLit(item)
@@ -1071,9 +1145,14 @@ proc addBranch*[N](main: var N, expr: seq[string], body: varargs[N]) =
   addBranch(main, mapIt(expr, newNLit[N, string](it)), body)
 
 proc addBranch*[N, E](main: var N, expr: set[E], body: varargs[N]) =
-  addBranch(main, newPLit(expr), body)
+  addBranch(main, newNLit[N, set[E]](expr), body)
 
-proc newAsgn*[N](lhs, rhs: N): N = newNTree[N](nnkAsgn, lhs, rhs)
+proc newAsgn*[N](lhs: string, rhs: N): N =
+  newNTree[N](nnkAsgn, newNIdent[N](lhs), rhs)
+
+proc newAsgn*[N](lhs, rhs: N): N =
+  newNTree[N](nnkAsgn, lhs, rhs)
+
 proc toPNode*(node: PNode): PNode = node
 proc toPNode*(val: string): PNode = newPLit(val)
 proc newCaseStmt*[N](expr: N): N =

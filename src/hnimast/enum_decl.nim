@@ -344,7 +344,7 @@ func parseEnumImpl*[NNode](en: NNode): EnumDecl[NNode] =
     else:
       raiseImplementKindError(en)
 
-func parseEnum*[NNode](node: NNode): EnumDecl[NNode] =
+func parseEnum*[NNode: not enum](node: NNode): EnumDecl[NNode] =
   return parseEnumImpl(node)
 
 #========================  Other implementation  =========================#
