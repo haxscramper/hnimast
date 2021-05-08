@@ -1,16 +1,16 @@
 import hmisc/other/[oswrap, hshell]
 import hmisc/helpers
 import hmisc/types/[colortext]
-import std/[parseutils]
+import std/[parseutils, sequtils, with]
 
 import ./hast_common
 
 export colorizeToStr
-import std/[with]
 
 import compiler /
   [ idents, options, modulegraphs, passes, lineinfos, sem, pathutils, ast,
-    modules, condsyms, passaux, llstream, parser, nimblecmd
+    modules, condsyms, passaux, llstream, parser, nimblecmd, scriptconfig,
+    passes
   ]
 
 export idents, options, modulegraphs, passes, lineinfos, pathutils, sem,
@@ -21,23 +21,29 @@ import compiler/astalgo except debug
 export astalgo except debug
 
 
-proc getStdPath*(): AbsDir =
+proc getInstallationPath*(): AbsDir =
   var version = evalShellStdout shellCmd(nim, --version)
   let start = "Nim Compiler Version ".len
   let finish = start + version.skipWhile({'0'..'9', '.'}, start)
   version = version[start ..< finish]
-  result = AbsDir(
-    ~".choosenim/toolchains" / ("nim-" & version) / "lib"
-  )
+  result = AbsDir(~".choosenim/toolchains" / ("nim-" & version))
 
-proc getFilePath*(config: ConfigRef, info: TLineInfo): AbsoluteFile =
+proc getStdPath*(): AbsDir =
+  getInstallationPath() / "lib"
+
+proc getFilePath*(config: ConfigRef, info: TLineInfo): AbsFile =
   ## Get absolute file path for declaration location of `node`
   if info.fileIndex.int32 >= 0:
-    result = config.m.fileInfos[info.fileIndex.int32].fullPath
+    result = config.m.fileInfos[info.fileIndex.int32].fullPath.
+      string.AbsFile()
 
-proc getFilePath*(graph: ModuleGraph, node: PNode): AbsoluteFile =
+proc getFilePath*(graph: ModuleGraph, node: PNode): AbsFile =
   ## Get absolute file path for declaration location of `node`
-  graph.config.getFilePath(node.getInfo())
+  graph.config.getFilePath(node.getInfo()).string.AbsFile()
+
+proc getFilePath*(graph: ModuleGraph, sym: PSym): AbsFile =
+  ## Get absolute file path for symbol
+  graph.config.getFilePath(sym.info).string.AbsFile()
 
 proc isObjectDecl*(node: PNode): bool =
   node.kind == nkTypeDef and
@@ -95,6 +101,53 @@ proc newModuleGraph*(
   nimblePath(config, ~".nimble/pkgs", TLineInfo())
 
   return newModuleGraph(cache, config)
+
+proc compileString*(text: string, stdpath: AbsDir): PNode =
+  assertExists(stdpath)
+
+  # type
+  #   Ctx = ref object of PPassContext
+  #     id: int32
+
+  var graph {.global.}: ModuleGraph
+  var moduleName {.global.}: string
+  moduleName = "compileStringModuleName"
+  graph = newModuleGraph(AbsFile(moduleName), stdpath,
+    proc(config: ConfigRef; info: TLineInfo; msg: string; level: Severity) =
+      if config.errorCounter >= config.errorMax:
+        echo msg
+  )
+
+  var res {.global.}: PNode
+  res = nkStmtList.newTree()
+
+  registerPass(graph, semPass)
+  registerPass(
+    graph, makePass(
+      (
+        proc(graph: ModuleGraph, module: PSym): PPassContext {.nimcall.} =
+          return PPassContext()
+      ),
+      (
+        proc(c: PPassContext, n: PNode): PNode {.nimcall.} =
+          if n.info.fileIndex.int32 == 1:
+            res.add n
+          result = n
+      ),
+      (
+        proc(graph: ModuleGraph; p: PPassContext, n: PNode): PNode {.nimcall.} =
+          discard
+      )
+    )
+  )
+
+  var m = graph.makeModule(moduleName)
+  graph.vm = setupVM(m, graph.cache, moduleName, graph)
+  graph.compileSystemModule()
+  discard graph.processModule(m, llStreamOpen(text))
+
+  return res
+
 
 import nimblepkg/[common, packageinfo, version]
 import std/[parsecfg, streams, tables, sets]
@@ -483,7 +536,94 @@ proc parsePackageInfo*(
       "Cannot parse package at path: " & $path
     )
 
+import nimblepkg/[packageparser, cli, version, packageinfo, common]
+import nimblepkg/options as nimble_options
 
 proc getPackageInfo*(path: AbsFile): PackageInfo =
   let configText = readFile(path)
   return parsePackageInfo(configText, path)
+
+proc initDefaultNimbleOptions*(): Options =
+  result = initOptions()
+  result.nimbleDir = $(~".nimble")
+  result.verbosity = SilentPriority
+
+
+
+proc getRequires*(file: AbsFile): seq[PkgTuple] =
+  getPackageInfo(file).requires
+
+proc resolvePackage*(pkg: PkgTuple): AbsDir =
+  ## Resolve package `pkg` constraints to absolute directory
+  discard
+
+proc findPackage*(
+    name: string,
+    version: VersionRange,
+    options: Options
+  ): Option[PackageInfo] =
+
+  var pkgList {.global.}: seq[tuple[
+    pkginfo: PackageInfo, meta: MetaData]] = @[]
+
+  once:
+    pkgList = getInstalledPkgsMin(getPkgsDir(options), options)
+
+  let dep: PkgTuple = (name: name, ver: version)
+
+  let resolvedDep = resolveAlias(dep, options)
+  var pkg: PackageInfo
+  var found = findPkg(pkgList, resolvedDep, pkg)
+  if not found and resolvedDep.name != dep.name:
+    found = findPkg(pkgList, dep, pkg)
+
+  if found:
+    return some(pkg)
+
+proc resolveNimbleDeps*(file: AbsFile, options: Options): seq[AbsDir] =
+  let info = getPackageInfo(file)
+  for dep in info.requires:
+    let pkg = findPackage(dep.name, dep.ver, options)
+
+    if pkg.isNone():
+      if dep.name != "nim":
+        raiseImplementError("")
+
+    else:
+      result.add(AbsDir(pkg.get().getRealDir()))
+      result.add(resolveNimbleDeps(AbsFile(pkg.get().myPath), options))
+
+proc getNimblePaths*(file: AbsFile): seq[AbsDir] =
+  var nimbleFile: Option[AbsFile]
+  block mainSearch:
+    for dir in parentDirs(file):
+      for file in walkDir(dir, AbsFile):
+        if ext(file) in ["nimble", "babel"]:
+          nimbleFile = some(file)
+          break mainSearch
+
+
+  if nimbleFile.isSome():
+    let options = initDefaultNimbleOptions()
+    setVerbosity(SilentPriority)
+    result = resolveNimbleDeps(nimbleFile.get(), options).deduplicate()
+
+
+when isMainModule:
+  let n = compileString("""
+type
+  ## Bad: this documentation disappears because it annotates the ``type`` keyword
+  ## above, not ``NamedQueue``.
+  NamedQueue*[T] = object
+    name*: string ## This becomes the main documentation for the object, which
+                  ## is not what we want.
+    val*: T ## Its value
+    next*: ref NamedQueue[T] ## The next item in the queue
+
+const
+  ## Const documentation ?
+  A = 123 ## Particular value
+  B = 12333 ## Other value
+
+""", getStdPath())
+  echo n.treeRepr1()

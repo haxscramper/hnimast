@@ -31,6 +31,7 @@ proc addConst*[N](sym: var SymTable[N], c: N) =
       if val.kind.toNNK() == nnkSym:
         val = val.getImpl()
 
+
       var
         enumName: string
 
@@ -49,7 +50,7 @@ proc addConst*[N](sym: var SymTable[N], c: N) =
       case val.kind.toNNK():
         of nnkCurly:
           var values: seq[EnumFieldDef[N]]
-          for item in val[0]:
+          for item in val:
             if item.kind.toNNK() == nnkRange:
               values.add valuesInRange(
                 item[0], item[1], sym.enumCache[enumName])
@@ -184,7 +185,14 @@ proc getFieldDescriptions[N](node: N): seq[FieldDesc[N]] =
           fldType = parseNType(node.sym.typ.n)
 
         else:
-          fldTYpe = newNNType[N]("TYPE_DETECTION_ERROR")
+          if node.sym.notNil(): echo node.sym
+          if node.sym.notNil() and node.sym.typ.notNil():
+            echo "type is not nil"
+
+          fldType = newNNType[N]("TYPE_DETECTION_ERROR")
+          raiseImplementError(node.treeRepr())
+          # echo node
+          # fldType.declNode = some node
 
       else:
         fldTYpe = newNNType[N]("TYPE_DETECTION_ERROR")
@@ -346,8 +354,34 @@ proc getFields*[N](
       discard
 
     of nnkRecWhen:
-      for subnode in items(node):
-        result.add getFields(subnode, isCheckedOn, sym, level + 1)
+      discard
+      # WARNING ignoring `when` fields, need to provide IR representation
+      # and handle edge cases. NOTE this one broke on `options` from the
+      # stdlib.
+
+      # TypeDef
+      #   Sym Type Option
+      #   GenericParams
+      #     Sym Type T
+      #   ObjectTy
+      #     Empty
+      #     Empty
+      #     RecList
+      #       RecWhen
+      #         ElifBranch
+      #           Infix
+      #             Sym Proc is
+      #             Sym Type T
+      #             Type
+      #           Sym Field val
+      #         Else
+      #           RecList
+      #             Sym Field val
+      #             Sym Field has
+
+
+      # for subnode in items(node):
+      #   result.add getFields(subnode, isCheckedOn, sym, level + 1)
 
     of nnkElifBranch:
       # WARNING condition is dropped
@@ -618,8 +652,6 @@ proc parseObject*[N](
 
       else:
         inNode
-
-  # echo node.treeRepr1(maxDepth = 2)
 
   var sym: SymTable[N]
   when N is NimNode:

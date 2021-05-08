@@ -53,7 +53,7 @@ type
         value*: NNode
 
       of ntkCurly:
-        curlyHead: NNode
+        curlyHeadIt: SingleIt[NType[NNode]]
         curlyArgs: seq[NNode]
 
       of ntkNone:
@@ -87,6 +87,10 @@ func `vaType=`*[N](t: var NType[N], vat: NType[N]) =
   t.vaTypeIt = newIt(vat)
 
 func vaType*[N](t: NType[N]): NType[N] = getIt(t.vaTypeIt)
+func curlyHead*[N](t: NType[N]): NType[N] = getIt(t.curlyHeadIt)
+
+func `curlyHead=`*[N](t: var NType[N], head: NType[N]) =
+  t.curlyHeadIt = newIt(head)
 
 func `returnType=`*[N](t: var NType[N], val: NType[N]) =
   t.rType = some(newIt(val))
@@ -260,7 +264,7 @@ func toNNode*[NNode](
 
     of ntkCurly:
       result = newNTree[NNode](nnkCurlyExpr)
-      result.add ntype.curlyHead
+      result.add ntype.curlyHead.toNNode()
       for it in ntype.curlyArgs:
         result.add it
 
@@ -520,11 +524,14 @@ func newNTypeNNode*[NNode](node: NNode): NType[NNode] =
     of nnkIteratorTy: result = newNNType[NNode]("iterator")
     # of nnkDistinctTy: result = newNNType[NNode]("distinct")
 
-    of nnkCurlyExpr: result = NType[NNode](
-      kind: ntkCurly,
-      curlyHead: node[0],
-      curlyArgs: toSeq(node[1..^1])
-    )
+    of nnkCurlyExpr:
+      result = NType[NNode](
+        kind: ntkCurly,
+        curlyArgs: toSeq(node[1..^1])
+      )
+
+      result.curlyHead = newNTypeNNode(node[0])
+
 
     of nnkCommand:
       result = newNType(node[0].getStrVal(), @[newNTypeNNode(node[1])])
@@ -820,10 +827,10 @@ func newCallNode*(
   newCallNode(dotHead, name, toSeq(args), toSeq(genTypes))
 
 proc newVar*[N: NimNode | PNode](
-    name: string | N, varType: NType[N], default: N = nil): N =
+    name: string | N, varType: NType[N] | N, default: N = nil): N =
   newNTree[N](nnkVarSection, newNTree[N](
     nnkIdentDefs,
     newNIdent[N](name),
-    toNNode[N](varType),
+    (when varType is N: varType else: toNNode[N](varType)),
     (if isNil(default): newEmptyNNode[N]() else: default)
   ))

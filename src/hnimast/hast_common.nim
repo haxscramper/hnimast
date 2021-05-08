@@ -60,6 +60,16 @@ const
     nkConverterDef
   }
 
+  skProcDeclKinds* = {
+    skProc,
+    skTemplate,
+    skMethod,
+    skMacro,
+    skIterator,
+    skConverter,
+    skFunc
+  }
+
 type
   ObjectAnnotKind* = enum
     ## Position of annotation (most likely pragma) attached.
@@ -427,7 +437,7 @@ func setPosition*[N](target: var N, source: N) =
 
 proc newIdent*(str: string): NimNode = newIdentNode(str)
 
-proc newDot*[N](self: N, name: string): N =
+proc newDot*[N: NimNode | PNode](self: N, name: string): N =
   newNTree[N](nnkDotExpr, self, newNIdent[N](name))
 
 proc newSet*[N](elements: varargs[N]): N = newNTree[N](nnkCurly, elements)
@@ -630,6 +640,9 @@ proc treeRepr1*(
     positionIndexed: bool = true,
     maxdepth: int = 120,
   ): string =
+
+  ## - TODO :: optionally show node positions
+  ## - TODO :: make output identical to `treeRepr1` for `NimNode`
 
   treeRepr(
     pnode, colored, maxdepth = maxdepth, indexed = pathIndexed)
@@ -927,9 +940,12 @@ func makeInitCalls*[A](hset: HashSet[A]): NimNode =
   result = newCall("toHashSet", result)
 
 #=======================  Enum set normalization  ========================#
-func valuesInRange*[N](lowVal, highVal: N, group: EnumValueGroup[N]): seq[EnumFieldDef[N]] =
+func valuesInRange*[N](
+    lowVal, highVal: N, group: EnumValueGroup[N]): seq[EnumFieldDef[N]] =
+
   var values: seq[EnumFieldDef[N]]
   var inRange: bool = false
+
   for value in group.enumFields:
     case lowVal.kind.toNNK():
       of nnkIdentKinds:
@@ -937,7 +953,7 @@ func valuesInRange*[N](lowVal, highVal: N, group: EnumValueGroup[N]): seq[EnumFi
           inRange = true
 
       of nnkIntKinds:
-        if value.intVal == lowVal.getIntVal():
+        if lowVal.getIntVal() == value.intVal:
           inRange = true
 
       else:
@@ -955,7 +971,7 @@ func valuesInRange*[N](lowVal, highVal: N, group: EnumValueGroup[N]): seq[EnumFi
           break
 
       of nnkIntKinds:
-        if value.intVal == highVal.getIntVal():
+        if highVal.getIntVal() == value.intVal:
           inRange = false
           break
 
@@ -1203,6 +1219,24 @@ proc isEmptyNode*[N](nodes: seq[N]): bool =
     if not isEmptyNode(node):
       return false
 
+proc isObject*(node: NimNode): bool =
+  case node.kind:
+    of nnkObjectTy:
+      true
+
+    of nnkEnumTy:
+      false
+
+    of nnkRefTy, nnkPtrTy:
+      node[0].kind in {nnkObjectTy}
+
+    of nnkTypeDef:
+      isObject(node[2])
+
+    else:
+      raiseImplementKindError(node)
+
+
 proc fixEmptyStmt*(node: NimNode): NimNode =
   if isEmptyNode(node):
     newDiscardStmt()
@@ -1247,15 +1281,19 @@ proc getDocComment*[N](node: N): string =
         result.add getDocComment(subnode)
 
     else:
-      when node is PNode:
+      discard
+      # when node is PNode:
 
-        proc nocomment(n: PNode) =
-          if n.comment != "":
-            raiseImplementKindError(node, node.treeRepr1(maxDepth = 3))
-          for s in n:
-            nocomment(s)
+      #   proc nocomment(n: PNode) =
+      #     if n.comment != "":
+      #       if n.kind notin {
+      #         nkVarSection, nkIdentDefs
+      #       }:
+      #         raiseImplementKindError(n, n.treeRepr1(maxDepth = 3))
+      #     for s in n:
+      #       nocomment(s)
 
-        nocomment(node)
+      #   nocomment(node)
 
 proc getSomeBase*[N](node: N): Option[N] =
   case node.kind.toNNK():
