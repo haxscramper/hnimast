@@ -462,7 +462,7 @@ proc parsePackageInfoNims*(
                   echo node[1]
                   raiseImplementError(
                     "Unhandled node structure: \n" &
-                      treeRepr(node[1], indexed = true))
+                      treeRepr(node[1]))
 
             of "mode":
               discard
@@ -611,19 +611,11 @@ proc getNimblePaths*(file: AbsFile): seq[AbsDir] =
 
 when isMainModule:
   let n = compileString("""
-type
-  ## Bad: this documentation disappears because it annotates the ``type`` keyword
-  ## above, not ``NamedQueue``.
-  NamedQueue*[T] = object
-    name*: string ## This becomes the main documentation for the object, which
-                  ## is not what we want.
-    val*: T ## Its value
-    next*: ref NamedQueue[T] ## The next item in the queue
 
-const
-  ## Const documentation ?
-  A = 123 ## Particular value
-  B = 12333 ## Other value
+proc a() {.deprecated.} =
+  echo "123"
+
+type B {.deprecated("123123").} = object
 
 """, getStdPath())
   echo n.treeRepr1()

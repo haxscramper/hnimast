@@ -9,6 +9,10 @@ import std/[macros, options, sequtils, strutils, tables]
 var objectImplMap {.compiletime.}: Table[string, NObjectDecl]
 var enumImplMap {.compiletime.}: Table[string, NEnumDecl]
 
+
+proc hasObjectStructure*(obj: NimNode): bool =
+  obj.signatureHash() in objectImplMap
+
 proc getObjectStructure*(obj: NimNode): NObjectDecl =
   let hash = obj.signatureHash()
   if hash in objectImplMap:

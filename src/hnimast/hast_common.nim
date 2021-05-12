@@ -555,15 +555,31 @@ proc pprintCalls*(node: NimNode, level: int): void =
 
 proc treeRepr*(
     pnode: PNode, colored: bool = true,
-    indexed: bool = false, maxdepth: int = 120
+    pathIndexed: bool = false,
+    positionIndexed: bool = true,
+    maxdepth: int = 120
   ): string =
 
   proc aux(n: PNode, level: int, idx: seq[int]): string =
     let pref =
-      if indexed:
+      if pathIndexed:
         idx.join("", ("[", "]")) & "    "
+
+      elif positionIndexed:
+        if level > 0:
+          "  ".repeat(level - 1) & "\e[38;5;240m#" & $idx[^1] & "\e[0m" &
+            "\e[38;5;237m/" & alignLeft($level, 2) & "\e[0m" & " "
+
+        else:
+          "    "
+
       else:
         "  ".repeat(level)
+    # let pref =
+    #   if indexed:
+    #     idx.join("", ("[", "]")) & "    "
+    #   else:
+    #     "  ".repeat(level)
 
     if isNil(n):
       return pref & toRed("<nil>", colored)
@@ -599,9 +615,11 @@ proc treeRepr*(
       of nkSym:
         result &= [
           " ", toBlue(($n.sym.kind)[2 ..^ 1], colored),
-          " ", toGreen(n.getStrVal(), colored)
-          # " <", n.typeLispRepr(), ">"
+          " ", toGreen(n.getStrVal(), colored), "\n",
+          " ", pref, toMagenta($n.sym.flags)
         ]
+
+        # result &= []
 
 
       of nkCommentStmt:
@@ -645,7 +663,11 @@ proc treeRepr1*(
   ## - TODO :: make output identical to `treeRepr1` for `NimNode`
 
   treeRepr(
-    pnode, colored, maxdepth = maxdepth, indexed = pathIndexed)
+    pnode, colored,
+    maxdepth = maxdepth,
+    pathIndexed = pathIndexed,
+    positionIndexed = positionIndexed
+  )
 
 type
   EnumFieldDef*[N] = object
@@ -738,6 +760,9 @@ proc typeLispRepr*(node: NimNode, colored: bool = true): string =
         of nskConst:
           return node.getImpl().toStrLit().strVal().toBlue(colored)
 
+        of nskProc:
+          return node.getTypeImpl().toStrLit().strVal().toBlue(colored)
+
         else:
           raiseImplementKindError(node.symKind)
 
@@ -770,8 +795,8 @@ proc treeRepr1*(
 
       elif positionIndexed:
         if level > 0:
-          "  ".repeat(level - 1) & "\e[38;5;240m#" & $idx[^1] & "\e[0m" &
-            "\e[38;5;237m/" & alignLeft($level, 2) & "\e[0m" & " "
+          "  ".repeat(level - 1) & to8Bit("#" & $idx[^1], 10) &
+            to8Bit("/" & alignLeft($level, 2), 20) & " "
 
         else:
           "    "
