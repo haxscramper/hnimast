@@ -138,6 +138,7 @@ proc getBranches*[N](
 
 type
   FieldDesc[N] = object
+    decl: N
     name: string
     fldType: NType[N]
     exported: bool
@@ -157,10 +158,12 @@ proc getFieldDescriptions[N](node: N): seq[FieldDesc[N]] =
         let (exported, name) = parseIdentName(ident)
 
         var field = FieldDesc[N](
+          decl: ident,
           name: $name,
           fldType: fldType,
           exported: exported,
-          value: none(N))
+          value: none(N)
+        )
 
         let val = parseSomePragma(ident)
         if val.isSome():
@@ -199,6 +202,7 @@ proc getFieldDescriptions[N](node: N): seq[FieldDesc[N]] =
 
       result.add(
         FieldDesc[N](
+          decl: node,
           name: $node,
           fldType: fldType,
           exported: false,
@@ -226,21 +230,21 @@ proc getFields*[N](
           )
         else:
           if node.kind.toNNK() == nnkSym:
-            let descr = getFieldDescriptions(node)[0]
-            result = @[ObjectField[N](
-              docComment: node.getDocComment(),
-              declNode:  some(node),
-              isTuple:   false,
-              isKind:    false,
-              isChecked: isCheckedOn.isSome(),
-              name:      descr.name,
-              fldType:   descr.fldType,
-              isExported:  descr.exported,
-              value:     descr.value
-            )]
+            for descr in getFieldDescriptions(node):
+              result.add ObjectField[N](
+                docComment: node.getDocComment(),
+                declNode:  some(node),
+                isTuple:   false,
+                isKind:    false,
+                isChecked: isCheckedOn.isSome(),
+                name:      descr.name,
+                fldType:   descr.fldType,
+                isExported:  descr.exported,
+                value:     descr.value
+              )
 
-            if descr.pragma.len > 0:
-              result[0].pragma = some descr.pragma[0]
+              if descr.pragma.len > 0:
+                result[^1].pragma = some descr.pragma[0]
 
           else:
             raiseImplementError("")
@@ -287,28 +291,28 @@ proc getFields*[N](
           result.add getFields(elem, none(N), sym, level + 1)
 
         elif elem.kind.toNNK() notin {nnkRecList, nnkNilLit}:
-          let descr = getFieldDescriptions[N](elem)
           case elem.kind.toNNK():
             of nnkRecCase: # Case field
-              var field = ObjectField[N](
-                docComment: elem.getDocComment(),
-                declNode:  some(elem),
-                isTuple:   false,
-                isKind:    true,
-                isChecked: isCheckedOn.isSome(),
-                branches:  getBranches(elem, some(elem), sym),
-                name:      descr[0].name,
-                isExported:  descr[0].exported,
-                fldType:   descr[0].fldType,
-              )
+              for descr in getFieldDescriptions[N](elem):
+                var field = ObjectField[N](
+                  docComment: elem.getDocComment(),
+                  declNode:   some(elem),
+                  isTuple:    false,
+                  isKind:     true,
+                  isChecked:  isCheckedOn.isSome(),
+                  branches:   getBranches(elem, some(elem), sym),
+                  name:       descr.name,
+                  isExported: descr.exported,
+                  fldType:    descr.fldType,
+                )
 
-              if descr[0].pragma.len > 0:
-                field.pragma = some descr[0].pragma[0]
+                if descr.pragma.len > 0:
+                  field.pragma = some descr.pragma[0]
 
-              result.add field
+                result.add field
 
             of nnkIdentDefs: # Regular field definition
-              result.add getFields(elem, isCheckedOn, sym, level + 1)[0]
+              result.add getFields(elem, isCheckedOn, sym, level + 1)
 
             else:
               discard
@@ -330,9 +334,12 @@ proc getFields*[N](
     of nnkIdentDefs:
       let descr = getFieldDescriptions(node)
       for idx, desc in descr:
+        # if desc.name == "fDebugTrigger":
+        #   raiseImplementError("")
+
         var field = ObjectField[N](
           docComment: node.getDocComment(),
-          declNode:  some(node),
+          declNode:  some(desc.decl),
           isTuple:   false,
           isKind:    false,
           isChecked: isCheckedOn.isSome(),

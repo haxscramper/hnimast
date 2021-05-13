@@ -1,4 +1,4 @@
-import hmisc/other/[oswrap, hshell]
+import hmisc/other/[oswrap, hshell, hjson]
 import hmisc/helpers
 import hmisc/types/[colortext]
 import std/[parseutils, sequtils, with]
@@ -29,7 +29,8 @@ proc getInstallationPath*(): AbsDir =
   result = AbsDir(~".choosenim/toolchains" / ("nim-" & version))
 
 proc getStdPath*(): AbsDir =
-  getInstallationPath() / "lib"
+  shellCmd(nim, dump, "--dump.format=json", "-").
+    evalShellStdout().parseJson()["lib"].asStr().AbsDir()
 
 proc getFilePath*(config: ConfigRef, info: TLineInfo): AbsFile =
   ## Get absolute file path for declaration location of `node`
