@@ -29,8 +29,9 @@ proc getInstallationPath*(): AbsDir =
   result = AbsDir(~".choosenim/toolchains" / ("nim-" & version))
 
 proc getStdPath*(): AbsDir =
-  shellCmd(nim, dump, "--dump.format=json", "-").
-    evalShellStdout().parseJson()["lib"].asStr().AbsDir()
+  let j = shellCmd(nim, dump, "--dump.format=json", "-").
+    evalShellStdout().parseJson()
+  return j["libpath"].asStr().AbsDir()
 
 proc getFilePath*(config: ConfigRef, info: TLineInfo): AbsFile =
   ## Get absolute file path for declaration location of `node`

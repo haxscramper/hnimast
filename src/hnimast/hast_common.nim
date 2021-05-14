@@ -553,6 +553,9 @@ proc pprintCalls*(node: NimNode, level: int): void =
     else:
       echo ($node.toStrLit()).indent(level * 2)
 
+proc lispRepr*(typ: PType, colored: bool = true): string =
+  $typ.kind
+
 proc treeRepr*(
     pnode: PNode, colored: bool = true,
     pathIndexed: bool = false,
@@ -575,11 +578,6 @@ proc treeRepr*(
 
       else:
         "  ".repeat(level)
-    # let pref =
-    #   if indexed:
-    #     idx.join("", ("[", "]")) & "    "
-    #   else:
-    #     "  ".repeat(level)
 
     if isNil(n):
       return pref & toRed("<nil>", colored)
@@ -588,13 +586,7 @@ proc treeRepr*(
       return pref & " ..."
 
     result &= pref & ($n.kind)[2..^1]
-    if n.comment.len > 0:#  and (
-    #   # Not a comment statement
-    #   n.kind != nkCommentStmt or
-    #   # Or a comment without duplicated `strVal`/`comment` fields`
-    #   # (n.kind == nkCommentStmt and n.comment != n.strVal)
-    # )
-
+    if n.comment.len > 0:
       result.add "\n"
       for line in split(n.comment, '\n'):
         result.add pref & "  # " & toCyan(line) & "\n"
@@ -615,26 +607,15 @@ proc treeRepr*(
       of nkSym:
         result &= [
           " ", toBlue(($n.sym.kind)[2 ..^ 1], colored),
-          " ", toGreen(n.getStrVal(), colored), "\n",
+          " ", toGreen(n.getStrVal(), colored),
+          " ", tern(isNil(n.sym.typ),
+            "<no-type>", n.sym.typ.lispRepr(colored)), "\n",
           " ", pref, toMagenta($n.sym.flags)
         ]
-
-        # result &= []
 
 
       of nkCommentStmt:
         discard
-        # let lines = split(n.comment, '\n')
-        # if lines.len > 1:
-        #   result &= "\n"
-        #   for idx, line in pairs(lines):
-        #     if idx != 0:
-        #       result &= "\n"
-
-        #     result &= pref & toYellow(line)
-
-        # else:
-        #   result &= toYellow(n.comment)
 
       else:
         if n.len > 0:
