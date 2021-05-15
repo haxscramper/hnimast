@@ -152,6 +152,13 @@ proc compileString*(text: string, stdpath: AbsDir): PNode =
 
 
 import nimblepkg/[common, packageinfo, version]
+
+export newVRAny, packageinfo
+
+# const newNimbleVersion* = version.newVersion
+
+# proc newVerAny*(): VersionRange =
+
 import std/[parsecfg, streams, tables, sets]
 from std/options as std_opt import Option, none, some
 import std/os as std_os
@@ -549,8 +556,7 @@ proc initDefaultNimbleOptions*(): Options =
   result = initOptions()
   result.nimbleDir = $(~".nimble")
   result.verbosity = SilentPriority
-
-
+  setVerbosity(SilentPriority)
 
 proc getRequires*(file: AbsFile): seq[PkgTuple] =
   getPackageInfo(file).requires
@@ -607,7 +613,6 @@ proc getNimblePaths*(file: AbsFile): seq[AbsDir] =
 
   if nimbleFile.isSome():
     let options = initDefaultNimbleOptions()
-    setVerbosity(SilentPriority)
     result = resolveNimbleDeps(nimbleFile.get(), options).deduplicate()
 
 

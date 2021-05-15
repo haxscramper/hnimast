@@ -554,7 +554,15 @@ proc pprintCalls*(node: NimNode, level: int): void =
       echo ($node.toStrLit()).indent(level * 2)
 
 proc lispRepr*(typ: PType, colored: bool = true): string =
-  $typ.kind
+  result = toMagenta(($typ.kind)[2..^1], colored)
+  if not isNil(typ.sym):
+    result &= " " & toCyan(($typ.sym.kind)[2..^1], colored)
+
+  # if not isNil(typ.owner):
+  #   result &= " " & toGreen($typ.owner.kind, colored)
+
+  if not isNil(typ.n):
+    result &= " " & toRed($typ.n, colored)
 
 proc treeRepr*(
     pnode: PNode, colored: bool = true,
@@ -610,7 +618,7 @@ proc treeRepr*(
           " ", toGreen(n.getStrVal(), colored),
           " ", tern(isNil(n.sym.typ),
             "<no-type>", n.sym.typ.lispRepr(colored)), "\n",
-          " ", pref, toMagenta($n.sym.flags)
+          " ", pref, to8Bit($n.sym.flags, 2, 0, 3)
         ]
 
 
@@ -618,6 +626,9 @@ proc treeRepr*(
         discard
 
       else:
+        if not isNil(n.typ):
+          result &= " " & n.typ.lispRepr(colored)
+
         if n.len > 0:
           result &= "\n"
 
