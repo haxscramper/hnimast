@@ -107,10 +107,6 @@ proc newModuleGraph*(
 proc compileString*(text: string, stdpath: AbsDir): PNode =
   assertExists(stdpath)
 
-  # type
-  #   Ctx = ref object of PPassContext
-  #     id: int32
-
   var graph {.global.}: ModuleGraph
   var moduleName {.global.}: string
   moduleName = "compileStringModuleName"
@@ -137,7 +133,8 @@ proc compileString*(text: string, stdpath: AbsDir): PNode =
           result = n
       ),
       (
-        proc(graph: ModuleGraph; p: PPassContext, n: PNode): PNode {.nimcall.} =
+        proc(graph: ModuleGraph; p: PPassContext,
+             n: PNode): PNode {.nimcall.} =
           discard
       )
     )
@@ -154,10 +151,6 @@ proc compileString*(text: string, stdpath: AbsDir): PNode =
 import nimblepkg/[common, packageinfo, version]
 
 export newVRAny, packageinfo
-
-# const newNimbleVersion* = version.newVersion
-
-# proc newVerAny*(): VersionRange =
 
 import std/[parsecfg, streams, tables, sets]
 from std/options as std_opt import Option, none, some
@@ -568,7 +561,7 @@ proc resolvePackage*(pkg: PkgTuple): AbsDir =
 proc findPackage*(
     name: string,
     version: VersionRange,
-    options: Options
+    options: Options = initDefaultNimbleOptions()
   ): Option[PackageInfo] =
 
   var pkgList {.global.}: seq[tuple[
@@ -588,7 +581,15 @@ proc findPackage*(
   if found:
     return some(pkg)
 
-proc resolveNimbleDeps*(file: AbsFile, options: Options): seq[AbsDir] =
+proc projectFile*(info: PackageInfo): AbsFile =
+  AbsFile(info.myPath)
+
+proc projectImportPath*(info: PackageInfo): AbsDir =
+  AbsDir(info.getRealDir())
+
+proc resolveNimbleDeps*(
+    file: AbsFile, options: Options = initDefaultNimbleOptions()
+  ): seq[PackageInfo] =
   let info = getPackageInfo(file)
   for dep in info.requires:
     let pkg = findPackage(dep.name, dep.ver, options)
@@ -598,22 +599,22 @@ proc resolveNimbleDeps*(file: AbsFile, options: Options): seq[AbsDir] =
         raiseImplementError("")
 
     else:
-      result.add(AbsDir(pkg.get().getRealDir()))
-      result.add(resolveNimbleDeps(AbsFile(pkg.get().myPath), options))
+      result.add(pkg.get())
+      result.add(
+        pkg.get().projectFile().resolveNimbleDeps(options))
+
+proc findNimbleFile*(dir: AbsDir): Option[AbsFile] =
+  for dir in parentDirs(dir):
+    for file in walkDir(dir, AbsFile):
+      if ext(file) in ["nimble", "babel"]:
+        return some(file)
+
 
 proc getNimblePaths*(file: AbsFile): seq[AbsDir] =
-  var nimbleFile: Option[AbsFile]
-  block mainSearch:
-    for dir in parentDirs(file):
-      for file in walkDir(dir, AbsFile):
-        if ext(file) in ["nimble", "babel"]:
-          nimbleFile = some(file)
-          break mainSearch
-
-
+  var nimbleFile = findNimbleFile(file.dir())
   if nimbleFile.isSome():
-    let options = initDefaultNimbleOptions()
-    result = resolveNimbleDeps(nimbleFile.get(), options).deduplicate()
+    for dep in resolveNimbleDeps(nimbleFile.get()):
+      result.add AbsDir(dep.getRealDir())
 
 
 when isMainModule:

@@ -77,30 +77,36 @@ proc fieldTypeNode*[N](field: N): N =
       return fieldTypeNode(field[0])
 
     of nnkIdentDefs:
-      return field[1]
+      result = field[1]
+      if result.kind.toNNK() == nnkDotExpr:
+        return result[1]
 
     else:
       raiseUnexpectedKindError(field, field.treeRepr())
 
 proc enumValueGroup*[N](
-    sym: SymTable[N], field: N): EnumValueGroup[N] =
+    sym: SymTable[N], field: N): Option[EnumValueGroup[N]] =
 
   ## Get list of enum fields associated with enum @arg{enumName}
   ##
   ## - NOTE :: If `enumName` is not in the symbol table empty value group
   ##   is returned and no exception is raised.
-  let enumName = field.fieldTypeNode().getStrVal()
+  let typeNode = field.fieldTypeNode()
+  if typeNode.kind.toNNK() in {nnkIdent, nnkSym}:
+    let enumName = typeNode.getStrVal()
 
-  if enumName in sym.enumCache:
-    return sym.enumCache[enumName]
+    if enumName in sym.enumCache:
+      return some sym.enumCache[enumName]
 
-  else:
-    if isReservedNimType(enumName):
-      return EnumValueGroup[N](wrapConvert: some(enumName))
+    else:
+      if isReservedNimType(enumName):
+        return some EnumValueGroup[N](wrapConvert: some(enumName))
 
 proc getFields*[N](
     node: N, isCheckedOn: Option[N], sym: SymTable[N], level: int = 0
   ): seq[ObjectField[N]]
+
+# proc hasCheckOn
 
 proc getBranches*[N](
   node: N, isCheckedOn: Option[N], sym: SymTable[N]): seq[ObjectBranch[N]] =

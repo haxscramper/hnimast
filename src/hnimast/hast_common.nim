@@ -558,17 +558,17 @@ proc lispRepr*(typ: PType, colored: bool = true): string =
   if not isNil(typ.sym):
     result &= " " & toCyan(($typ.sym.kind)[2..^1], colored)
 
-  # if not isNil(typ.owner):
-  #   result &= " " & toGreen($typ.owner.kind, colored)
-
   if not isNil(typ.n):
-    result &= " " & toRed($typ.n, colored)
+    let t = $typ.n
+    if '\n' notin t:
+      result &= " " & toRed(t, colored)
 
 proc treeRepr*(
     pnode: PNode, colored: bool = true,
     pathIndexed: bool = false,
     positionIndexed: bool = true,
-    maxdepth: int = 120
+    maxdepth: int = 120,
+    maxlen: int = 30
   ): string =
 
   proc aux(n: PNode, level: int, idx: seq[int]): string =
@@ -635,6 +635,9 @@ proc treeRepr*(
         for newIdx, subn in n:
           result &= aux(subn, level + 1, idx & newIdx)
           if level + 1 > maxDepth:
+            break
+
+          if newIdx > maxLen:
             break
 
           if newIdx < n.len - 1:
@@ -998,11 +1001,11 @@ func valuesInRange*[N](
   return values
 
 
-func flattenSet*[N](node: N, group: EnumValueGroup[N]): seq[N] =
+func flattenSet*[N](node: N, group: Option[EnumValueGroup[N]]): seq[N] =
   case node.kind.toNNK():
     of nnkIdent:
-      if node.getStrVal() in group.enumConsts:
-        for value in group.enumConsts[node.getStrVal()]:
+      if group.isSome() and node.getStrVal() in group.get().enumConsts:
+        for value in group.get().enumConsts[node.getStrVal()]:
           result &= newNIdent[N](value.strVal)
 
       else:
@@ -1021,10 +1024,11 @@ func flattenSet*[N](node: N, group: EnumValueGroup[N]): seq[N] =
       let lowVal = node[1]
       let highVal = node[2]
       assert node[0].getStrVal() == ".."
-      if lowVal.kind.toNNK() in nnkIdentKinds and
+      if group.isSome() and
+         lowVal.kind.toNNK() in nnkIdentKinds and
          highVal.kind.toNNK() in nnkIdentKinds:
 
-        for val in valuesInRange(lowVal, highVal, group):
+        for val in valuesInRange(lowVal, highVal, group.get()):
           result.add val.decl
 
 
@@ -1043,8 +1047,8 @@ func flattenSet*[N](node: N, group: EnumValueGroup[N]): seq[N] =
         raiseArgumentError(
           "Cannot normalize set: " & str & " - unknown kind")
 
-  if group.wrapConvert.isSome():
-    let convert = group.wrapConvert.get()
+  if group.isSome() and group.get().wrapConvert.isSome():
+    let convert = group.get().wrapConvert.get()
     var res: seq[N]
     for item in result:
       res.add newNTree(nnkCall, newNIdent[N](convert), item)
