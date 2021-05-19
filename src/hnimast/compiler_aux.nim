@@ -63,7 +63,8 @@ proc newModuleGraph*(
     structuredErrorHook: proc(
       config: ConfigRef; info: TLineInfo; msg: string; level: Severity
     ) {.closure, gcsafe.} = nil,
-    useNimblePath: bool = false
+    useNimblePath: bool = false,
+    symDefines: seq[string] = @[]
   ): ModuleGraph =
 
   var
@@ -101,6 +102,9 @@ proc newModuleGraph*(
   defineSymbol(config.symbols, "nimcore")
   defineSymbol(config.symbols, "c")
   defineSymbol(config.symbols, "ssl")
+  for sym in symDefines:
+    defineSymbol(config.symbols, sym)
+
   if useNimblePath:
     nimblePath(config, ~".nimble/pkgs", TLineInfo())
 
