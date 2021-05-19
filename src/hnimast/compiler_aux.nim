@@ -62,7 +62,8 @@ proc newModuleGraph*(
     path: AbsDir,
     structuredErrorHook: proc(
       config: ConfigRef; info: TLineInfo; msg: string; level: Severity
-    ) {.closure, gcsafe.} = nil
+    ) {.closure, gcsafe.} = nil,
+    useNimblePath: bool = false
   ): ModuleGraph =
 
   var
@@ -100,7 +101,11 @@ proc newModuleGraph*(
   defineSymbol(config.symbols, "nimcore")
   defineSymbol(config.symbols, "c")
   defineSymbol(config.symbols, "ssl")
-  nimblePath(config, ~".nimble/pkgs", TLineInfo())
+  if useNimblePath:
+    nimblePath(config, ~".nimble/pkgs", TLineInfo())
+
+  else:
+    config.disableNimblePath()
 
   return newModuleGraph(cache, config)
 
@@ -523,12 +528,12 @@ proc parsePackageInfoNims*(
 proc parsePackageInfo*(
     configText: string, path: AbsFile = AbsFile("<file>")): PackageInfo =
 
-  var parseRes = parsePackageInfoCfg(configText)
+  var parseRes = parsePackageInfoCfg(configText, path.string)
   if parseRes.isSome():
     return parseRes.get()
 
 
-  parseRes = parsePackageInfoNims(configText)
+  parseRes = parsePackageInfoNims(configText, path.string)
   if parseRes.isSome():
     return parseRes.get()
 
@@ -541,9 +546,11 @@ proc parsePackageInfo*(
 import nimblepkg/[packageparser, cli, version, packageinfo, common]
 import nimblepkg/options as nimble_options
 
-proc getPackageInfo*(path: AbsFile): PackageInfo =
+proc getPackageInfo*(path: AbsFile, absPath: bool = true): PackageInfo =
   let configText = readFile(path)
-  return parsePackageInfo(configText, path)
+  result = parsePackageInfo(configText, path)
+  if absPath and not oswrap.isAbsolute(result.myPath):
+    result.myPath = string(path.dir() / result.myPath)
 
 proc initDefaultNimbleOptions*(): Options =
   result = initOptions()
@@ -584,6 +591,9 @@ proc findPackage*(
 proc projectFile*(info: PackageInfo): AbsFile =
   AbsFile(info.myPath)
 
+proc projectPath*(info: PackageInfo): AbsDir =
+  AbsDir(info.myPath.AbsFile().dir())
+
 proc projectImportPath*(info: PackageInfo): AbsDir =
   AbsDir(info.getRealDir())
 
@@ -609,6 +619,15 @@ proc findNimbleFile*(dir: AbsDir): Option[AbsFile] =
       if ext(file) in ["nimble", "babel"]:
         return some(file)
 
+proc getPackageInfo*(dir: AbsDir, absPath: bool = true): PackageInfo =
+  let file = dir.findNimbleFile()
+  if file.isNone():
+    # REFACTOR use error dereived from `hmisc.PathError`
+    raiseArgumentError(
+      "Could not find nimble package in directory " & $dir)
+
+  else:
+    result = getPackageInfo(file.get(), absPath)
 
 proc getNimblePaths*(file: AbsFile): seq[AbsDir] =
   var nimbleFile = findNimbleFile(file.dir())
@@ -620,10 +639,12 @@ proc getNimblePaths*(file: AbsFile): seq[AbsDir] =
 when isMainModule:
   let n = compileString("""
 
-proc a() {.deprecated.} =
-  echo "123"
+type Dist = distinct int
 
-type B {.deprecated("123123").} = object
+let
+  aa = Dist(123)
+  bb = 123.Dist
+  cc = aa.int
 
 """, getStdPath())
   echo n.treeRepr1()
