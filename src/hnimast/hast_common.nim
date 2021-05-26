@@ -9,6 +9,9 @@ template `[]`*(node: PNode, slice: HSLice[int, BackwardsIndex]): untyped =
   ## Get range of subnodes from `PNode`
   `[]`(node.sons, slice)
 
+proc add*(n: PNode, sub: seq[PNode]) =
+  for node in sub:
+    n.add node
 
 
 const
@@ -125,7 +128,7 @@ func getStrVal*(n: NimNode): string =
   ## identifiers etc.
   n.strVal()
 
-func getStrVal*(p: PNode): string =
+func getStrVal*(p: PNode, doRaise: bool = true): string =
   ## Get string value from `PNode`
   case p.kind:
     of nkIdent:    p.ident.s
@@ -134,8 +137,12 @@ func getStrVal*(p: PNode): string =
     of nkOpenSymChoice: p[0].sym.name.s
     of nkAccQuoted: ($p)[1..^2]
     else:
-      raiseArgumentError(
-        "Cannot get string value from node of kind " & $p.kind)
+      if doRaise:
+        raiseArgumentError(
+          "Cannot get string value from node of kind " & $p.kind)
+
+      else:
+        ""
 
 func getIntVal*(n: PNode): BiggestInt = n.intVal
 func getIntVal*(n: NimNode): BiggestInt = n.intVal()
@@ -357,7 +364,8 @@ func newPLit*(i: string): PNode =
 
 proc newPLit*(e: enum): PNode =
   proc enumToStr(x: enum): string {.magic: "EnumToStr", noSideEffect.}
-  return newPIdent(enumToStr(e))
+  return nnkDotExpr.newPTree(
+    newPIdent($typeof(e)), newPIdent(enumToStr(e)))
 
 proc newPLit*[T](s: set[T]): PNode =
   result = nnkCurly.newPTree()
@@ -1173,7 +1181,7 @@ proc newNLit*[N, T](item: T): N =
     newPLit(item)
 
 proc addBranch*[N](main: var N, expr: enum, body: varargs[N]) =
-  addBranch(main, newNIdent[N]($expr), body)
+  addBranch(main, newNLit[N, typeof(expr)](expr), body)
 
 proc addBranch*[N](main: var N, expr: string, body: varargs[N]) =
   addBranch(main, newNLit[N, string]($expr), body)

@@ -13,17 +13,6 @@ var enumImplMap {.compiletime.}: Table[string, NEnumDecl]
 proc hasObjectStructure*(obj: NimNode): bool =
   obj.signatureHash() in objectImplMap
 
-proc getObjectStructure*(obj: NimNode): NObjectDecl =
-  let hash = obj.signatureHash()
-  if hash in objectImplMap:
-    objectImplMap[hash]
-
-  else:
-    raiseArgumentError(
-      "Cannot get object structure for node " &
-      obj.toStrLit().strVal() &
-      " - not recorded in object impl map"
-    )
 
 proc getEnumStructure*(obj: NimNode): NEnumDecl =
   enumImplMap[obj.signatureHash()]
@@ -49,6 +38,24 @@ proc setObjectStructure*(obj: NimNode, consts: seq[NimNode]) =
   else:
     var parsed = parseEnum(impl)
     enumImplMap[obj.signatureHash()] = parsed
+
+proc getObjectStructure*(obj: NimNode): NObjectDecl =
+  let hash = obj.signatureHash()
+  if hash in objectImplMap:
+    result = objectImplMap[hash]
+
+  else:
+    setObjectStructure(obj, @[])
+    if hash in objectImplMap:
+      result = objectImplMap[hash]
+
+    else:
+      raiseArgumentError(
+        "Cannot get object structure for node " &
+        obj.toStrLit().strVal() &
+        " - not recorded in object impl map"
+      )
+
 
 macro storeTraitsImpl*(obj: typed, consts: varargs[typed]) =
   setObjectStructure(obj, toSeq(consts))

@@ -84,9 +84,12 @@ proc newModuleGraph*(
     path / "pure" / "collections",
     path / "pure" / "concurrency",
     path / "impure",
+    path / "js",
+    path / "packages" / "docutils",
     path / "std",
     path / "core",
     path / "posix",
+    path / "windows",
     path / "wrappers",
     path / "wrappers" / "linenoise"
   ]
@@ -552,6 +555,7 @@ import nimblepkg/options as nimble_options
 
 proc getPackageInfo*(path: AbsFile, absPath: bool = true): PackageInfo =
   let configText = readFile(path)
+  assertExists(path)
   result = parsePackageInfo(configText, path)
   if absPath and not oswrap.isAbsolute(result.myPath):
     result.myPath = string(path.dir() / result.myPath)
@@ -562,6 +566,8 @@ proc initDefaultNimbleOptions*(): Options =
   result.verbosity = SilentPriority
   setVerbosity(SilentPriority)
 
+proc nimbleSearchDir*(): AbsDir = ~".nimble" / "pkgs"
+
 proc getRequires*(file: AbsFile): seq[PkgTuple] =
   getPackageInfo(file).requires
 
@@ -569,17 +575,18 @@ proc resolvePackage*(pkg: PkgTuple): AbsDir =
   ## Resolve package `pkg` constraints to absolute directory
   discard
 
+
 proc findPackage*(
     name: string,
     version: VersionRange,
-    options: Options = initDefaultNimbleOptions()
+    searchDir: AbsDir = nimbleSearchDir(),
+    options: Options = initDefaultNimbleOptions(),
   ): Option[PackageInfo] =
 
   var pkgList {.global.}: seq[tuple[
     pkginfo: PackageInfo, meta: MetaData]] = @[]
 
-  once:
-    pkgList = getInstalledPkgsMin(getPkgsDir(options), options)
+  once: pkgList = getInstalledPkgsMin(searchDir.string, options)
 
   let dep: PkgTuple = (name: name, ver: version)
 
@@ -602,11 +609,14 @@ proc projectImportPath*(info: PackageInfo): AbsDir =
   AbsDir(info.getRealDir())
 
 proc resolveNimbleDeps*(
-    file: AbsFile, options: Options = initDefaultNimbleOptions()
+    file: AbsFile,
+    searchDir: AbsDir = nimbleSearchDir(),
+    options: Options = initDefaultNimbleOptions()
   ): seq[PackageInfo] =
+
   let info = getPackageInfo(file)
   for dep in info.requires:
-    let pkg = findPackage(dep.name, dep.ver, options)
+    let pkg = findPackage(dep.name, dep.ver, searchDir, options)
 
     if pkg.isNone():
       if dep.name != "nim":
@@ -615,7 +625,17 @@ proc resolveNimbleDeps*(
     else:
       result.add(pkg.get())
       result.add(
-        pkg.get().projectFile().resolveNimbleDeps(options))
+        pkg.get().projectFile().resolveNimbleDeps(
+          searchDir, options))
+
+proc fromMinimal*(packages: seq[PackageInfo]): seq[PackageInfo] =
+  for package in packages.deduplicate():
+    var info = parsePackageInfo(package.projectFile().readFile())
+    info.myPath = package.myPath
+    info.isInstalled = package.isInstalled
+    info.isLinked = package.isLinked
+    info.name = package.name
+    result.add info
 
 proc findNimbleFile*(dir: AbsDir): Option[AbsFile] =
   for dir in parentDirs(dir):
@@ -633,10 +653,12 @@ proc getPackageInfo*(dir: AbsDir, absPath: bool = true): PackageInfo =
   else:
     result = getPackageInfo(file.get(), absPath)
 
-proc getNimblePaths*(file: AbsFile): seq[AbsDir] =
+proc getNimblePaths*(
+    file: AbsFile, searchDir: AbsDir = nimbleSearchDir()
+  ): seq[AbsDir] =
   var nimbleFile = findNimbleFile(file.dir())
   if nimbleFile.isSome():
-    for dep in resolveNimbleDeps(nimbleFile.get()):
+    for dep in resolveNimbleDeps(nimbleFile.get(), searchDir):
       result.add AbsDir(dep.getRealDir())
 
 

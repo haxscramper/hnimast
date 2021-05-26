@@ -417,7 +417,9 @@ func newNNType*[NNode](
 func newNType*[NNode](
   name: string, gparams: openarray[NType[NNode]]): NType[NNode] =
   ## Make `NType`
-  NType[NNode](kind: ntkIdent, head: name, genParams: toSeq(gparams))
+  result = NType[NNode](kind: ntkIdent, head: name)
+  for param in gparams:
+    result.genParams.add param
 
 func newPType*(kind: NTypeKind): NType[PNode] = NType[PNode](kind: kind)
 
@@ -537,10 +539,16 @@ func newNTypeNNode*[NNode](node: NNode): NType[NNode] =
       result = newNType(node[0].getStrVal(), @[newNTypeNNode(node[1])])
 
     of nnkInfix:
-      if node[0].getStrVal() in ["|", "or"]:
+      if node[0].getStrVal() == "|":
         result = NType[NNode](
           kind: ntkGenericSpec,
           genParams: node.flattenInfix("|").mapIt(newNTypeNNode(it))
+        )
+
+      elif node[0].getStrVal() == "or":
+        result = NType[NNode](
+          kind: ntkGenericSpec,
+          genParams: node.flattenInfix("or").mapIt(newNTypeNNode(it))
         )
 
       elif node[0].getStrVal() in [".."]:

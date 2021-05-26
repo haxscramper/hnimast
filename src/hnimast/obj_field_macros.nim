@@ -577,8 +577,20 @@ func getTypeImplBody*(node: NimNode, getImpl: bool): NimNode =
           of nnkBracketExpr:
             result = getTypeImplBody(inst[1].getImpl(), getImpl)
 
+          of nnkSym:
+            let impl = inst.getImpl()
+            if impl.kind in {nnkTypeDef}:
+              return impl
+
+            else:
+              raise newImplementError()
+
           else:
-            raiseImplementKindError(inst)
+            # debugecho inst.treeRepr1()
+            # debugecho node.treeRepr1()
+            # debugecho inst.getImpl().treeRepr1()
+            raise newUnexpectedKindError(inst)
+            # raiseImplementKindError(inst)
 
     of nnkIdent:
       raiseImplementError("Cannot get type implementation from ident")

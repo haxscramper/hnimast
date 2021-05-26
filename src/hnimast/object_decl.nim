@@ -106,8 +106,7 @@ proc newPObjectDecl*(
   genParams: seq[NType[PNode]] = @[],
   iinfo: LineInfo = defaultIInfo,
 ): PObjectDecl =
-
-
+  new(result)
   result.name = newNType[PNode](name, genParams)
   result.docComment = docComment
   result.codeComment = codeComment
@@ -130,7 +129,7 @@ func newObjectField*[N](
     fldType: cxtype,
     docComment: docComment,
     codeComment: codeComment,
-    exported: exported
+    isExported: exported
   )
 
 func addField*[N](
@@ -163,7 +162,7 @@ func newObjectCaseField*[N](
     fldType: fieldType,
     docComment: docComment,
     codeComment: codeComment,
-    exported: exported,
+    isExported: exported,
   )
 
 func newObjectOfBranch*[N](ofValue: N): ObjectBranch[N] =
