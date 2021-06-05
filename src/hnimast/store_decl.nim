@@ -39,9 +39,6 @@ proc baseImplSym*(t: NimNode): NimNode =
 
           else:
             result = baseImplSym(impl[0])
-          # echo result.treeRepr1()
-          # echo impl.treeRepr1()
-          # echo t.treeRepr()
 
         else:
           raiseImplementKindError(impl, impl.treeRepr1())

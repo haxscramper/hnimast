@@ -312,6 +312,9 @@ proc write*(
   ) =
 
   case nd.kind:
+    of nekFieldDecl:
+      s.write(nd.fieldDecl, pprint = pprint)
+
     of nekProcDecl:
       s.write(nd.procdecl, pprint = pprint)
 

@@ -7,6 +7,7 @@ type
     nekPassthroughCode
     nekProcDecl
     nekObjectDecl
+    nekFieldDecl
     nekEnumDecl
     nekAliasDecl
     nekMultitype
@@ -58,6 +59,9 @@ type
       of nekMultitype:
         typedecls*: seq[NimTypeDecl[N]]
 
+      of nekFieldDecl:
+        fieldDecl*: ObjectField[N]
+
   PNimTypeDecl* = NimTypeDecl[Pnode]
 
   PNimDecl* = NimDecl[Pnode]
@@ -65,13 +69,14 @@ type
   NAliasDecl* = AliasDecl[NimNode]
 
   AnyNimDecl*[N] =
-    ProcDecl[N]   |
-    AliasDecl[N]  |
-    ProcDecl[N]   |
-    ObjectDecl[N] |
-    EnumDecl[N]   |
-    AliasDecl[N]  |
-    NimTypeDecl[N]|
+    ProcDecl[N]    |
+    AliasDecl[N]   |
+    ProcDecl[N]    |
+    ObjectDecl[N]  |
+    ObjectField[N] |
+    EnumDecl[N]    |
+    AliasDecl[N]   |
+    NimTypeDecl[N] |
     NimDecl[N]
 
 func `==`*[N](a, b: ObjectBranch[N]): bool =
@@ -148,6 +153,9 @@ func toNNode*[N](entry: NimDecl[N], standalone: bool = true): N =
     of nekPassthroughCode:
       return entry.passthrough
 
+    of nekFieldDecl:
+      return toNNode[N](entry.fieldDecl)
+
     of nekMultitype:
       result = newNTree[N](nnkTypeSection)
       for elem in entry.typedecls:
@@ -186,6 +194,10 @@ func toNimTypeDecl*[N](entry: NimDecl[N]): NimTypeDecl[N] =
     else:
      raiseAssert(&"Cannot convert to NimTypeDecl for kind {entry.kind}")
 
+
+func toNimDecl*[N](edc: ObjectField[N]): NimDecl[N] =
+  NimDecl[N](kind: nekFieldDecl, fieldDecl: edc)
+
 func toNimDecl*[N](prd: ProcDecl[N]): NimDecl[N] =
   NimDecl[N](kind: nekProcDecl, procdecl: prd)
 
@@ -198,7 +210,7 @@ func toNimDecl*[N](adc: AliasDecl[N]): NimDecl[N] =
 func toNimDecl*[N](edc: EnumDecl[N]): NimDecl[N] =
   NimDecl[N](kind: nekEnumDecl, enumdecl: edc)
 
-func toNimDecl*[N](decl: N): NimDecl[N] =
+func toNimDecl*[N: NimNode | PNode](decl: N): NimDecl[N] =
   NimDecl[N](kind: nekPassthroughCode, passthrough: decl)
 
 func toNimDecl*[N](decl: seq[NimTypeDecl[N]]): NimDecl[N] =
@@ -258,30 +270,6 @@ func toNNode*[N](alias: AliasDecl[N], standalone: bool = true): N =
   else:
     result = newNTree[N](nnkTypeDef, aType, newEmptyNNode[N](), bType)
 
-  # if pr == (false, false):
-
-  # elif pr == (true, false):
-  #   result = newNTree[N](
-  #     nnkTypeDef,
-  #     aType,
-  #     newEmptyNNode[N](),
-  #     newNTree[N](nnkDistinctTy, bType)
-  #   )
-  # elif pr == (false, true):
-  #   result = newNTree[N](
-  #     nnkTypeDef,
-  #     newNTree[N](nnkPostfix, newNIdent[N]("*"), aType),
-  #     newEmptyNNode[N](),
-  #     bType
-  #   )
-  # elif pr == (true, true):
-  #   result = newNTree[N](
-  #     nnkTypeDef,
-  #     newNTree[N](nnkPostfix, newNIdent[N]("*"), aType),
-  #     newEmptyNNode[N](),
-  #     newNTree[N](nnkDistinctTy, bType)
-  #   )
-
   if standalone:
     result = newNTree[N](nnkTypeSection, result)
 
@@ -295,6 +283,7 @@ proc `iinfo=`*[N](nd: var NimDecl[N], iinfo: LineInfo) =
     of nekEnumDecl:       nd.enumdecl.iinfo = iinfo
     of nekObjectDecl:     nd.objectdecl.iinfo = iinfo
     of nekAliasDecl:      nd.aliasdecl.iinfo = iinfo
+    of nekFieldDecl:      nd.fieldDecl.iinfo = iinfo
     of nekMultitype:      discard
     of nekPassthroughCode: nd.passIInfo = iinfo
 
@@ -305,6 +294,7 @@ proc addCodeCommentImpl[N](nd: var NimDecl[N], comm: string) =
     of nekEnumDecl:       nd.enumdecl.codeComment &= comm
     of nekObjectDecl:     nd.objectdecl.codeComment &= comm
     of nekAliasDecl:      nd.aliasdecl.codeComment &= comm
+    of nekFieldDecl:      nd.fieldDecl.codeComment &= comm
     of nekMultitype:      raise newArgumentError(
       "Cannot add code comments to multitype nim declaration.",
       "Check for declaration `kind == nekMultitype` and",
@@ -332,6 +322,7 @@ proc addDocCommentImpl[N](nd: var NimDecl[N], comm: string) =
     of nekEnumDecl:       nd.enumdecl.docComment &= comm
     of nekObjectDecl:     nd.objectdecl.docComment &= comm
     of nekAliasDecl:      nd.aliasdecl.docComment &= comm
+    of nekFieldDecl:      nd.fieldDecl.docComment &= comm
     of nekMultitype:      discard
     of nekPassthroughCode: discard
 

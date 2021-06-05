@@ -24,6 +24,7 @@ type
 
   ObjectField*[N] = ref object
     declNode*: Option[N]
+    iinfo*: LineInfo
     docComment*: string
     codeComment*: string
 
@@ -570,7 +571,7 @@ func onPath*(self: NimNode, path: NObjectPath): NimNode =
 
 
 #========================  Other implementation  =========================#
-func toNNode*[N](fld: ObjectField[N]): N
+func toNNode*[N](fld: ObjectField[N], standalone: bool = false): N
 
 func toNNode*[N](branch: ObjectBranch[N]): N =
   if branch.isElse:
@@ -586,7 +587,7 @@ func toNNode*[N](branch: ObjectBranch[N]): N =
 
 
 
-func toNNode*[N](fld: ObjectField[N]): N =
+func toNNode*[N](fld: ObjectField[N], standalone: bool = false): N =
   let head =
     if fld.isExported:
       newNTree[N](nnkPostfix,
