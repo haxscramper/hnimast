@@ -205,9 +205,15 @@ func toNNode*[NNode](nident: NIdentDefs[NNode]): NNode =
 
 func add*[NNode](ntype: var NType[NNode], nt: NType[NNode]) =
   if ntype.head in ["ref", "ptr", "var"]:
-    ntype.genParams[0].add nt
+    if ntype.genParams.len == 0:
+      ntype.genParams = @[nt]
+
+    else:
+      ntype.genParams[0].add nt
+
   else:
     ntype.genParams.add nt
+
 
 func add*[NNode](ntype: var NType[NNode], nt: varargs[NType[NNode]]) =
   for arg in nt:
@@ -359,6 +365,11 @@ func newNIdentDefs*[N](
   NIdentDefs[N](
     idents: @[newNIdent[N](vname)],
     vtype: vtype, value: value, kind: kind)
+
+
+func add*[N](ntype: var NType[N], argname: string, argtype: NType[N]) =
+  ntype.arguments.add newNIdentDefs(argname, argtype)
+
 
 func toNimNode*(ntype: NType): NimNode =
   ## Convert `NType` to nim node

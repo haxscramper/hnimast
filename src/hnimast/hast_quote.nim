@@ -28,7 +28,7 @@ func quoteAux(body: NimNode, resCall: string, pos: NimNode): NimNode =
          # (which is not valid variable name even)
         let bodyLit = newLit body[0].strVal()
         return quote do:
-          newPTree(nnkAccQuoted, newPIdent(`bodyLit`), pos)
+          newPTree(nnkAccQuoted, newPIdent(`bodyLit`))
 
       else:
         var res: string

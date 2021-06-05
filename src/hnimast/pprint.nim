@@ -327,8 +327,10 @@ proc write*(
     of nekPassthroughCode:
       if pprint:
         s.pprintWrite(nd.passthrough)
+
       else:
-        s.writeLine($nd)
+        let nd = $nd
+        s.writeLine(nd)
 
       s.write("\n\n")
 

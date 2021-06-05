@@ -1,4 +1,4 @@
-import hast_common
+import ./hast_common
 import compiler/[ast]
 import std/[macros, options, tables, sequtils]
 import hmisc/helpers
@@ -19,7 +19,7 @@ type
 func indexOf*[N](pragma: PRagma[N], name: string): int =
   result = -1
   for idx, elem in pairs(pragma.elements):
-    case elem.kind:
+    case elem.kind.toNNK():
       of nnkIdent, nnkSym:
         if elem.eqIdent(name):
           return idx
@@ -43,6 +43,11 @@ func getElem*(pragma: NPragma, name: string): Option[NimNode] =
 func hasElem*[N](pragma: Pragma[N], name: string): bool =
   pragma.indexOf(name) != -1
 
+func hasElem*[N](pragma: Pragma[N], names: seq[string]): bool =
+  for name in names:
+    if pragma.indexOf(name) != -1:
+      return true
+
 func getElem*(optPragma: Option[NPragma], name: string): Option[NimNode] =
   ## Get element from optional annotation
   if optPragma.isSome():
@@ -65,37 +70,32 @@ func clear*[N](pragma: var PRagma[N]) =
 #============================  constructors  =============================#
 func newNNPragma*[N](): Pragma[N] = discard
 
-func parsePragma*[N](node: N): Pragma[N] =
-  case toNNK(node.kind):
-    of nnkPragma:
-      for entry in items(node):
-        result.elements.add entry
-
-
-    of nnkPragmaExpr:
-      result = parsePragma(node[1])
-
-    of nnkEmpty:
-      discard
-
-    else:
-      raiseUnexpectedKindError(node, node.treeRepr())
-
 
 func parseSomePragma*[N](node: N): Option[Pragma[N]] =
   case node.kind.toNNK():
-    of nnkIdent, nnkSym:
+    of nnkIdent, nnkSym, nnkEmpty:
       discard
 
-    of nnkPostfix:
+    of nnkPragma:
+      var res: Pragma[N]
+      for entry in items(node):
+        res.elements.add entry
+
+      return some res
+
+    of nnkPostfix, nnkPragmaExpr:
       return parseSomePragma(node[1])
 
-    of nnkPragmaExpr:
-      return some parsePragma(node[1])
+    of nnkIdentDefs, nnkConstDef:
+      return parseSomePragma(node[0])
 
     else:
       raiseImplementKindError(node, node.treeRepr())
 
+func parsePragma*[N](node: N): Pragma[N] =
+  let res = parseSomePragma(node)
+  if res.isSome():
+    return res.get()
 
 func newNPragma*(names: varargs[string]): NPragma =
   ## Create pragma using each string as separate name.
@@ -106,7 +106,6 @@ func newPPragma*(names: varargs[string]): PPragma =
   ## Create pragma using each string as separate name.
   ## `{.<<name1>, <name2>, ...>.}`
   PPragma(elements: names.mapIt(newPIdent(it)))
-
 
 func newNPragma*(names: varargs[NimNode]): NPragma =
   ## Create pragma using each node in `name` as separate name

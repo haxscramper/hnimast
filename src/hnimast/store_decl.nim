@@ -17,13 +17,44 @@ proc hasObjectStructure*(obj: NimNode): bool =
 proc getEnumStructure*(obj: NimNode): NEnumDecl =
   enumImplMap[obj.signatureHash()]
 
+
+
+proc baseImplSym*(t: NimNode): NimNode =
+  case t.kind:
+    of nnkTypeofExpr:
+      result = baseImplSym(t[0])
+
+    of nnkSym:
+      let impl = t.getTypeImpl()
+      case impl.kind:
+        of nnkBracketExpr:
+          result = impl[1].baseImplSym()
+
+        of nnkObjectTy, nnkEnumTy:
+          result = t
+
+        of nnkRefTy:
+          if ":ObjectType" in impl[0].getStrVal():
+            result = t
+
+          else:
+            result = baseImplSym(impl[0])
+          # echo result.treeRepr1()
+          # echo impl.treeRepr1()
+          # echo t.treeRepr()
+
+        else:
+          raiseImplementKindError(impl, impl.treeRepr1())
+
+    else:
+      raiseImplementKindError(t)
+
+
 proc setObjectStructure*(obj: NimNode, consts: seq[NimNode]) =
   let impl = getTypeImplBody(obj, false)
+  let hash = obj.baseImplSym().signatureHash()
   if impl.isObject():
-    for c in consts:
-      echov c.treeRepr1()
-
-    if obj.signatureHash() notin objectImplMap:
+    if hash notin objectImplMap:
       var parsed: NObjectDecl = parseObject(impl, false, consts)
       if parsed.hasPragma("defaultImpl"):
         let pragma = parsed.getPragmaArgs("defaultImpl")
@@ -32,15 +63,16 @@ proc setObjectStructure*(obj: NimNode, consts: seq[NimNode]) =
             if field.name == arg[0].strVal():
               field.value = some arg[1]
 
-      objectImplMap[obj.signatureHash()] = parsed
+      objectImplMap[hash] = parsed
 
 
   else:
     var parsed = parseEnum(impl)
-    enumImplMap[obj.signatureHash()] = parsed
+    enumImplMap[hash] = parsed
+
 
 proc getObjectStructure*(obj: NimNode): NObjectDecl =
-  let hash = obj.signatureHash()
+  let hash = obj.baseImplSym().signatureHash()
   if hash in objectImplMap:
     result = objectImplMap[hash]
 

@@ -1,4 +1,5 @@
-import std/[macros, sequtils, strformat, strutils, tables, sets, options]
+import std/[macros, sequtils, strformat, strutils,
+            tables, sets, options, math]
 import compiler/[ast, idents, lineinfos, renderer]
 import hmisc/types/colorstring
 import hmisc/helpers
@@ -798,7 +799,8 @@ proc treeRepr1*(
 
       elif positionIndexed:
         if level > 0:
-          "  ".repeat(level - 1) & to8Bit("#" & $idx[^1], 10) &
+          "  ".repeat(level - 1) & to8Bit(
+            alignLeft("#" & $idx[^1], 3), 10) &
             to8Bit("/" & alignLeft($level, 2), 20) & " "
 
         else:
@@ -1230,7 +1232,7 @@ proc isEmptyNode*[N](node: N): bool =
   if isNil(node):
     return true
 
-  case node.kind:
+  case node.kind.toNNK():
     of nnkEmpty:
       return true
 
@@ -1340,3 +1342,7 @@ proc getSomeBase*[N](node: N): Option[N] =
 
     else:
       discard
+
+func eqIdent*(node: PNode, str: string): bool =
+  node.getStrVal()[0] == str[0] and
+  node.getStrVal().normalize() == str.normalize()

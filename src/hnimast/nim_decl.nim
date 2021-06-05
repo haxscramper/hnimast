@@ -71,7 +71,8 @@ type
     ObjectDecl[N] |
     EnumDecl[N]   |
     AliasDecl[N]  |
-    NimTypeDecl[N]
+    NimTypeDecl[N]|
+    NimDecl[N]
 
 func `==`*[N](a, b: ObjectBranch[N]): bool =
   a.isElse == b.isElse and
@@ -204,7 +205,11 @@ func toNimDecl*[N](decl: seq[NimTypeDecl[N]]): NimDecl[N] =
   NimDecl[N](kind: nekMultitype, typedecls: decl)
 
 func add*[N](declSeq: var seq[NimDecl[N]], decl: AnyNimDecl[N]) =
-  declSeq.add toNimDecl(decl)
+  when decl is NimDecl:
+    system.add(declSeq, decl)
+
+  else:
+    declSeq.add toNimDecl(decl)
 
 # func add*[N](declSeq: var seq[NimDecl[N]], decl: N) =
 #   declSeq.add NimDecl(kind: nekPassthroughCode, passthrough: decl)
@@ -294,23 +299,34 @@ proc `iinfo=`*[N](nd: var NimDecl[N], iinfo: LineInfo) =
     of nekPassthroughCode: nd.passIInfo = iinfo
 
 
-proc addCodeComment*[N](nd: var AnyNimDecl[N], comm: string) =
-  nd.codeComment &= comm
-
-proc addCodeComment*[N](nd: var NimDecl[N], comm: string) =
-  case nd.kind:
+proc addCodeCommentImpl[N](nd: var NimDecl[N], comm: string) =
+ case nd.kind:
     of nekProcDecl:       nd.procdecl.codeComment &= comm
     of nekEnumDecl:       nd.enumdecl.codeComment &= comm
     of nekObjectDecl:     nd.objectdecl.codeComment &= comm
     of nekAliasDecl:      nd.aliasdecl.codeComment &= comm
-    of nekMultitype:      discard
+    of nekMultitype:      raise newArgumentError(
+      "Cannot add code comments to multitype nim declaration.",
+      "Check for declaration `kind == nekMultitype` and",
+      "place code annotation in",
+      "one of the nested `.typedecls` elements"
+    )
+
     of nekPassthroughCode: discard
 
 
-proc addDocComment*[N](nd: var AnyNimDecl[N], comm: string) =
-  nd.docComment &= comm
+proc addCodeComment*[N](nd: var AnyNimDecl[N], comm: string) =
+  when nd is NimDecl:
+    addCodeCommentImpl(nd, comm)
 
-proc addDocComment*[N](nd: var NimDecl[N], comm: string) =
+  else:
+    nd.codeComment &= comm
+
+proc addCodeComment*[N](nd: var NimDecl[N], comm: string) =
+  addCodeCommentImpl(nd, comm)
+
+
+proc addDocCommentImpl[N](nd: var NimDecl[N], comm: string) =
   case nd.kind:
     of nekProcDecl:       nd.procdecl.docComment &= comm
     of nekEnumDecl:       nd.enumdecl.docComment &= comm
@@ -318,3 +334,14 @@ proc addDocComment*[N](nd: var NimDecl[N], comm: string) =
     of nekAliasDecl:      nd.aliasdecl.docComment &= comm
     of nekMultitype:      discard
     of nekPassthroughCode: discard
+
+
+proc addDocComment*[N](nd: var AnyNimDecl[N], comm: string) =
+  when nd is NimDecl:
+    addDocCommentImpl(nd, comm)
+
+  else:
+    nd.docComment &= comm
+
+proc addDocComment*[N](nd: var NimDecl[N], comm: string) =
+  addDocCommentImpl(nd, comm)
