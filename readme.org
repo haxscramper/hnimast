@@ -1,8 +1,9 @@
 #+title: readme
 
 Statically typed wrapper for nim ast at compile (~NimNode~) and rutime
-(~PNode~). Another take on solving problem of ~node[0][0][1][0]~.
-Mostly concerned with processing of types and procedure declarations.
+(~PNode~). Another take on solving problem of ~node[0][0][1][0]~. Mostly
+concerned with processing of types and procedure declarations. Provides
+helper API for working with nimble packages.
 
 * Installation
 
@@ -110,20 +111,3 @@ Object[ast.PNode, Pragma[ast.PNode]]
 
 If you have any question about implementation, API etc. you can join
 my [[https://discord.gg/hjfYJCU][discord server]] and ask there.
-
-Right now not all possible ast combinations are covered, more testing
-is necessary.
-
-Ideas:
-
-- [ ] Genereate wrappers for [[https://www.sourcetrail.com/][sourcetrail]] code indexer software [[https://github.com/CoatiSoftware/SourcetrailDB][library]]
-  using [[https://github.com/haxscramper/hcparse][libclang wrapper]]. Most groundwork has already been done - it
-  should be relatively simple to assemble all pieces together.
-- [ ] Generate graphviz graph of object dependencies using [[https://github.com/haxscramper/hasts][graphviz
-  wrapper]] - basically the same as sourcetrail DB, just easier to
-  implement as it does not require working with C++ bindings.
-- [ ] Having more 'typed' representation of of object opens
-  possibilities for things like refactoring, building graphs of object
-  dependencies (which one uses another as field etc). Right now I
-  don't have any concrete ideas, but something like this might be
-  easier to implement when we know logical structure of an object.
