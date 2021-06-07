@@ -146,6 +146,8 @@ func parseEnumField*[NNode](fld: NNode): EnumField[NNode] =
 
 
   result.declNode = some(fld)
+  when NNode is PNode:
+    result.docComment = fld.comment
 
 
 
@@ -345,7 +347,8 @@ func parseEnumImpl*[NNode](en: NNode): EnumDecl[NNode] =
       raiseImplementKindError(en)
 
 func parseEnum*[NNode: not enum](node: NNode): EnumDecl[NNode] =
-  return parseEnumImpl(node)
+  result = parseEnumImpl(node)
+  result.docComment = getDocComment(node)
 
 #========================  Other implementation  =========================#
 func getEnumPref*(en: NimNode): string =

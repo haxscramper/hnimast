@@ -572,7 +572,7 @@ proc lispRepr*(typ: PType, colored: bool = true): string =
     if '\n' notin t:
       result &= " " & toRed(t, colored)
 
-proc treeRepr*(
+func treeRepr*(
     pnode: PNode, colored: bool = true,
     pathIndexed: bool = false,
     positionIndexed: bool = true,
@@ -608,22 +608,31 @@ proc treeRepr*(
       for line in split(n.comment, '\n'):
         result.add pref & "  # " & toCyan(line) & "\n"
 
+      result.add pref
+
+    else:
+      result.add " "
+
+    # if n.kind == nkSym and notNil(n.sym.ast):
+    #   debugecho n.sym.ast
+
+
     case n.kind:
       of nkStrKinds:
-        result &= " \"" & toYellow(n.getStrVal(), colored) & "\""
+        result &= "\"" & toYellow(n.getStrVal(), colored) & "\""
 
       of nkIntKinds:
-        result &= " " & toBlue($n.intVal, colored)
+        result &= toBlue($n.intVal, colored)
 
       of nkFloatKinds:
-        result &= " " & toMagenta($n.floatVal, colored)
+        result &= toMagenta($n.floatVal, colored)
 
       of nkIdent:
-        result &= " " & toGreen(n.getStrVal(), colored)
+        result &= toGreen(n.getStrVal(), colored)
 
       of nkSym:
         result &= [
-          " ", toBlue(($n.sym.kind)[2 ..^ 1], colored),
+          toBlue(($n.sym.kind)[2 ..^ 1], colored),
           " ", toGreen(n.getStrVal(), colored),
           " ", tern(isNil(n.sym.typ),
             "<no-type>", n.sym.typ.lispRepr(colored)), "\n",
@@ -636,7 +645,7 @@ proc treeRepr*(
 
       else:
         if not isNil(n.typ):
-          result &= " " & n.typ.lispRepr(colored)
+          result &= n.typ.lispRepr(colored)
 
         if n.len > 0:
           result &= "\n"
@@ -1291,7 +1300,7 @@ proc getDocComment*[N](node: N): string =
     of nnkTypeDef:
       return getDocComment(node[2])
 
-    of nnkObjectTy, nnkIdentDefs:
+    of nnkObjectTy, nnkIdentDefs, nnkEnumTy:
       when node is PNode:
         return node.comment
 
@@ -1313,18 +1322,6 @@ proc getDocComment*[N](node: N): string =
 
     else:
       discard
-      # when node is PNode:
-
-      #   proc nocomment(n: PNode) =
-      #     if n.comment != "":
-      #       if n.kind notin {
-      #         nkVarSection, nkIdentDefs
-      #       }:
-      #         raiseImplementKindError(n, n.treeRepr1(maxDepth = 3))
-      #     for s in n:
-      #       nocomment(s)
-
-      #   nocomment(node)
 
 proc getSomeBase*[N](node: N): Option[N] =
   case node.kind.toNNK():

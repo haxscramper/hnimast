@@ -663,14 +663,15 @@ proc getNimblePaths*(
 
 
 when isMainModule:
-  let n = compileString("""
+  let str = """
 
-type Dist = distinct int
+type
+  En = enum
+    ## Other
+    a ## Test field
 
-let
-  aa = Dist(123)
-  bb = 123.Dist
-  cc = aa.int
-
-""", getStdPath())
+"""
+  let n = compileString(str, getStdPath())
   echo n.treeRepr1()
+
+  echo parsePnodeStr(str).treeRepr1()

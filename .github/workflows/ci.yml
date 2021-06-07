@@ -1,9 +1,7 @@
 name:
   build
 on:
-  push:
-    tags:
-      - 'v*'
+  push
 jobs:
   build:
     runs-on: ubuntu-latest

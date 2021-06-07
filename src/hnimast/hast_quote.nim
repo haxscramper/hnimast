@@ -37,7 +37,7 @@ func quoteAux(body: NimNode, resCall: string, pos: NimNode): NimNode =
 
         return parseExpr(res)
 
-    of nnkStrKinds:
+    of nnkStrKinds, nnkCommentStmt:
       result.add newLit body.strVal
 
     of nnkFloatKinds:
