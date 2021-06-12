@@ -16,4 +16,8 @@ requires "compiler >= 1.4.0"
 requires "nimble <= 0.13.0"
 
 task docgen, "Generate documentation":
-  exec("hmisc-putils docgen --ignore='**/proc_decl.nim'")
+  exec("""
+hmisc-putils docgen \
+  --ignore='**/proc_decl.nim' \
+  --ignore='**/compiler_aux.nim'
+""")
