@@ -1214,6 +1214,8 @@ proc toPNode*(val: string): PNode = newPLit(val)
 proc newCaseStmt*[N](expr: N): N =
   newNTree[N](nnkCaseStmt, expr)
 
+proc newPStmtList*(): PNode = newNTree[PNode](nnkStmtList)
+
 proc newPDotExpr*(lhs, rhs: PNode | string): PNode =
   newPTree(nnkDotExpr, toPNode(lhs), toPNode(rhs))
 

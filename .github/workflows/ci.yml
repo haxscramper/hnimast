@@ -12,9 +12,9 @@ jobs:
           path: '../nim'
           version: 'version-1-4'
       - run: "nimble -y test && nimble install -y"
-      # - run: "hmisc-putils docgen"
-      # - uses: crazy-max/ghaction-github-pages@v1
-      #   with:
-      #     build_dir: docs
-      #   env:
-      #     GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      - run: "hmisc-putils docgen"
+      - uses: crazy-max/ghaction-github-pages@v1
+        with:
+          build_dir: docs
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
