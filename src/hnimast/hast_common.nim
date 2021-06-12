@@ -4,7 +4,7 @@ import compiler/[ast, idents, lineinfos, renderer]
 import hmisc/types/colorstring
 import hmisc/helpers
 
-export ast, macros
+export macros
 
 template `[]`*(node: PNode, slice: HSLice[int, BackwardsIndex]): untyped =
   ## Get range of subnodes from `PNode`

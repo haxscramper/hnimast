@@ -1,6 +1,6 @@
 import hast_common
 import std/[strutils]
-import compiler/[lineinfos]
+import compiler/[lineinfos, ast]
 import hmisc/hexceptions
 
 func quoteAux(body: NimNode, resCall: string, pos: NimNode): NimNode =
