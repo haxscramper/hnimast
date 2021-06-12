@@ -18,5 +18,6 @@ task docgen, "Generate documentation":
   exec("""
 hmisc-putils docgen \
   --ignore='**/proc_decl.nim' \
-  --ignore='**/compiler_aux.nim'
+  --ignore='**/compiler_aux.nim' \
+  --ignore='**/nimble_aux.nim'
 """)
