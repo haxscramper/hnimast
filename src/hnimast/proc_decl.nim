@@ -3,6 +3,9 @@ import hmisc/helpers
 import std/[sequtils, strutils, macros, options]
 import compiler/[ast, lineinfos]
 
+when defined(nimdoc):
+  static: quit 0
+
 type
   # TODO different keyword types: `method`, `iterator`, `proc`,
   # `func`, `template` etc.
