@@ -12,21 +12,7 @@ import compiler/[ast, # idents,
 
 proc str(n: PNode): string = `$`(n)
 
-let
-  txb = makeTextBlock
-  vsb = makeStackBlock
-  hsb = makeLineBlock
-  ind = makeIndentBlock
-  choice = makeChoiceBlock
-
-const
-  H = blkLine
-  V = blkStack
-  T = blkText
-  I = blkIndent
-  S = blkSpace
-  C = blkChoice
-
+initBlockFmtDsl()
 
 
 func `[]`(n: ast.PNode, sl: HSlice[int, BackwardsIndex]): seq[PNode] =

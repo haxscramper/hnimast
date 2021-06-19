@@ -204,9 +204,9 @@ func nilToDiscard*(n: NimNode): NimNode =
 
 
 func toNK*(kind: NimNodeKind): TNodeKind =
-  TNodeKind(kind)
+  TNodeKind(kind.int)
 
-func toNNK*(kind: TNodeKind): NimNodeKind = NimNodeKind(kind)
+func toNNK*(kind: TNodeKind): NimNodeKind = NimNodeKind(kind.int)
 func toNNK*(kind: NimNodeKind): NimNodeKind = kind
 
 func `==`*(k1: TNodeKind, k2: NimNodeKind): bool = k1.toNNK() == k2
