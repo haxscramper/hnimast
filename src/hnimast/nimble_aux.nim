@@ -115,6 +115,7 @@ proc parsePackageInfoCfg*(
 
               else:
                 return
+
           else:
             return
 
@@ -147,19 +148,29 @@ proc getStrValues(node: PNode): seq[string] =
   elif node.kind in nkStrKinds:
     values.add node.getStrVal()
 
-  elif node.kind in {nkIdent, nkCall, nkWhenStmt}:
+  elif node.kind in {nkIdent, nkCall, nkWhenStmt, nkInfix}:
     raise NimsParseFail(
-      msg: "Cannot get property value from " & $node.kind)
+      msg: "Cannot get property value from " & node.treeRepr())
 
   else:
     raiseImplementKindError(node, node.treeRepr())
 
   return values
 
+type
+  ExtraPackageInfo* = object
+    cfgManifest*: bool
+    nimsManifest*: bool
+    node*: PNode
+
 
 
 proc parsePackageInfoNims*(
-    text: string, path: string = "<file>"): Option[PackageInfo] =
+    text: string,
+    fails: var Table[string, NimsParseFail],
+    extra: var ExtraPackageInfo,
+    path: string = "<file>"
+  ): Option[PackageInfo] =
 
   ##[
 * TODO edge cases
@@ -191,7 +202,10 @@ proc parsePackageInfoNims*(
 
 ]##
 
-  proc parseStmts(node: PNode, res: var PackageInfo) =
+  proc parseStmts(
+      node: PNode, res: var PackageInfo,
+      fails: var Table[string, NimsParseFail]) =
+
     case node.kind:
       of nkCommand, nkCall:
         if node[0].kind == nkDotExpr:
@@ -224,7 +238,7 @@ proc parsePackageInfoNims*(
 
                   of nkIdent, nkExprEqExpr, nkInfix:
                     # Expr eq expr first encountered in `fision`
-                    raise NimsParseFail(
+                    fails["requires"] = NimsParseFail(
                       msg: "Cannot get property requires from " & $arg.kind)
 
                   of nkPrefix:
@@ -260,6 +274,16 @@ proc parsePackageInfoNims*(
 
         elif node[0].kind == nkIdent:
           let property = node[0].getStrVal().normalize
+          template tryStr(expr: untyped): untyped =
+            try:
+              expr
+
+            except NimsParseFail as e:
+              fails[property] = e
+              ""
+
+
+
           case property:
             of "version":
               case node[1].kind:
@@ -275,41 +299,43 @@ proc parsePackageInfoNims*(
                       "Unhandled node structure: " & treeRepr(node[1]))
 
                 of nkIdent, nkBracketExpr, nkCall, nkCommand:
-                  raise NimsParseFail(
-                    msg: "Cannot get version value from " &
-                      $node[1].kind
-                  )
+                  fails[property] = NimsParseFail(
+                    msg: "Cannot get version value from " & $node[1].kind)
 
                 else:
                   raiseImplementError(
                     "Unhandled node structure: " & treeRepr(node[1]))
 
 
-            of "license": res.license         = node[1].getStrValues()[0]
-            of "description": res.description = node[1].getStrValues()[0]
-            of "srcdir": res.srcDir           = node[1].getStrValues()[0]
-            of "packagename": res.name        = node[1].getStrValues()[0]
-            of "bindir": res.name             = node[1].getStrValues()[0]
-            of "author": res.author           = node[1].getStrValues()[0]
-            of "backend": res.backend         = node[1].getStrValues()[0]
-            of "name": res.name               = node[1].getStrValues()[0]
+            of "license": res.license         = tryStr node[1].getStrValues()[0]
+            of "description": res.description = tryStr node[1].getStrValues()[0]
+            of "srcdir": res.srcDir           = tryStr node[1].getStrValues()[0]
+            of "packagename": res.name        = tryStr node[1].getStrValues()[0]
+            of "bindir": res.name             = tryStr node[1].getStrValues()[0]
+            of "author": res.author           = tryStr node[1].getStrValues()[0]
+            of "backend": res.backend         = tryStr node[1].getStrValues()[0]
+            of "name": res.name               = tryStr node[1].getStrValues()[0]
             of "bin", "installext", "skipdirs", "installdirs", "skipext",
-               "skipfiles", "installfiles"
-                 :
+               "skipfiles", "installfiles":
 
-              let values = node[1].getStrValues()
+              try:
+                let values = node[1].getStrValues()
 
-              case property:
-                of "bin":
-                  if values.len > 0:
-                    res.bin[values[0]] = values[0]
+                case property:
+                  of "bin":
+                    if values.len > 0:
+                      res.bin[values[0]] = values[0]
 
-                of "installext":   res.installExt   = values
-                of "skipdirs":     res.skipDirs     = values
-                of "installdirs":  res.installDirs  = values
-                of "skipext":      res.skipExt      = values
-                of "skipfiles":    res.skipFiles    = values
-                of "installfiles": res.installFiles = values
+                  of "installext":   res.installExt   = values
+                  of "skipdirs":     res.skipDirs     = values
+                  of "installdirs":  res.installDirs  = values
+                  of "skipext":      res.skipExt      = values
+                  of "skipfiles":    res.skipFiles    = values
+                  of "installfiles": res.installFiles = values
+
+              except NimsParseFail as e:
+                fails[property] = e
+
 
             of "namedbin":
               var maps: seq[tuple[key, value: string]]
@@ -327,16 +353,19 @@ proc parsePackageInfoNims*(
 
             of "mode":
               discard
+
+
             else:
-              raise NimsParseFail(
-                msg: "Assignment to unknown property: " & property &
-                  "\n" & treeRepr(node))
+              discard
+              # raise NimsParseFail(
+              #   msg: "Assignment to unknown property: " & property &
+              #     "\n" & treeRepr(node))
 
       of nkWhenStmt:
         for branch in node:
           case branch.kind:
-            of nkElifBranch, nkElifExpr: parseStmts(branch[1], res)
-            of nkElseExpr, nkElse: parseStmts(branch[0], res)
+            of nkElifBranch, nkElifExpr: parseStmts(branch[1], res, fails)
+            of nkElseExpr, nkElse: parseStmts(branch[0], res, fails)
             else:
               raiseImplementError(
                 "Unhandled node structure: " & treeRepr(branch))
@@ -348,7 +377,7 @@ proc parsePackageInfoNims*(
 
       of nkStmtList:
         for stmt in node:
-          parseStmts(stmt, res)
+          parseStmts(stmt, res, fails)
 
       of nkIfStmt:
         discard
@@ -370,32 +399,47 @@ proc parsePackageInfoNims*(
   var res = initPackageInfo(path)
 
   let node = parsePNodeStr(text)
+  extra.node = node
 
   if isNil(node):
     return none(PackageInfo)
 
   for stmt in node:
-    parseStmts(stmt, res)
+    parseStmts(stmt, res, fails)
 
   return some(res)
 
 proc parsePackageInfo*(
-    configText: string, path: AbsFile = AbsFile("<file>")): PackageInfo =
+    configText: string,
+    fails: var Table[string, NimsParseFail],
+    extra: var ExtraPackageInfo,
+    path: AbsFile = AbsFile("<file>")
+  ): PackageInfo =
 
   var parseRes = parsePackageInfoCfg(configText, path.string)
   if parseRes.isSome():
+    extra.cfgManifest = true
     return parseRes.get()
 
 
-  parseRes = parsePackageInfoNims(configText, path.string)
+  parseRes = parsePackageInfoNims(configText, fails, extra, path.string)
   if parseRes.isSome():
+    extra.nimsManifest = true
     return parseRes.get()
 
   else:
     raise newException(
       NimbleError,
-      "Cannot parse package at path: " & $path
-    )
+      "Cannot parse package at path: " & $path)
+
+
+proc parsePackageInfo*(
+    configText: string, path: AbsFile = AbsFile("<file>")
+  ): PackageInfo =
+
+  var fails: Table[string, NimsParseFail]
+  var extra: ExtraPackageInfo
+  return parsePackageInfo(configText, fails, extra, path)
 
 import nimblepkg/[packageparser, cli, version, packageinfo, common]
 import nimblepkg/options as nimble_options

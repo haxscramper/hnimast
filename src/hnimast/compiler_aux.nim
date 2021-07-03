@@ -64,7 +64,8 @@ proc newModuleGraph*(
       config: ConfigRef; info: TLineInfo; msg: string; level: Severity
     ) {.closure, gcsafe.} = nil,
     useNimblePath: bool = false,
-    symDefines: seq[string] = @[]
+    symDefines: seq[string] = @[],
+    optionsConfig: proc(config: var ConfigRef) = nil
   ): ModuleGraph =
 
   var
@@ -114,9 +115,17 @@ proc newModuleGraph*(
   else:
     config.disableNimblePath()
 
+  if notNil(optionsConfig):
+    optionsConfig(config)
+
   return newModuleGraph(cache, config)
 
-proc compileString*(text: string, stdpath: AbsDir): PNode =
+proc compileString*(
+    text: string,
+    stdpath: AbsDir = getStdPath(),
+    symDefines: seq[string] = @[],
+    optionsConfig: proc(config: var ConfigRef) = nil
+  ): PNode =
   assertExists(stdpath)
 
   var graph {.global.}: ModuleGraph
@@ -126,6 +135,10 @@ proc compileString*(text: string, stdpath: AbsDir): PNode =
     proc(config: ConfigRef; info: TLineInfo; msg: string; level: Severity) =
       if config.errorCounter >= config.errorMax:
         echo msg
+
+    ,
+    symDefines = symDefines,
+    optionsConfig = optionsConfig
   )
 
   var res {.global.}: PNode
@@ -159,18 +172,135 @@ proc compileString*(text: string, stdpath: AbsDir): PNode =
 
   return res
 
+type
+  IcppPartKind* = enum
+    ipkArgSplice
+    ipkTextPart
+    ipkNextArg
+    ipkNextDotArg ## `#.`
+    ipkNextCnewArg
+
+    ipkResultType
+    ipkArgType
+
+  IcppPart* = object
+    case kind*: IcppPartKind
+      of ipkTextPart:
+        text*: string
+
+      of ipkResultType, ipkArgType:
+        argIdx*: int
+        baseGet*: int
+
+      else:
+        discard
+
+  IcppPattern* = object
+    parts*: seq[IcppPart]
+
+proc genPatternCall(pat: string): IcppPattern =
+  var i = 0
+  var j = 1
+
+  template pushText(str: string): untyped =
+    if result.parts.len > 0 and
+       result.parts[^1].kind == ipkTextPart:
+      result.parts[^1].text.add str
+
+    else:
+      result.parts.add IcppPart(kind: ipkTextPart, text: str)
+
+  while i < pat.len:
+    case pat[i]:
+      of '@':
+        result.parts.add IcppPart(kind: ipkArgSplice)
+        inc i
+
+      of '#':
+        if i + 1 < pat.len and pat[i + 1] in {'+', '@'}:
+          assert pat[i + 1] != '+',
+           "`+` is handled differently for importcpp, but " &
+             "manual does not say what this combination means exactly " &
+             "so it is not supported for now."
+
+          result.parts.add IcppPart(kind: ipkNextCnewArg)
+
+          inc i
+        elif i + 1 < pat.len and pat[i + 1] == '.':
+          result.parts.add IcppPart(kind: ipkNextDotArg)
+
+          inc i
+
+        # elif i + 1 < pat.len and pat[i + 1] == '[':
+        #   discard
+
+        else:
+          result.parts.add IcppPart(kind: ipkNextArg)
+
+        inc j
+        inc i
+      of '\'':
+        let begin = i
+        var
+          stars: int
+          argIdx: int
+          isPattern = false
+
+        inc i
+
+        while pat[i] == '*':
+          inc stars
+          inc i
+
+        if pat[i] in Digits:
+          argIdx = pat[i].ord - '0'.ord
+          inc i
+          isPattern = true
+
+        else:
+          i = begin
 
 
-import nimble_aux
+        if isPattern:
+          if argIdx == 0:
+            result.parts.add IcppPart(
+              kind: ipkResultType, argIdx: -1, baseGet: stars)
+
+          else:
+            result.parts.add IcppPart(
+              kind: ipkResultType, argIdx: argIdx - 1, baseGet: stars)
+
+        else:
+          pushText("'")
+          inc i
+
+      else:
+        let start = i
+        while i < pat.len:
+          if pat[i] notin {'@', '#', '\''}: inc(i)
+          else:
+            break
+
+        if i - 1 >= start:
+          pushText(pat[start .. i - 1])
+
+import ./nimble_aux
 export nimble_aux
 
 when isMainModule:
+  import ./pnode_parse
   let str = """
 
 type
+  Obj = object
+    f1: int
+    f2: string
+
   En = enum
     ## Other
     a ## Test field
+
+proc test(o: Obj): int = discard
 
 """
   let n = compileString(str, getStdPath())

@@ -17,6 +17,7 @@ proc add*(n: PNode, sub: seq[PNode]) =
 
 const
   nnkStrKinds* = { nnkStrLit .. nnkTripleStrLit }
+  nnkStringKinds* = nnkStrKinds
   nnkIntKinds* = { nnkCharLit .. nnkUInt64Lit }
   nnkFloatKinds* = { nnkFloatLit .. nnkFloat128Lit }
   nnkLiteralKinds* = nnkStrKinds + nnkIntKinds + nnkFloatKinds
@@ -46,6 +47,7 @@ const
   nnkDeclKinds* = nnkProcDeclKinds + { nnkTypeDef }
 
   nkStrKinds* = { nkStrLit .. nkTripleStrLit }
+  nkStringKinds* = nkStrKinds
   nkIntKinds* = { nkCharLit .. nkUInt64Lit }
   nkFloatKinds* = { nkFloatLit .. nkFloat128Lit }
   nkLiteralKinds* = nkStrKinds + nkIntKinds + nkFloatKinds + {

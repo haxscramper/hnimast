@@ -260,12 +260,14 @@ proc layoutBlockRepr*(n: PNode, indent: int = 0): Layout =
   return sln.layouts[0]
 
 proc pprintWrite*(s: Stream | File, n: PNode, indent: int = 0) =
-  s.write(layoutBlockRepr(n), indent = indent)
+  raise newImplementError()
+  # s.write(layoutBlockRepr(n), indent = indent)
 
 
 proc toPString*(n: PNode, indent: int = 0): string =
-  var blc = layoutBlockRepr(n, indent = indent)
-  blc.printOn(result)
+  raise newImplementError()
+  # var blc = layoutBlockRepr(n, indent = indent)
+  # blc.toString()
 
 proc write*(
   s: Stream | File, pd: AnyNimDecl[PNode],
