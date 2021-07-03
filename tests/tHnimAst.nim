@@ -383,4 +383,4 @@ suite "Pretty printing":
         self.d.baseMethodWrap = wrap
 
 
-    echo toPString((code))
+    # echo toPString((code))

@@ -1,3 +1,7 @@
+when not defined(ssl):
+  {.error: "In order to use `compuler_aux` or `nimble_aux` you need to `define` ssl. This can be done by adding `switch(\"define\", \"ssl=true\")` to the config.nims, passing command-line option `-d:ssl` to nim (or nimble), or adding `{.define(ssl).}` before importing this module".}
+
+
 import
   nimblepkg/[common, packageinfo, version],
   ./hast_common,
