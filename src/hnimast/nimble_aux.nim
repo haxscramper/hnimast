@@ -258,7 +258,7 @@ proc parsePackageInfoNims*(
 
             of "task": res.nimbleTasks.incl node[1].getStrVal()
             of "after": res.postHooks.incl node[1].getStrVal()
-            of "before": res.postHooks.incl node[1].getStrVal()
+            of "before": res.preHooks.incl node[1].getStrVal()
             of "foreigndep": res.foreignDeps.add node[1].getStrVal()
             of "switch", "mkdir", "hint", "writefile", "exec":
               discard
