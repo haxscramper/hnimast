@@ -1,6 +1,6 @@
 # Package
 
-version       = "0.3.30"
+version       = "0.3.31"
 author        = "haxscramper"
 description   = "User-friendly wrapper for nim ast"
 license       = "Apache-2.0"
