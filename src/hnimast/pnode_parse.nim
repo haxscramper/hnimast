@@ -1,6 +1,5 @@
-import compiler/[parser, llstream, idents, options, pathutils# , astalgo
-]
-import compiler/[ast, lineinfos]
+import compiler/[
+  parser, llstream, idents, options, pathutils, ast, lineinfos]
 
 type ParseError = ref object of CatchableError
 
@@ -31,3 +30,7 @@ proc parsePNodeStr*(str: string): PNode =
 
   except ParseError:
     return nil
+
+when isMainModule:
+  let r = parsePNodeStr("const a = 1")
+  echo r.kind

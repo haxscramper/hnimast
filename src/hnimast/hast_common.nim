@@ -66,6 +66,25 @@ const
     nkConverterDef
   }
 
+  nkStmtBlockKinds* = {
+    nkIfExpr,
+    nkIfStmt,
+    nkWhenStmt,
+    nkWhenExpr,
+    nkForStmt,
+    nkBlockStmt
+  }
+
+  nkIdentDeclKinds* = {
+    nkLetSection,
+    nkVarSection,
+    nkConstSection,
+    nkIdentDefs
+  }
+
+
+  nkAllDeclKinds* = nkProcDeclKinds + nkIdentDeclKinds
+
   skProcDeclKinds* = {
     skProc,
     skTemplate,
@@ -146,6 +165,8 @@ func getStrVal*(p: PNode, doRaise: bool = true): string =
 
       else:
         ""
+
+func safeStrVal*(n: PNode): string = getStrVal(n, false)
 
 func getIntVal*(n: PNode): BiggestInt = n.intVal
 func getIntVal*(n: NimNode): BiggestInt = n.intVal()
@@ -564,9 +585,10 @@ proc pprintCalls*(node: NimNode, level: int): void =
     else:
       echo ($node.toStrLit()).indent(level * 2)
 
-proc lispRepr*(typ: PType, colored: bool = true): string =
+proc lispRepr*(
+    typ: PType, colored: bool = true, symkind: bool = true): string =
   result = toMagenta(($typ.kind)[2..^1], colored)
-  if not isNil(typ.sym):
+  if not isNil(typ.sym) and symkind:
     result &= " " & toCyan(($typ.sym.kind)[2..^1], colored)
 
   if not isNil(typ.n):
@@ -636,9 +658,14 @@ func treeRepr*(
         result &= [
           toBlue(($n.sym.kind)[2 ..^ 1], colored),
           " ", toGreen(n.getStrVal(), colored),
-          " ", tern(isNil(n.sym.typ),
-            "<no-type>", n.sym.typ.lispRepr(colored)), "\n",
-          " ", pref, to8Bit($n.sym.flags, 2, 0, 3)
+          " ", tern(
+            isNil(n.sym.typ),
+            "<no-type>",
+            n.sym.typ.lispRepr(colored, symkind = false)
+          ),
+          "\n",
+          " ", pref, to8Bit($n.sym.flags, 2, 0, 3),
+          " ", to8Bit($n.sym.magic, 2, 0, 5),
         ]
 
 
@@ -1345,5 +1372,5 @@ proc getSomeBase*[N](node: N): Option[N] =
       discard
 
 func eqIdent*(node: PNode, str: string): bool =
-  node.getStrVal()[0] == str[0] and
-  node.getStrVal().normalize() == str.normalize()
+  node.getStrVal(false)[0] == str[0] and
+  node.getStrVal(false).normalize() == str.normalize()

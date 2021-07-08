@@ -292,19 +292,10 @@ when isMainModule:
   import ./pnode_parse
   let str = """
 
-type
-  Obj = object
-    f1: int
-    f2: string
-
-  En = enum
-    ## Other
-    a ## Test field
-
-proc test(o: Obj): int = discard
+const test {.intdefine.} = 190
 
 """
   let n = compileString(str, getStdPath())
   echo n.treeRepr1()
 
-  echo parsePnodeStr(str).treeRepr1()
+  # echo parsePnodeStr(str).treeRepr1()
