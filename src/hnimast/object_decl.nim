@@ -120,7 +120,8 @@ func newObjectField*[N](
     cxtype: NType[N],
     docComment: string = "",
     codeComment: string = "",
-    exported: bool = true
+    exported: bool = true,
+    value: Option[N] = none(N)
   ): ObjectField[N] =
 
   ObjectField[N](
@@ -130,7 +131,8 @@ func newObjectField*[N](
     fldType: cxtype,
     docComment: docComment,
     codeComment: codeComment,
-    isExported: exported
+    isExported: exported,
+    value: value
   )
 
 func addField*[N](
@@ -517,9 +519,8 @@ proc eachPath*(
         branchBody.add nnkOfBranch.newTree(
           nnkCurly.newTree(branch.ofValue), cbRes)
 
-      {.warning[Deprecated]:off.}:
-        for fld in branch.flds:
-          branchBody.add fld.eachPath(self, thisPath, cb)
+      for fld in branch.flds:
+        branchBody.add fld.eachPath(self, thisPath, cb)
 
 
 proc eachPath*(
@@ -528,11 +529,10 @@ proc eachPath*(
     cb: proc(path: NObjectPath, fields: seq[NObjectField]): NimNode
   ): NimNode {.deprecated.} =
 
-  {.warning[Deprecated]:off.}:
-    result = newStmtList cb(@[], obj.flds)
-    for fld in items(obj.flds):
-      if fld.isKind:
-        result.add fld.eachPath(self, @[], cb)
+  result = newStmtList cb(@[], obj.flds)
+  for fld in items(obj.flds):
+    if fld.isKind:
+      result.add fld.eachPath(self, @[], cb)
 
 proc eachPath*(
     self: NimNode,
@@ -540,12 +540,11 @@ proc eachPath*(
     cb: proc(fields: seq[NObjectField]): NimNode
   ): NimNode {.deprecated.} =
 
-  {.warning[Deprecated]:off.}:
-    return eachPath(
-      self, obj,
-      proc(path: NObjectPath, fields: seq[NObjectField]): NimNode =
-        cb(fields)
-    )
+  return eachPath(
+    self, obj,
+    proc(path: NObjectPath, fields: seq[NObjectField]): NimNode =
+      cb(fields)
+  )
 
 
 func onPath*(self: NimNode, path: NObjectPath): NimNode =

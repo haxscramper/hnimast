@@ -20,7 +20,7 @@ import hnimast/[
   idents_types,
   hast_quote,
   nim_decl,
-  obj_field_macros
+ obj_field_macros,
 ]
 
 export pnode_parse,

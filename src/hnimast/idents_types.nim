@@ -21,6 +21,7 @@ type
     ntkTypeofExpr ## `typeof(nil)` and similar (if there anything else of
                   ## that sort)
 
+  PNType* = NType[PNode]
   NType*[NNode] = object
     ## Representation of generic nim type;
     declNode*: Option[NNode]

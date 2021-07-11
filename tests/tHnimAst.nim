@@ -333,54 +333,8 @@ type Type = object
 
     write(stdout, decls.toNimDecl())
 
-import hnimast/pprint
+suite "Distinct API":
+  let node = newPProcDecl(name = "hello").toNNode()
+  let pr: ProcDeclNode[PNode] = node.asProcDecl()
 
-suite "Pretty printing":
-  test "Proc declaration":
-    let pr = newPProcDecl(
-      name = "hello",
-      args = {
-        "similarityTreshold" : newPType("ScoreCmpProc"),
-        "secondArgument" : newPType("StdCxx11BasicStringSizeType"),
-      },
-      genParams = @[newPType("CharT")],
-      pragma = newPPragma(
-        newPident("cdecl"),
-        nnkExprColonExpr.newPTree(
-          newPIdent("importcpp"),
-          newRStrLit("std::__cxx11::basic_string<'0, '1, '2>::size_type")
-        )
-      ),
-      impl = ((
-        pquote do:
-          for a in b:
-            echo a
-
-          if b == 12:
-            echo 123
-      ))
-    )
-
-    startHax()
-
-    let code = pquote do:
-      proc a() =
-        type
-          CppBaseNimRaw* {.importcpp, header: "wip.hpp".} = object
-            derivedImpl*: pointer
-            baseMethodEnv*: pointer
-
-          CppBase* {.importcpp: r"CppBase",
-                     header: r"""/mnt/workspace/github/hcparse/tests/wip.cpp""".} = object
-
-
-        let wrap = proc(
-          derivedImpl: pointer, arg: cint,
-          cbEnv, cbImpl: pointer): void {.cdecl.} =
-          var derived = cast[ptr SelfType](derivedImpl)
-          cast[ClosImplType](cbImpl)(derived[], arg, cbEnv)
-
-        self.d.baseMethodWrap = wrap
-
-
-    # echo toPString((code))
+  echo pr.name().treeRepr()

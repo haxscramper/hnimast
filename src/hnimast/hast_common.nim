@@ -96,6 +96,34 @@ const
   }
 
 type
+  ProcDeclNode*[N: NimNode | PNode] = distinct N
+
+func asProcDecl*[N](n: N): ProcDeclNode[N] =
+  when n is NimNode:
+    assertKind(n, nnkProcDeclKinds)
+
+  else:
+    assertKind(n, nkProcDeclKinds)
+
+  result = ProcDeclNode(n)
+
+func asNode*(decl: ProcDeclNode[NimNode]): NimNode = NimNode(decl)
+func asNode*(decl: ProcDeclNode[PNode]): PNode = PNode(decl)
+
+func name*[N](decl: ProcDeclNode[N]): N = decl.asNode()[namePos]
+func pattern*[N](decl: ProcDeclNode[N]): N = decl.asNode()[patternPos]
+func genericParams*[N](decl: ProcDeclNode[N]): N = decl.asNode()[genericParamsPos]
+func params*[N](decl: ProcDeclNode[N]): N = decl.asNode()[paramsPos]
+func returnType*[N](decl: ProcDeclNode[N]): N = decl.asNode()[paramsPos][0]
+func argumentList*[N](decl: ProcDeclNode[N]): seq[N] =
+  for node in decl.asNode()[paramsPos][1 .. ^1]:
+    result.add node
+
+func body*[N](decl: ProcDeclNode[N]): N = decl.asNode()[bodyPos]
+func pragmas*[N](decl: ProcDeclNode[N]): N = decl.asNode()[pragmasPos]
+
+
+type
   ObjectAnnotKind* = enum
     ## Position of annotation (most likely pragma) attached.
     oakCaseOfBranch ## Annotation on case branch, not currently suppported
@@ -439,11 +467,6 @@ func newPTree*(kind: NimNodeKind, val: SomeInteger): PNode =
   result = PNode(kind: kind.toNK())
   result.intVal = BiggestInt(val)
 
-func newPCall*(call: string, args: varargs[PNode]): PNode =
-  result = nnkCall.newPTree()
-  result.add newPIdent(call)
-  for arg in args:
-    result.add arg
 
 
 
@@ -473,7 +496,13 @@ proc newDot*[N: NimNode | PNode](self: N, name: string): N =
   newNTree[N](nnkDotExpr, self, newNIdent[N](name))
 
 proc newSet*[N](elements: varargs[N]): N = newNTree[N](nnkCurly, elements)
-proc newDot*[N](lhs, rhs: N): N = newNTree[N](nnkCurly, lhs, rhs)
+proc newDot*[N](lhs, rhs: N): N = newNTree[N](nnkDotExpr, lhs, rhs)
+proc newBracketExpr*[N](lhs, rhs: N): N =
+  newNTree[N](nnkBracketExpr, lhs, rhs)
+
+proc newBracketExpr*[N](lhs: N, rhs: SomeInteger): N =
+  newNTree[N](nnkBracketExpr, lhs, newNLit[N, typeof(rhs)](rhs))
+
 
 proc newExprColon*[N](lhs, rhs: N): N =
   newNTree[N](nnkExprColonExpr, lhs, rhs)
@@ -516,6 +545,40 @@ proc newBreak*(target: NimNode = newEmptyNode()): NimNode =
 
 proc newIfStmt*[N](cond, body: N): NimNode =
   newNTree[N](nnkIfStmt, newNTree[N](nnkElifBranch, cond, body))
+
+proc newXCall*[N](head: string, args: seq[N]): N =
+  case head:
+    of ".":
+      result = newNTree[N](nnkDotExpr, args)
+
+    of "[]":
+      result = newNTree[N](nnkBracketExpr, args)
+
+    elif allIt(head, it in IdentChars):
+      result = newNTree[N](nnkCall, newNIdent[N](head) & args)
+
+    else:
+      let ident = newNIdent[N](head)
+      case args.len:
+        of 0:
+          raise newArgumentError(
+            &"Cannot create new call for '{head}' with no arguments")
+
+        of 1:
+          result = newNTree[N](nnkPrefix, ident, args[0])
+
+        of 2:
+          result = newNTree[N](nnkInfix, ident, args[0], args[1])
+
+        else:
+          result = newNTree[N](nnkCall, ident & args)
+
+
+proc newNCall*(head: string, args: varargs[NimNode]): NimNode =
+  newXCall[NimNode](head, toSeq(args))
+
+proc newPCall*(head: string, args: varargs[PNode]): PNode =
+  newXCall[PNode](head, toSeq(args))
 
 
 #=======================  Misc helper algorithms  ========================#

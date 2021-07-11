@@ -1,6 +1,7 @@
 import compiler/[
   parser, llstream, idents, options, pathutils, ast, lineinfos]
 
+
 type ParseError = ref object of CatchableError
 
 proc parsePNodeStr*(str: string): PNode =
@@ -34,5 +35,8 @@ proc parsePNodeStr*(str: string): PNode =
     return nil
 
 when isMainModule:
-  let r = parsePNodeStr("const a = 1")
-  echo r.kind
+  let r = parsePNodeStr("""
+type
+  Type = object
+    hello: float
+""")
