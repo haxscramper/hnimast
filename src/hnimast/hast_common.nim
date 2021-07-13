@@ -495,10 +495,14 @@ proc newIdent*(str: string): NimNode = newIdentNode(str)
 proc newDot*[N: NimNode | PNode](self: N, name: string): N =
   newNTree[N](nnkDotExpr, self, newNIdent[N](name))
 
+proc newPar*[N](arg: N): N = newNTree[N](nnkPar, arg)
+
 proc newSet*[N](elements: varargs[N]): N = newNTree[N](nnkCurly, elements)
 proc newDot*[N](lhs, rhs: N): N = newNTree[N](nnkDotExpr, lhs, rhs)
-proc newBracketExpr*[N](lhs, rhs: N): N =
-  newNTree[N](nnkBracketExpr, lhs, rhs)
+proc newBracketExpr*[N](lhs: N, rhs: varargs[N]): N =
+  result = newNTree[N](nnkBracketExpr, lhs)
+  for arg in rhs:
+    result.add arg
 
 proc newBracketExpr*[N](lhs: N, rhs: SomeInteger): N =
   newNTree[N](nnkBracketExpr, lhs, newNLit[N, typeof(rhs)](rhs))
@@ -543,42 +547,57 @@ proc newIn*[N; E: enum](a: N, b: set[E]): N =
 proc newBreak*(target: NimNode = newEmptyNode()): NimNode =
   newTree(nnkBreakStmt, target)
 
-proc newIfStmt*[N](cond, body: N): NimNode =
-  newNTree[N](nnkIfStmt, newNTree[N](nnkElifBranch, cond, body))
+proc wrapStmtList*[N](nodes: varargs[N]): NimNode =
+  newNTree[N](nnkStmtList, nodes)
 
-proc newXCall*[N](head: string, args: seq[N]): N =
-  case head:
+proc newIfStmt*[N](cond, body: N, orElse: N = nil): N =
+  result = newNTree[N](nnkIfStmt, newNTree[N](nnkElifBranch, cond, body))
+  if not isNil(orElse):
+    result.add newNTree[N](nnkElse, orElse)
+
+proc newIfPStmt*(): PNode = newPTree(nnkIfStmt)
+proc newIfNStmt*(): NimNode = newTree(nnkIfStmt)
+
+proc newXCall*[N](head: N, args: seq[N] = @[]): N =
+  let str =
+    if head.kind.toNNK() == nnkIdent:
+      head.getStrVal()
+
+    else:
+      ""
+
+
+  case str:
     of ".":
       result = newNTree[N](nnkDotExpr, args)
 
     of "[]":
       result = newNTree[N](nnkBracketExpr, args)
 
-    elif allIt(head, it in IdentChars):
+    elif allIt(str, it in IdentChars):
       result = newNTree[N](nnkCall, newNIdent[N](head) & args)
 
     else:
-      let ident = newNIdent[N](head)
       case args.len:
         of 0:
           raise newArgumentError(
             &"Cannot create new call for '{head}' with no arguments")
 
         of 1:
-          result = newNTree[N](nnkPrefix, ident, args[0])
+          result = newNTree[N](nnkPrefix, head, args[0])
 
         of 2:
-          result = newNTree[N](nnkInfix, ident, args[0], args[1])
+          result = newNTree[N](nnkInfix, head, args[0], args[1])
 
         else:
-          result = newNTree[N](nnkCall, ident & args)
+          result = newNTree[N](nnkCall, head & args)
 
 
 proc newNCall*(head: string, args: varargs[NimNode]): NimNode =
-  newXCall[NimNode](head, toSeq(args))
+  newXCall[NimNode](newNIdent[NimNode](head), toSeq(args))
 
 proc newPCall*(head: string, args: varargs[PNode]): PNode =
-  newXCall[PNode](head, toSeq(args))
+  newXCall[PNode](newPIdent(head), toSeq(args))
 
 
 #=======================  Misc helper algorithms  ========================#
@@ -666,6 +685,8 @@ func treeRepr*(
     maxdepth: int = 120,
     maxlen: int = 30
   ): string =
+
+  # raise newImplementError()
 
   proc aux(n: PNode, level: int, idx: seq[int]): string =
     let pref =
@@ -1306,7 +1327,11 @@ proc toPNode*(val: string): PNode = newPLit(val)
 proc newCaseStmt*[N](expr: N): N =
   newNTree[N](nnkCaseStmt, expr)
 
-proc newPStmtList*(): PNode = newNTree[PNode](nnkStmtList)
+proc newPStmtList*(args: varargs[PNode]): PNode =
+  newNTree[PNode](nnkStmtList, args)
+
+proc newBlock*[N](args: varargs[N]): N =
+  newNTree[N](nnkBlockStmt, newEmptyNNode[N](), newNTree[N](nnkStmtList, args))
 
 proc newPDotExpr*(lhs, rhs: PNode | string): PNode =
   newPTree(nnkDotExpr, toPNode(lhs), toPNode(rhs))

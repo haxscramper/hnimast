@@ -202,12 +202,19 @@ func addBranch*[N](
 func isMarkedWith*(fld: NObjectField, str: string): bool =
   fld.pragma.getElem(str).isSome()
 
+
 func isMarkedWith*(fld: NObjectField, pragma, arg: string): bool =
   let pragma = fld.pragma.getElem(pragma)
   if pragma.isSome() and pragma.get().len() > 1:
     for element in pragma.get()[1]:
       if element.kind in {nnkIdent, nnkSym} and element.strVal() == arg:
         return true
+
+func isSkipField*(fld: NObjectField, arg: string): bool =
+  fld.isMarkedWith("Skip", arg)
+
+func isReqInit*(fld: NObjectField): bool =
+  fld.isMarkedWith("requiresinit")
 
 proc newCall*(obj: NObjectDecl): NimNode =
   # TODO check if object is a ref or not and select corresponding name
@@ -279,6 +286,17 @@ proc newDot*[N](self: N, field: ObjectField[N]): N =
 
 proc newDot*[N](self: string, field: ObjectField[N]): N =
   newNTree[N](nnkDotExpr, newNIdent[N](self), newNIdent[N](field.name))
+
+proc newDot*[N](
+    self: N, path: seq[ObjectField[N]],
+    useLast: bool = true
+  ): N =
+
+  if useLast:
+    newNTree[N](nnkDotExpr, self, newNIdent[N](path[^1].name))
+
+  else:
+    raise newImplementError("Fold field path")
 
 #===============================  Getters  ===============================#
 
@@ -1126,6 +1144,35 @@ template mapItGroups*(objectDecl: NObjectDecl, expr, body: untyped): untyped =
          group {.inject.}: seq[NObjectField]): NimNode = body
   )
 
+template mapItKindFields*(objectDecl: NOBjectDecl, expr, body): untyped =
+  mapGroups(
+    objectDecl,
+    proc(path {.inject.}: seq[NObjectField]): NimNode = expr,
+
+    proc(path {.inject.}: seq[NObjectField],
+         group {.inject.}: seq[NObjectField]): NimNode =
+      var res = newStmtList()
+      for field {.inject.} in group:
+        if field.isKind:
+          res.add body
+
+      res
+  )
+
+template mapItPlainFields*(objectDecl: NOBjectDecl, expr, body): untyped =
+  mapGroups(
+    objectDecl,
+    proc(path {.inject.}: seq[NObjectField]): NimNode = expr,
+
+    proc(path {.inject.}: seq[NObjectField],
+         group {.inject.}: seq[NObjectField]): NimNode =
+      var res = newStmtList()
+      for field {.inject.} in group:
+        if not field.isKind:
+          res.add body
+
+      res
+  )
 
 proc mapPath*(
     fld: NObjectField,
