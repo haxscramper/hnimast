@@ -7,7 +7,7 @@ import
   std/[os]
 
 import
-  hnimast/compiler_aux
+  hnimast/[compiler_aux, gencode]
 
 import
   hnimast,
@@ -27,12 +27,14 @@ proc fromVm*(t: typedesc[string], node: PNode): string =
   assertKind(node, nkStringKinds)
   node.strVal
 
+genNewProcForType(VmVariant)
+
 macro fromVm*[T: object](obj: typedesc[T], vmNode: PNode): untyped =
   let
     impl = getObjectStructure(obj)
-    field = genSym(nskForVar, "field")
-    res = genSym(nskVar, "res")
-    constr = nnkObjConstr.newTree(ident(impl.name.head))
+    field = newIdent("field")
+    res = newIdent( "res")
+    constr = impl.newCall()
 
   var unpackCase = nnkCaseStmt.newTree(
     newDot(newBracketExpr(field, 0), ident("getStrVal")))
@@ -78,31 +80,28 @@ proc main() =
       currentSourceDir()
   ]))
 
+  intr.implementRoutine("*", "scriptname", "readVmVariant",
+    proc(args: VmArgs) {.nimcall, gcsafe.} =
+      echo "Reading vm variant"
+      let data = args.getNode(0)
+      echo data.treeRepr()
+      let parsed = fromVm(VmVariant, data)
+  )
+
   intr.implementRoutine("*", "scriptname", "dump",
     proc(args: VmArgs) {.nimcall, gcsafe.} =
       let slot = args.slots[args.rb + 1]
       case slot.kind:
         of rkNode:
           let data = args.getNode(0)
-          echo data.treeRepr()
-          case data.kind:
-            of nkObjConstr:
-              let obj = fromVm(VmObject, data)
-              pprint obj
-              args.setResult obj.toVm()
-
-            else:
-              args.setResult data
+          args.setResult data
 
         of rkFloat:
           let flt = args.getFloat(0)
-          echo flt
           args.setResult flt.toVm()
 
         of rkInt:
-          pprint args
           let intv = args.getInt(0)
-          echo intv
           args.setResult intv.toVm()
 
         else:
@@ -113,21 +112,14 @@ proc main() =
     readFile(currentSourceDir() /. "vm_common.nim") & """
 
 proc dump[T](arg: T): T = discard
+proc readVmVariant(arg: VmVariant) = discard
 
-echo "\e[41m*========\e[49m  object  \e[41m========*\e[49m"
-echo dump(VmObject(field1: 123123))
+for name, value in fieldPairs(VmVariant()):
+  echo "> ", name
 
-# echo "\e[41m*====\e[49m  object variant  \e[41m====*\e[49m"
-# echo dump(VmVariant())
+readVmVariant(VmVariant())
+echo dump(VmVariant())
 
-echo "\e[41m*========\e[49m  tuple  \e[41m=========*\e[49m"
-echo dump((var t: VmTuple; t))
-
-# echo "\e[41m*=========\e[49m  enum  \e[41m=========*\e[49m"
-# echo dump((var e: VmKind; e))
-
-echo "\e[41m*=\e[49m  sequence of integers  \e[41m=*\e[49m"
-echo dump(@[1,2,3,4])
 
 """))
 

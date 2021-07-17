@@ -1,7 +1,14 @@
-import hast_common, idents_types, pragmas
-import hmisc/helpers
-import std/[sequtils, strutils, macros, options]
-import compiler/[ast, lineinfos]
+import
+  ./hast_common, ./idents_types, ./pragmas
+
+import
+  hmisc/helpers
+
+import
+  std/[sequtils, strutils, macros, options, strformat]
+
+import
+  compiler/[ast, lineinfos]
 
 when defined(nimdoc):
   static: quit 0
@@ -102,9 +109,9 @@ proc `pragma=`*[N](procDecl: var ProcDecl[N], pragma: Pragma[N]) =
 func toNNode*[NNode](
   pr: ProcDecl[NNode], standalone: bool = true): NNode =
   if pr.signature.kind != ntkProc:
-    argumentError:
-      "Invalid proc declaration - signature type has kind of"
-      "{pr.signature.kind}. Proc declaration location: {pr.iinfo}"
+    raise newArgumentError(
+      "Invalid proc declaration - signature type has kind of",
+      &"{pr.signature.kind}. Proc declaration location: {pr.iinfo}")
 
 
   let headSym = case pr.kind:
@@ -439,7 +446,7 @@ proc parseProc*[N](node: N): ProcDecl[N] =
           result.name = node[0].getStrVal()
 
         else:
-          raiseImplementError("")
+          raise newImplementError()
 
 
       case toNNK(node[1].kind):

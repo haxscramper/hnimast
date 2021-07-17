@@ -98,6 +98,8 @@ type
   PObjectField* = ObjectField[PNode]
   PObjectBranch* = ObjectBranch[PNode]
 
+proc fieldType*[N](field: ObjectField[N]): NType[N] = field.fldType
+
 proc newPObjectDecl*(
   name: string,
   flds: seq[tuple[name: string, ftype: NType[PNode]]] = @[],
@@ -217,10 +219,16 @@ func isSkipField*(fld: NObjectField, arg: string): bool =
 func isReqInit*(fld: NObjectField): bool =
   fld.isMarkedWith("requiresinit")
 
+proc getNewProcName*[N](obj: ObjectDecl[N]): string =
+  if obj.isRef:
+    "new" & obj.name.head
+
+  else:
+    "init" & obj.name.head
+
 proc newCall*(obj: NObjectDecl): NimNode =
   # TODO check if object is a ref or not and select corresponding name
-  return newCall("new" & obj.name.head)
-
+  return newCall(obj.getNewProcName())
 
 proc isFinalBranch*[N](field: ObjectField[N]): bool =
   if not field.isKind:
@@ -1114,14 +1122,16 @@ proc mapGroups*(
 
   if field.isKind:
     let thisPath = parent & field
-    result = nnkCaseStmt.newTree(caseExpr(thisPath))
+    var tmp = nnkCaseStmt.newTree(caseExpr(thisPath))
     for branch in field.branches:
-      result.addBranchBody(
+      tmp.addBranchBody(
         branch,
         newStmtList(
           mapGroup(thisPath, branch.flds).fixEmptyStmt(),
           mapItKindFields(branch, field.mapGroups(
             thisPath, caseExpr, mapGroup))))
+
+    result = tmp.compactCase()
 
   return fixEmptyStmt(result)
 

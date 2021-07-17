@@ -939,7 +939,8 @@ accessed** in object. For example, in object like this:
 
 
 
-macro hackPrivateParallelFieldPairs*(lhsObj, rhsObj: typed, body: untyped): untyped =
+macro hackPrivateParallelFieldPairs*(
+    lhsObj, rhsObj: typed, body: untyped): untyped =
   ## Same API as `parallelFieldPairs` but uses HACK to access private
   ## fields. NOT: due to HACK being used compilation is even slower.
   let genParams = GenParams(
@@ -968,5 +969,3 @@ macro hackPrivateParallelFieldPairs*(lhsObj, rhsObj: typed, body: untyped): unty
       let `ident(genParams.lhsObj)` = `lhsObj`
       let `ident(genParams.rhsObj)` = `rhsObj`
       `unrolled`
-
-  # result.colorPrint()

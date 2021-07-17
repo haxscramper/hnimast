@@ -568,6 +568,9 @@ proc isEmptyNode*[N](node: N): bool =
     of nnkEmpty:
       return true
 
+    of nnkDiscardStmt:
+      return node[0].kind.toNNK() == nnkEmpty
+
     of nnkStmtList:
       for subnode in node:
         if not isEmptyNode(subnode):
@@ -1361,7 +1364,7 @@ proc addBranch*[N](main: var N, expr: N | seq[N], body: varargs[N]) =
             nnkStmtList, newEmptyNNode[N]() & toSeq(body)))
 
     else:
-      raiseImplementKindError(main)
+      raise newImplementKindError(main)
 
 proc newNLit*[N, T](item: T): N =
   when N is NimNode:
@@ -1399,6 +1402,44 @@ proc newCaseStmt*[N](expr: N): N {.deprecated: "Use newCase".} =
 
 proc newCase*[N](expr: N): N = newNTree[N](nnkCaseStmt, expr)
 proc newTry*[N](expr: N): N = newNTree[N](nnkTryStmt, expr)
+
+proc compactCase*[N](caseNode: N): N =
+  if caseNode.kind.toNNK() != nnkCaseStmt:
+    return caseNode
+
+  result = newCase(caseNode[0])
+  var
+    emptyCond: seq[N]
+    elseBranch: N
+
+  # echo caseNode.treeRepr()
+  for branch in caseNode[1 ..^ 1]:
+    if branch.kind.toNNK() == nnkElse:
+      if not branch.isEmptyNode():
+        elseBranch = branch
+
+    else:
+      if branch[1].isEmptyNode():
+        emptyCond.add branch[0]
+
+      else:
+        result.add branch
+
+  if result.len == 1:
+    # No fillers for case statment branches
+    return newStmtList()
+
+  else:
+    if isNil(elseBranch):
+      # Empty else branch, we can reuse it
+      result.addBranch(newDiscardStmt[N]())
+
+    else:
+      emptyCond.add newDiscardStmt[N]()
+      result.add newNTree[N](nnkOfBranch, emptyCond)
+
+
+
 
 proc newPStmtList*(args: varargs[PNode]): PNode =
   newNTree[PNode](nnkStmtList, args)
