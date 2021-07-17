@@ -173,10 +173,6 @@ proc compileString*(
 
   return res
 
-
-import ./nimble_aux
-export nimble_aux
-
 when isMainModule:
   import ./pnode_parse
   let str = """
