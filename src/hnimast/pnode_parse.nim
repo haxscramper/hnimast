@@ -1,10 +1,16 @@
 import compiler/[
   parser, llstream, idents, options, pathutils, ast, lineinfos]
 
+import
+  hmisc/base_errors
 
-type ParseError = ref object of CatchableError
+import
+  std/strformat
 
-proc parsePNodeStr*(str: string): PNode =
+
+type NimParseError* = object of ParseError
+
+proc parsePNodeStr*(str: string, doRaise: bool = false): PNode =
   let cache: IdentCache = newIdentCache()
   let config: ConfigRef = newConfigRef()
   var pars: Parser
@@ -12,7 +18,9 @@ proc parsePNodeStr*(str: string): PNode =
   pars.lex.errorHandler =
     proc(conf: ConfigRef; info: TLineInfo; msg: TMsgKind; arg: string) =
       if msg notin {hintLineTooLong}:
-        raise ParseError(msg: arg)
+        let file = config.m.fileInfos[info.fileIndex.int32].fullPath.string
+        raise newException(
+          NimParseError, &"{file}:{info.line}:{info.col} {arg}")
 
   config.verbosity = 0
   config.options.excl optHints
@@ -26,13 +34,21 @@ proc parsePNodeStr*(str: string): PNode =
       config = config
     )
   except:
-    return nil
+    if doRaise:
+      raise
+
+    else:
+      return nil
 
   try:
     result = parseAll(pars)
     closeParser(pars)
-  except ParseError:
-    return nil
+  except NimParseError:
+    if doRaise:
+      raise
+
+    else:
+      return nil
 
 when isMainModule:
   let r = parsePNodeStr("""

@@ -848,10 +848,28 @@ func newCallNode*(
   newCallNode(dotHead, name, toSeq(args), toSeq(genTypes))
 
 proc newVar*[N: NimNode | PNode](
-    name: string | N, varType: NType[N] | N, default: N = nil): N =
+    name: string | N,
+    varType: NType[N] | N,
+    default: N = nil
+  ): N =
+
   newNTree[N](nnkVarSection, newNTree[N](
     nnkIdentDefs,
     newNIdent[N](name),
-    (when varType is N: varType else: toNNode[N](varType)),
-    (if isNil(default): newEmptyNNode[N]() else: default)
+    (
+      when varType is N:
+        varType
+
+      elif varType is typeof(nil):
+        newEmptyNNode[N]()
+
+      else:
+        toNNode[N](varType)
+    ),
+    (
+      if isNil(default):
+        newEmptyNNode[N]()
+      else:
+        default
+    )
   ))

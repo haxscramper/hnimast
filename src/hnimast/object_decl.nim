@@ -72,6 +72,7 @@ type
     flds*: seq[ObjectField[N]]
     declNode*: Option[N]
     base*: Option[N]
+    isRef*: bool
 
   # FieldBranch*[Node] = ObjectBranch[Node, void]
   # Field*[Node] = ObjectField[Node, void]
@@ -682,17 +683,20 @@ func toNNode*[N](obj: ObjectDecl[N], standalone: bool = false): N =
     if obj.docComment.len > 0:
       comment.add newCommentStmtNNode[N](obj.docComment)
 
-  result = newNTree[N](
-    nnkTypeDef,
-    header,
-    genparams,
-    newNTree[N](
+  var body = newNTree[N](
       nnkObjectTy,
       newEmptyNNode[N](),
       newEmptyNNode[N](),
       newNTree[N](
         nnkRecList,
-        comment & obj.flds.mapIt(toNNode(it))))) # loud LISP sounds
+        comment & obj.flds.mapIt(toNNode(it))))
+
+  if obj.isRef:
+    body = newNTree[N](nnkRefTy, body)
+
+  result = newNTree[N](nnkTypeDef, header, genparams, body)
+
+
 
   if standalone:
     result = newNTree[N](nnkTypeSection, result)

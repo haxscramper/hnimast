@@ -303,9 +303,10 @@ func newReturn*(expr: NimNode): NimNode =
   ## Create new return statement
   nnkReturnStmt.newTree(@[expr])
 
-func newReturn*(expr: PNode): PNode =
-  ## Create new return stetement
-  nnkReturnStmt.newTree(@[expr])
+func newReturn*[N](expr: N): N = newNTree[N](nnkReturnStmt, expr)
+func newRaise*[N](expr: N): N = newNTree[N](nnkRaiseStmt, expr)
+func newStmtListExpr*[N](args: varargs[N]): N =
+  newNTree[N](nnkStmtListExpr, args)
 
 func newNIdent*[NNode](str: string): NNode =
   ## Create new `nnkIdent` node of type `NNode`
@@ -558,7 +559,40 @@ proc newIfStmt*[N](cond, body: N, orElse: N = nil): N =
 proc newIfPStmt*(): PNode = newPTree(nnkIfStmt)
 proc newIfNStmt*(): NimNode = newTree(nnkIfStmt)
 
+proc isEmptyNode*[N](node: N): bool =
+  result = true
+  if isNil(node):
+    return true
+
+  case node.kind.toNNK():
+    of nnkEmpty:
+      return true
+
+    of nnkStmtList:
+      for subnode in node:
+        if not isEmptyNode(subnode):
+          return false
+
+    else:
+      return false
+
+proc isEmptyNode*[N](nodes: seq[N]): bool =
+  result = true
+  for node in nodes:
+    if not isEmptyNode(node):
+      return false
+
+proc fixEmptyStmt*[N](node: N): N =
+  if isEmptyNode(node):
+    newNTree[N](nnkDiscardStmt, newEmptyNNode[N]())
+
+  else:
+    node
+
 proc newXCall*[N](head: N, args: seq[N] = @[]): N =
+  ## Improved version of `newCall` that allows to uniformly treat
+  ## construction of the dot expressions, infix, prefix and postfix
+  ## operators, array expressions (`[]` and `{}=`)
   let str =
     if head.kind.toNNK() == nnkIdent:
       head.getStrVal()
@@ -571,10 +605,28 @@ proc newXCall*[N](head: N, args: seq[N] = @[]): N =
     of ".":
       result = newNTree[N](nnkDotExpr, args)
 
-    of "[]":
-      result = newNTree[N](nnkBracketExpr, args)
+    of "[]": result = newNTree[N](nnkBracketExpr, args)
+    of "{}": result = newNTree[N](nnkCurlyExpr, args)
 
-    elif allIt(str, it in IdentChars):
+    of "[]=", "{}=":
+      let head = if str == "[]=": nnkBracketExpr else: nnkCurlyExpr
+
+      if args.len == 2:
+        result = newNTree[N](
+          nnkAsgn,
+          newNTree[N](head, args[0]), args[1])
+
+      else:
+        result = newNTree[N](
+          nnkAsgn,
+          newNTree[N](head, args[0], args[1]), args[2])
+
+    elif allIt(str, it in IdentChars) and
+         str notin [
+           "and", "or", "not", "xor", "shl",
+           "shr", "div", "mod", "in", "notin",
+           "is", "isnot", "of", "as", "from"
+         ]:
       result = newNTree[N](nnkCall, newNIdent[N](head) & args)
 
     else:
@@ -584,13 +636,17 @@ proc newXCall*[N](head: N, args: seq[N] = @[]): N =
             &"Cannot create new call for '{head}' with no arguments")
 
         of 1:
-          result = newNTree[N](nnkPrefix, head, args[0])
+          result = newNTree[N](
+            nnkPrefix, head, newNTree[N](
+              # HACK due to bugs with rendering of `not x` add paren here
+              nnkPar, args[0]))
 
         of 2:
           result = newNTree[N](nnkInfix, head, args[0], args[1])
 
         else:
-          result = newNTree[N](nnkCall, head & args)
+          result = newNTree[N](
+            nnkCall, newNTree[N](nnkAccQuoted, head) & args)
 
 
 proc newNCall*(head: string, args: varargs[NimNode]): NimNode =
@@ -1272,19 +1328,33 @@ proc parseIdentName*[N](node: N): tuple[exported: bool, name: N] =
     else:
       result.name = node
 
+
+
 proc addBranch*[N](main: var N, expr: N | seq[N], body: varargs[N]) =
+
   case main.kind.toNNK():
-    of nnkCaseStmt, nnkIfStmt, nnkWhenStmt:
+    of nnkCaseStmt, nnkIfStmt, nnkWhenStmt, nnkTryStmt:
       if body.len == 0:
-        main.add newNTree[N](nnkElse, expr)
+        case main.kind.toNNK():
+          of nnkTryStmt:
+            if isEmptyNode(expr):
+              main.add newNTree[N](nnkExceptBranch, expr)
+
+            else:
+              main.add newNTree[N](nnkFinally, expr)
+
+          else:
+            main.add newNTree[N](nnkElse, expr)
 
       else:
         when expr isnot seq:
           let expr = @[expr]
 
-        var kind = nnkElifBranch
-        if main.kind.toNNK() == nnkCaseStmt:
-          kind = nnkOfBranch
+        let kind =
+          case main.kind.toNNK():
+            of nnkCaseStmt: nnkOfBranch
+            of nnkTryStmt: nnkExceptBranch
+            else: nnkElifBranch
 
         main.add newNTree[N](
           kind, expr & newNTree[N](
@@ -1324,14 +1394,20 @@ proc newAsgn*[N](lhs, rhs: N): N =
 
 proc toPNode*(node: PNode): PNode = node
 proc toPNode*(val: string): PNode = newPLit(val)
-proc newCaseStmt*[N](expr: N): N =
+proc newCaseStmt*[N](expr: N): N {.deprecated: "Use newCase".} =
   newNTree[N](nnkCaseStmt, expr)
+
+proc newCase*[N](expr: N): N = newNTree[N](nnkCaseStmt, expr)
+proc newTry*[N](expr: N): N = newNTree[N](nnkTryStmt, expr)
 
 proc newPStmtList*(args: varargs[PNode]): PNode =
   newNTree[PNode](nnkStmtList, args)
 
 proc newBlock*[N](args: varargs[N]): N =
   newNTree[N](nnkBlockStmt, newEmptyNNode[N](), newNTree[N](nnkStmtList, args))
+
+proc newPBreak*(): PNode =
+  newPTree(nnkBreakStmt, newEmptyPNode())
 
 proc newPDotExpr*(lhs, rhs: PNode | string): PNode =
   newPTree(nnkDotExpr, toPNode(lhs), toPNode(rhs))
@@ -1355,29 +1431,6 @@ proc newPDotCall*(main: string, callName: string, args: varargs[PNode]):
   PNode =
   newPTree(nnkDotExpr, newPIdent(main), newPCall(callName, args))
 
-proc isEmptyNode*[N](node: N): bool =
-  result = true
-  if isNil(node):
-    return true
-
-  case node.kind.toNNK():
-    of nnkEmpty:
-      return true
-
-    of nnkStmtList:
-      for subnode in node:
-        if not isEmptyNode(subnode):
-          return false
-
-    else:
-      return false
-
-proc isEmptyNode*[N](nodes: seq[N]): bool =
-  result = true
-  for node in nodes:
-    if not isEmptyNode(node):
-      return false
-
 proc isObject*(node: NimNode): bool =
   case node.kind:
     of nnkObjectTy:
@@ -1396,12 +1449,6 @@ proc isObject*(node: NimNode): bool =
       raiseImplementKindError(node)
 
 
-proc fixEmptyStmt*(node: NimNode): NimNode =
-  if isEmptyNode(node):
-    newDiscardStmt()
-
-  else:
-    node
 
 proc getDocComment*[N](node: N): string =
   when node is NimNode:

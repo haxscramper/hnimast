@@ -15,6 +15,7 @@ type
     pkOperator ## Operator: `*`
     pkHook ## Destructor/sink (etc.) hook: `=destroy`
     pkAssgn ## Assignment proc `field=`
+    pkLambda ## Anonymous procedure
 
   ProcDeclType* = enum
     ptkProc
@@ -123,9 +124,14 @@ func toNNode*[NNode](
     of pkOperator: newNTree[NNode](
       nnkAccQuoted, newNIdent[NNode](pr.name))
 
+    of pkLambda:
+      newEmptyNNode[NNode]()
+
   let head =
-    if pr.exported: newNTree[NNode](
-      nnkPostfix, newNIdent[NNode]("*"), headSym)
+    if pr.exported and pr.kind != pkLambda:
+      newNTree[NNode](
+        nnkPostfix, newNIdent[NNode]("*"), headSym)
+
     else:
       headSym
 
