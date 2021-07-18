@@ -581,11 +581,11 @@ func getTypeImplBody*(
         let inst = node.getTypeInst()
         case inst.kind:
           of nnkBracketExpr:
-            # echov inst.treeRepr1()
-            # echov inst[1].treeRepr1()
-            # echov inst[1].getImpl().treeRepr1()
+            if inst[0].eqIdent("typedesc"):
+              result = getTypeImplBody(inst[1], getImpl)
 
-            result = getTypeImplBody(inst[1].getImpl(), getImpl)
+            else:
+              result = getTypeImplBody(inst[1].getImpl(), getImpl)
 
           of nnkSym:
             let impl = inst.getImpl()

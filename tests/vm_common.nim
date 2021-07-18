@@ -48,5 +48,5 @@ type
 
     afterKind: char
 
-proc initVmPrivateImpl*[T](): VmPrivateImpl[T] =
-  discard
+proc initVmPrivateImpl*[T](arg: string = ""): VmPrivateImpl[T] =
+  result.test = arg

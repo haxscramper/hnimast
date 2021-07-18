@@ -17,47 +17,47 @@ import
 
 starthaxComp()
 
-proc fromVm*(t: typedesc[char], node: PNode): char =
+proc fromVm*(t: var char, node: PNode) =
   assertKind(node, nkIntKinds)
-  return node.intVal.char
+  t = node.intVal.char
 
-proc fromVm*[P: proc](p: typedesc[P], node: PNode): P =
+proc fromVm*[P: proc](p: var P, node: PNode) =
   # I suppose it is possible to pass procedure implementaitons across
   # interpreter boundary, but it would require whole new level of hacking
   # around.
-  nil
+  p = nil
 
-proc fromVm*(p: typedesc[pointer], node: PNode): pointer =
+proc fromVm*(p: var pointer, node: PNode) =
   # This is an interesting one - I'm pretty sure it would be possible to
   # get this data from VM (since it supports some kind of symbolic pointer
   # implementation). Alteritantively - if pointer is used as reference to
   # some opaque data blob that is handled only by underlying
   # implementation, we can just copy it as is.
-  nil
+  p = nil
 
-proc fromVm*(t: typedesc[bool], node: PNode): bool =
+proc fromVm*(t: var bool, node: PNode) =
   assertKind(node, nkIntKinds)
-  return node.intVal != 0
+  t = (node.intVal != 0)
 
-proc fromVm*[E: enum](e: typedesc[E], node: PNode): E =
+proc fromVm*[E: enum](e: var E, node: PNode) =
   assertKind(node, nkIntKinds)
-  return E(node.intVal)
+  e = E(node.intVal)
 
-proc fromVm*(t: typedesc[int], node: PNode): int =
+proc fromVm*(t: var int, node: PNode) =
   assertKind(node, nkIntKinds)
-  return node.intVal.int
+  t = node.intVal.int
 
-proc fromVm*(t: typedesc[float], node: PNode): float =
+proc fromVm*(t: var float, node: PNode) =
   assertKind(node, nkFloatKinds)
-  node.floatVal
+  t = node.floatVal
 
-proc fromVm*(t: typedesc[string], node: PNode): string =
+proc fromVm*(t: var string, node: PNode) =
   assertKind(node, nkStringKinds)
-  node.strVal
+  t = node.strVal
 
 genNewProcForType(VmVariant)
 
-macro fromVm*[T: object](obj: typedesc[T], vmNode: PNode): untyped =
+macro fromVmImpl*(obj: typedesc, vmNode: PNode): untyped =
   let
     vmNode = copyNimNode(vmNode)
     impl = getObjectStructure(obj)
@@ -91,9 +91,7 @@ macro fromVm*[T: object](obj: typedesc[T], vmNode: PNode): untyped =
         name = newIdent(implField.name)
 
       declareKind.add newVar(implField.name, implField.fieldType)
-
-      loadKind.add newAsgn(name, newCall(
-        "fromVm", implField.fieldType.toNNode(), fieldGet))
+      loadKind.add newCall("fromVm", name, fieldGet)
 
       constr.add newExprEq(name, name)
 
@@ -105,13 +103,17 @@ macro fromVm*[T: object](obj: typedesc[T], vmNode: PNode): untyped =
         let fieldGet = vmget(fieldIdx[implField.name])
         let asgn =
           if implField.isExported:
-            let accs = newDot(res, ident(implField.name))
-            newAsgn(accs, newCall("fromVm", accs.callTypeof(), fieldGet))
+            # Exported fields can be accessed directly, so we call `fromVm`
+            # on them
+            newCall("fromVm", newDot(res, ident(implField.name)), fieldGet)
 
           else:
-            setPrivate(
-              res, implField.name, newCall(
-                "fromVm", implField.fieldType.toNNode(), fieldGet))
+            # Private fields have to be accessed using hack with mutable
+            # `fieldPairs`.
+            res.withPrivate(
+              implField.name,
+              newIdent("tmp"),
+              newCall("fromVm", newIdent("tmp"), fieldGet))
 
         mapRes.add asgn
 
@@ -128,6 +130,8 @@ macro fromVm*[T: object](obj: typedesc[T], vmNode: PNode): untyped =
 
   echo result.repr
 
+proc fromVm*[T: object](t: var T, node: PNode) =
+  t = fromVmImpl(T, node)
 
 
 proc toVm*(f: float | int | string | char | BiggestInt): PNode = newPLit(f)
@@ -157,7 +161,8 @@ proc main() =
       echo "Reading vm variant"
       let data = args.getNode(0)
       echo data.treeRepr()
-      let parsed = fromVm(VmVariant, data)
+      var parsed: VmVariant
+      fromVm(parsed, data)
       echov parsed
   )
 
@@ -195,7 +200,7 @@ proc readVmVariant(arg: VmVariant) = discard
 let data = VmVariant(
   kind: vmkSecond,
   field2: "Set value in the VM side",
-  tableField: initVmPrivateImpl[string]()
+  tableField: initVmPrivateImpl[string]("Non-default argument passed to private field")
 )
 
 readVmVariant(data)
