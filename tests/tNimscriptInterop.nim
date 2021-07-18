@@ -58,29 +58,31 @@ proc fromVm*(t: typedesc[string], node: PNode): string =
 genNewProcForType(VmVariant)
 
 macro fromVm*[T: object](obj: typedesc[T], vmNode: PNode): untyped =
-  let vmNode = copyNimNode(vmNode)
+  let
+    vmNode = copyNimNode(vmNode)
+    impl = getObjectStructure(obj)
+    field = newIdent("field")
+    res = newIdent("res")
+    constr = impl.newCall(genericParams(obj))
+    nameSwitch = newDot(newBracketExpr(field, 0), ident("getStrVal"))
 
   proc vmget(idx: int): NimNode =
     newBracketExpr(newBracketExpr(vmNode, idx), 1)
 
-  let
-    impl = getObjectStructure(obj)
-    field = newIdent("field")
-    res = newIdent( "res")
-    constr = impl.newCall(genericParams(obj))
-    nameSwitch = newDot(newBracketExpr(field, 0), ident("getStrVal"))
 
   var
     declareKind = newStmtList()
     loadKind = newStmtList()
-    # unpackCase = newCase(nameSwitch)
 
   var fieldIdx: Table[string, int]
-  var idx = 1
-  for implField in iterateFields(impl):
-    fieldIdx[implField.name] = idx
-    inc idx
 
+  block:
+    var idx = 1
+    for implField in iterateFields(impl):
+      fieldIdx[implField.name] = idx
+      inc idx
+
+  # Collect kind field variables and their respective unpack positions.
   for implField in iterateFields(impl):
     let fieldGet = vmget(fieldIdx[implField.name])
     if implField.isKind:
@@ -95,6 +97,7 @@ macro fromVm*[T: object](obj: typedesc[T], vmNode: PNode): untyped =
 
       constr.add newExprEq(name, name)
 
+  # Construct nested case for unpacking other fields
   let unpackCase = impl.mapItGroups(res.newDot(path[^1].name)):
     var mapRes = newStmtList()
     for implField in group:
