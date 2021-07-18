@@ -1,5 +1,5 @@
 import
-  hnimast/[compiler_aux, hast_common],
+  hnimast/[compiler_aux, hast_common, nimble_aux],
   std/[tables, sets, os, unittest],
   hmisc/base_errors,
   compiler/sighashes

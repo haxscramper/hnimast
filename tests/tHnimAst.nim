@@ -1,7 +1,7 @@
 import strutils, sequtils, strformat, macros, options
 import ../src/hnimast
 import hmisc/helpers
-import ../src/hnimast/[obj_field_macros, pprint]
+import ../src/hnimast/[obj_field_macros, pprint, hast_common]
 
 import compiler/ast
 
@@ -329,7 +329,8 @@ type Type = object
 
     var decls: seq[NimTypeDecl[PNode]]
 
-    decls.add toNimTypeDecl(newPEnumDecl("Test", iinfo = currIInfo()))
+    decls.add toNimTypeDecl(newPEnumDecl(
+      "Test", iinfo = hast_common.currIInfo()))
 
     write(stdout, decls.toNimDecl())
 
