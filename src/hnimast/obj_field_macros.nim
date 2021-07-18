@@ -269,6 +269,7 @@ proc getFields*[N](
             raiseAssert("Unknown parameter kind: " & $kind)
 
     of nnkObjectTy:
+      # echov node[2].treeRepr1()
       return node[2].getFields(none(N), sym, level + 1)
 
     of nnkRefTy, nnkPtrTy:
@@ -290,6 +291,7 @@ proc getFields*[N](
     of nnkRecList:
       mixin items
       for elem in items(node):
+        # echov elem.treeRepr1()
         if elem.kind.toNNK() == nnkRecWhen:
           # TODO 'when' branches must be tracked somehow for `haxdoc`
           # parsing, but they are largely unnecessary when it comes to
@@ -319,6 +321,9 @@ proc getFields*[N](
 
             of nnkIdentDefs: # Regular field definition
               result.add getFields(elem, isCheckedOn, sym, level + 1)
+
+            of nnkSym:
+              discard # TODO occurs when trying to parse generic `typeof()`
 
             else:
               discard
@@ -565,7 +570,8 @@ func parsePPragma*(node: PNode, position: ObjectAnnotKind): Pragma[PNode] =
   parsePragma(node, position)
 
 
-func getTypeImplBody*(node: NimNode, getImpl: bool): NimNode =
+func getTypeImplBody*(
+    node: NimNode, getImpl: bool, passSym: bool = false): NimNode =
   case node.kind:
     of nnkSym:
       if getImpl:
@@ -575,6 +581,10 @@ func getTypeImplBody*(node: NimNode, getImpl: bool): NimNode =
         let inst = node.getTypeInst()
         case inst.kind:
           of nnkBracketExpr:
+            # echov inst.treeRepr1()
+            # echov inst[1].treeRepr1()
+            # echov inst[1].getImpl().treeRepr1()
+
             result = getTypeImplBody(inst[1].getImpl(), getImpl)
 
           of nnkSym:
@@ -595,14 +605,25 @@ func getTypeImplBody*(node: NimNode, getImpl: bool): NimNode =
     of nnkIdent:
       raiseImplementError("Cannot get type implementation from ident")
 
+    of nnkTypeofExpr:
+      result = getTypeImplBody(node[0].getType(), getImpl)
+
     of nnkBracketExpr:
-      result = getTypeImplBody(node[1], getImpl)
+      # echov node.treeRepr1()
+      if node[0].eqIdent("typedesc"):
+        result = getTypeImplBody(node[1], getImpl)
+
+      else:
+        result = getTypeImplBody(node[0], getImpl)
 
     of nnkObjectTy, nnkTypeDef:
       return node
 
     of nnkRefTy:
       result = getTypeImplBody(node[0], getImpl)
+
+    of nnkNilLit:
+      result = nil
 
     else:
       raiseImplementKindError(node, node.treeRepr())

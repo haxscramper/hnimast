@@ -4,16 +4,44 @@ import
   compiler/[nimeval, llstream, ast, renderer, vmdef, vm]
 
 import
-  std/[os]
-
-import
   hnimast/[compiler_aux, gencode]
 
 import
   hnimast,
   hnimast/store_decl,
-  hmisc/other/[hpprint, oswrap],
-  hmisc/base_errors
+  hmisc/other/[oswrap],
+  hmisc/[base_errors, hdebug_misc]
+
+import
+  std/[tables]
+
+starthaxComp()
+
+proc fromVm*(t: typedesc[char], node: PNode): char =
+  assertKind(node, nkIntKinds)
+  return node.intVal.char
+
+proc fromVm*[P: proc](p: typedesc[P], node: PNode): P =
+  # I suppose it is possible to pass procedure implementaitons across
+  # interpreter boundary, but it would require whole new level of hacking
+  # around.
+  nil
+
+proc fromVm*(p: typedesc[pointer], node: PNode): pointer =
+  # This is an interesting one - I'm pretty sure it would be possible to
+  # get this data from VM (since it supports some kind of symbolic pointer
+  # implementation). Alteritantively - if pointer is used as reference to
+  # some opaque data blob that is handled only by underlying
+  # implementation, we can just copy it as is.
+  nil
+
+proc fromVm*(t: typedesc[bool], node: PNode): bool =
+  assertKind(node, nkIntKinds)
+  return node.intVal != 0
+
+proc fromVm*[E: enum](e: typedesc[E], node: PNode): E =
+  assertKind(node, nkIntKinds)
+  return E(node.intVal)
 
 proc fromVm*(t: typedesc[int], node: PNode): int =
   assertKind(node, nkIntKinds)
@@ -34,21 +62,62 @@ macro fromVm*[T: object](obj: typedesc[T], vmNode: PNode): untyped =
     impl = getObjectStructure(obj)
     field = newIdent("field")
     res = newIdent( "res")
-    constr = impl.newCall()
+    constr = impl.newCall(genericParams(obj))
+    nameSwitch = newDot(newBracketExpr(field, 0), ident("getStrVal"))
 
-  var unpackCase = nnkCaseStmt.newTree(
-    newDot(newBracketExpr(field, 0), ident("getStrVal")))
+  var
+    declareKind = newStmtList()
+    loadKind = newCase(nameSwitch)
+    unpackCase = newCase(nameSwitch)
 
+  var idx = 0
   for implField in iterateFields(impl):
-    let implAccess = newDot(res, ident(implField.name))
-    unpackCase.add nnkOfBranch.newTree(
-      newLit(implField.name),
-      newAsgn(implAccess, newCall(
-        "fromVm", newCall("typeof", implAccess), newBracketExpr(field, 1)))
-    )
+    echov implField.name, idx
+    inc idx
 
-  result = quote do:
+    let fieldGet = newBracketExpr(field, 1)
+    if implField.isKind:
+      let
+        accs = newDot(res, newIdent(implField.name))
+        name = newIdent(implField.name)
+
+      declareKind.add newVar(implField.name, implField.fieldType)
+
+      loadKind.addBranch(
+        newLit(implField.name),
+        newAsgn(name, newCall("fromVm", implField.fieldType.toNNode(), fieldGet)))
+
+      constr.add newExprEq(name, name)
+
+    else:
+      var fieldAssign =
+        if implField.isExported:
+          let accs = newDot(res, ident(implField.name))
+          newAsgn(accs, newCall("fromVm", accs.callTypeof(), fieldGet))
+
+        else:
+          setPrivate(
+            res, implField.name, newCall(
+              "fromVm", implField.fieldType.toNNode(), fieldGet))
+
+      unpackCase.addBranch(
+        newLit(implField.name),
+        newIf(onPath(res, impl.fieldPath(implField.name)), fieldAssign))
+
+  if unpackCase.len == 1:
+    unpackCase = newDiscardStmt()
+
+  result = newStmtList()
+
+  if declareKind.len > 0:
+    result.add quote do:
+      `declareKind`
+      for `field` in `vmNode`[1 ..^ 1]:
+        `loadKind`
+
+  result.add quote do:
     var `res` = `constr`
+
     for `field` in `vmNode`[1 .. ^1]:
       `unpackCase`
 
@@ -86,6 +155,7 @@ proc main() =
       let data = args.getNode(0)
       echo data.treeRepr()
       let parsed = fromVm(VmVariant, data)
+      echov parsed
   )
 
   intr.implementRoutine("*", "scriptname", "dump",
@@ -94,6 +164,7 @@ proc main() =
       case slot.kind:
         of rkNode:
           let data = args.getNode(0)
+          # echo data.treeRepr()
           args.setResult data
 
         of rkFloat:
@@ -110,17 +181,25 @@ proc main() =
 
   intr.evalScript(llStreamOpen(
     readFile(currentSourceDir() /. "vm_common.nim") & """
+import std/tables
 
 proc dump[T](arg: T): T = discard
 proc readVmVariant(arg: VmVariant) = discard
 
-for name, value in fieldPairs(VmVariant()):
-  echo "> ", name
+# for name, value in fieldPairs(VmVariant()):
+#   echo "> ", name
 
-readVmVariant(VmVariant())
-echo dump(VmVariant())
+let data = VmVariant(
+  kind: vmkSecond,
+  field2: "Set value in the VM side",
+  tableField: initVmPrivateImpl[string]()
+)
+
+readVmVariant(data)
+echo dump(data)
 
 
 """))
 
+startHax()
 main()

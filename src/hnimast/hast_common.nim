@@ -318,15 +318,15 @@ func newNIdent*[NNode](str: string): NNode =
 
 func newNIdent*[N](n: N): N = n
 
-func newNTree*[NNode](
+func newNTree*[NNode: NimNode or PNode](
   kind: NimNodeKind, subnodes: varargs[NNode]): NNode =
   ## Create new tree with `subnodes` and `kind`
   # STYLE rename to `toNNode`
   when NNode is NimNode:
-    newTree(kind, subnodes)
+    newTree(kind, toSeq(subnodes))
 
   else:
-    newTree(kind.toNK(), subnodes)
+    newTree(kind.toNK(), toSeq(subnodes))
 
 func newDiscardStmt*[N](expr: N): N =
   newNTree[N](nnkDiscardStmt, expr)
@@ -512,6 +512,8 @@ proc newBracketExpr*[N](lhs: N, rhs: SomeInteger): N =
 proc newExprColon*[N](lhs, rhs: N): N =
   newNTree[N](nnkExprColonExpr, lhs, rhs)
 
+proc newExprEq*[N](lhs, rhs: N): N =
+  newNTree[N](nnkExprEqExpr, lhs, rhs)
 
 
 proc newCall*[N](arg1: N, name: string, args: varargs[N]): N =
@@ -551,8 +553,18 @@ proc newBreak*(target: NimNode = newEmptyNode()): NimNode =
 proc wrapStmtList*[N](nodes: varargs[N]): NimNode =
   newNTree[N](nnkStmtList, nodes)
 
-proc newIfStmt*[N](cond, body: N, orElse: N = nil): N =
+
+proc newIf*[N](cond, body: N, orElse: N = nil): N =
   result = newNTree[N](nnkIfStmt, newNTree[N](nnkElifBranch, cond, body))
+  if not isNil(orElse):
+    result.add newNTree[N](nnkElse, orElse)
+
+proc newIfStmt*[N](cond, body: N, orElse: N = nil): N
+  {.deprecated: "Use `newIf`".} =
+  newIf(cond, body, orElse)
+
+proc newWhen*[N](cond, body: N, orElse: N = nil): N =
+  result = newNTree[N](nnkWhenStmt, newNTree[N](nnkElifBranch, cond, body))
   if not isNil(orElse):
     result.add newNTree[N](nnkElse, orElse)
 
@@ -592,7 +604,8 @@ proc fixEmptyStmt*[N](node: N): N =
   else:
     node
 
-proc newXCall*[N](head: N, args: seq[N] = @[]): N =
+proc newXCall*[N](
+      head: N, args: seq[N] = @[], generics: seq[N] = @[]): N =
   ## Improved version of `newCall` that allows to uniformly treat
   ## construction of the dot expressions, infix, prefix and postfix
   ## operators, array expressions (`[]` and `{}=`)
@@ -603,60 +616,89 @@ proc newXCall*[N](head: N, args: seq[N] = @[]): N =
     else:
       ""
 
+  # let (callhead, hasGen) =
+  #   if generics.len == 0:
+  #     (head, false)
 
-  case str:
-    of ".":
-      result = newNTree[N](nnkDotExpr, args)
+  #   else:
+  #     (, true)
 
-    of "[]": result = newNTree[N](nnkBracketExpr, args)
-    of "{}": result = newNTree[N](nnkCurlyExpr, args)
-
-    of "[]=", "{}=":
-      let head = if str == "[]=": nnkBracketExpr else: nnkCurlyExpr
-
-      if args.len == 2:
-        result = newNTree[N](
-          nnkAsgn,
-          newNTree[N](head, args[0]), args[1])
+  if generics.len > 0:
+    var callparams: seq[N]
+    let head =
+      if allIt(str, it in IdentChars):
+        newBracketExpr(head, generics)
 
       else:
-        result = newNTree[N](
-          nnkAsgn,
-          newNTree[N](head, args[0], args[1]), args[2])
+        newBracketExpr(newNTree[N](nnkAccQuoted, head), generics)
 
-    elif allIt(str, it in IdentChars) and
-         str notin [
-           "and", "or", "not", "xor", "shl",
-           "shr", "div", "mod", "in", "notin",
-           "is", "isnot", "of", "as", "from"
-         ]:
-      result = newNTree[N](nnkCall, newNIdent[N](head) & args)
+    result = newNTree[N](nnkCall, head)
+    result.add args
 
-    else:
-      case args.len:
-        of 0:
-          raise newArgumentError(
-            &"Cannot create new call for '{head}' with no arguments")
+  else:
+    case str:
+      of ".":
+        result = newNTree[N](nnkDotExpr, args)
 
-        of 1:
+      of "[]":
+        result = newNTree[N](nnkBracketExpr, args)
+
+      of "{}":
+        result = newNTree[N](nnkCurlyExpr, args)
+
+      of "[]=", "{}=":
+        let head = if str == "[]=": nnkBracketExpr else: nnkCurlyExpr
+
+        if args.len == 2:
           result = newNTree[N](
-            nnkPrefix, head, newNTree[N](
-              # HACK due to bugs with rendering of `not x` add paren here
-              nnkPar, args[0]))
-
-        of 2:
-          result = newNTree[N](nnkInfix, head, args[0], args[1])
+            nnkAsgn,
+            newNTree[N](head, args[0]), args[1])
 
         else:
           result = newNTree[N](
-            nnkCall, newNTree[N](nnkAccQuoted, head) & args)
+            nnkAsgn,
+            newNTree[N](head, args[0], args[1]), args[2])
 
+      elif allIt(str, it in IdentChars) and
+           str notin [
+             "and", "or", "not", "xor", "shl",
+             "shr", "div", "mod", "in", "notin",
+             "is", "isnot", "of", "as", "from"
+           ]:
+        result = newNTree[N](nnkCall, newNIdent[N](head) & args)
+
+      else:
+        case args.len:
+          of 0:
+            raise newArgumentError(
+              &"Cannot create new call for '{head}' with no arguments")
+
+          of 1:
+            result = newNTree[N](
+              nnkPrefix, head, newNTree[N](
+                # HACK due to bugs with rendering of `not x` add paren here
+                nnkPar, args[0]))
+
+          of 2:
+            result = newNTree[N](nnkInfix, head, args[0], args[1])
+
+          else:
+            result = newNTree[N](
+              nnkCall, newNTree[N](nnkAccQuoted, head) & args)
+
+
+proc newXCall*[N: NimNode or PNode](
+    head: string, arg1: N, other: varargs[N]): N =
+
+  newXCall(newNident[N](head), arg1 & toSeq(other))
 
 proc newNCall*(head: string, args: varargs[NimNode]): NimNode =
   newXCall[NimNode](newNIdent[NimNode](head), toSeq(args))
 
 proc newPCall*(head: string, args: varargs[PNode]): PNode =
   newXCall[PNode](newPIdent(head), toSeq(args))
+
+proc callTypeof*[N](head: N): N = newXCall("typeof", head)
 
 
 #=======================  Misc helper algorithms  ========================#
@@ -949,13 +991,14 @@ proc typeLispRepr*(node: NimNode, colored: bool = true): string =
           return node.getTypeImpl().toStrLit().strVal().toBlue(colored)
 
         else:
-          raiseImplementKindError(node.symKind)
+          return toGreen($node.symKind, colored)
 
     of nnkEnumTy:
       result = "enum".toRed(colored)
 
     else:
-      raiseImplementKindError(node, node.treeRepr())
+      result = node.lispRepr().toGreen(colored)
+      # raiseImplementKindError(node, node.treeRepr())
 
 proc treeRepr1*(
     pnode: NimNode,
@@ -1403,6 +1446,23 @@ proc newCaseStmt*[N](expr: N): N {.deprecated: "Use newCase".} =
 proc newCase*[N](expr: N): N = newNTree[N](nnkCaseStmt, expr)
 proc newTry*[N](expr: N): N = newNTree[N](nnkTryStmt, expr)
 
+proc newFor*[N](forVars: openarray[N], expr: N, body: varargs[N]): N =
+  newNTree[N](nnkForStmt, toSeq(forVars) & expr & wrapStmtList(body))
+
+proc newFor*[N](forvar, expr: N, body: varargs[N]): N =
+  newNTree[N](nnkForStmt, forvar, expr, wrapStmtList(body))
+
+proc setPrivate*[N](target: N, fieldName: string, expr: N): N =
+  let
+    name = newNIdent[N]("fieldName")
+    value = newNident[N]("fieldValue")
+
+  newFor(
+    [name, value], newXCall("fieldPairs", target),
+    newWhen(
+      newXCall("==", name, newNLit[N, string](fieldName)),
+      newAsgn(value, expr)))
+
 proc compactCase*[N](caseNode: N): N =
   if caseNode.kind.toNNK() != nnkCaseStmt:
     return caseNode
@@ -1435,8 +1495,13 @@ proc compactCase*[N](caseNode: N): N =
       result.addBranch(newDiscardStmt[N]())
 
     else:
-      emptyCond.add newDiscardStmt[N]()
-      result.add newNTree[N](nnkOfBranch, emptyCond)
+      if emptyCond.len > 0:
+        emptyCond.add newDiscardStmt[N]()
+        result.add newNTree[N](nnkOfBranch, emptyCond)
+
+      result.add elseBranch
+
+  echo result.repr
 
 
 

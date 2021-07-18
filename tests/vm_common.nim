@@ -1,4 +1,10 @@
+# import std/tables
+
 type
+  VmPrivateImpl[T] = object
+    test: string
+    genr: T
+
   VmInt* = int
   VmString* = string
   VmTuple* = (int, string)
@@ -13,6 +19,7 @@ type
   VmVariant* = object
     beforeKind: char
     privateField: float
+    tableField*: VmPrivateImpl[string]
     case kind*: VmKind
       of vmkFirst:
         field1*: string
@@ -37,6 +44,9 @@ type
 
 
       of vmkSecond:
-        field2*: char
+        field2*: string
 
     afterKind: char
+
+proc initVmPrivateImpl*[T](): VmPrivateImpl[T] =
+  discard

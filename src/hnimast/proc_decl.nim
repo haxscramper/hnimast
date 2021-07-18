@@ -435,6 +435,7 @@ func newProcDeclNode*[NNode](
     comment
   )
 
+
 proc parseProc*[N](node: N): ProcDecl[N] =
   result = newProcDecl[N](":tmp")
   result.declNode = some(node)

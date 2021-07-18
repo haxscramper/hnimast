@@ -79,12 +79,14 @@ type
 
   ObjectPathElem*[N] = object
     kindField*: ObjectField[N]
-    case isElse*: bool
-      of true:
-        notOfValue*: seq[N]
+    branch*: ObjectBranch[N]
+    # isFinalBranch* {.requiresinit.}: bool
+    # case isElse*: bool
+    #   of true:
+    #     notOfValue*: seq[N]
 
-      of false:
-        ofValue*: seq[N]
+    #   of false:
+    #     ofValue*: seq[N]
 
 
   ObjectPath*[N] = seq[ObjectPathElem[N]]
@@ -99,17 +101,27 @@ type
   PObjectBranch* = ObjectBranch[PNode]
 
 proc fieldType*[N](field: ObjectField[N]): NType[N] = field.fldType
+proc ofValue*[N](element: ObjectPathElem[N]): seq[N] =
+  element.branch.ofValue
+
+proc isElse*[N](element: ObjectPathElem[N]): bool =
+  element.branch.isElse
+
+proc notOfValue*[N](element: ObjectPathElem[N]): seq[N] =
+  element.branch.notOfValue
+
 
 proc newPObjectDecl*(
-  name: string,
-  flds: seq[tuple[name: string, ftype: NType[PNode]]] = @[],
-  exported: bool = true,
-  pragma: PPragma = PPragma(),
-  docComment: string = "",
-  codeComment: string = "",
-  genParams: seq[NType[PNode]] = @[],
-  iinfo: LineInfo = defaultIInfo,
-): PObjectDecl =
+    name: string,
+    flds: seq[tuple[name: string, ftype: NType[PNode]]] = @[],
+    exported: bool = true,
+    pragma: PPragma = PPragma(),
+    docComment: string = "",
+    codeComment: string = "",
+    genParams: seq[NType[PNode]] = @[],
+    iinfo: LineInfo = defaultIInfo,
+  ): PObjectDecl =
+
   new(result)
   result.name = newNType[PNode](name, genParams)
   result.docComment = docComment
@@ -220,15 +232,17 @@ func isReqInit*(fld: NObjectField): bool =
   fld.isMarkedWith("requiresinit")
 
 proc getNewProcName*[N](obj: ObjectDecl[N]): string =
+  assertKind(obj.name, ntkIdent)
   if obj.isRef:
     "new" & obj.name.head
 
   else:
     "init" & obj.name.head
 
-proc newCall*(obj: NObjectDecl): NimNode =
+proc newCall*(obj: NObjectDecl, genParams: seq[NimNode] = @[]): NimNode =
   # TODO check if object is a ref or not and select corresponding name
-  return newCall(obj.getNewProcName())
+  result = newXCall(
+    newIdent(obj.getNewProcName()), @[], genparams)
 
 proc isFinalBranch*[N](field: ObjectField[N]): bool =
   if not field.isKind:
@@ -239,7 +253,38 @@ proc isFinalBranch*[N](field: ObjectField[N]): bool =
     for branch in items(field.branches):
       for field in branch.flds:
         if field.isKind:
+          # echo "Subfield", field.name
           return false
+
+proc isFinalBranch*[N](branch: ObjectBranch[N]): bool =
+  for field in branch.flds:
+    if field.isKind:
+      return false
+
+  return true
+
+proc isFinalBranch*[N](element: ObjectPathElem[N]): bool =
+  element.branch.isFinalBranch()
+
+func `$`*[N](path: ObjectPath[N]): string =
+  for idx, it in pairs(path):
+    if idx > 0: result.add "."
+    result.add it.kindField.name
+    if it.isFinalBranch:
+      result.add "<final>"
+
+    if it.isElse:
+      result.add "!{"
+      result.add it.notOfValue.mapIt($it).join(", ")
+      result.add "}"
+
+    else:
+      result.add "{"
+      result.add it.ofValue.mapIt($it).join(", ")
+      result.add "}"
+
+
+
 
 proc addBranchBody*[N](main: var N, branch: ObjectBranch[N], body: N) =
   let branchBody = fixEmptyStmt(body)
@@ -263,15 +308,17 @@ template mapItKindFields*(branch: NObjectBranch, body: untyped): untyped =
 proc newObjectPathElem*[N](
     field: ObjectField[N], branch: OBjectBranch[N]): ObjectPathElem[N] =
 
-  if branch.isElse:
-    NObjectPathElem(
-      isElse: true, kindField: field,
-      notOfValue: branch.notOfValue)
+  NObjectPathElem(kindField: field, branch: branch)
 
-  else:
-    NObjectPathElem(
-      isElse: false, kindField: field,
-      ofValue: branch.ofValue)
+  # if branch.isElse:
+  #   NObjectPathElem(
+  #     isElse: true, kindField: field,
+  #     notOfValue: branch.notOfValue)
+
+  # else:
+  #   NObjectPathElem(
+  #     isElse: false, kindField: field,
+  #     ofValue: branch.ofValue)
 
 proc getFlatFieldsPath*[N](decl: ObjectDecl[N]):
     seq[tuple[field: ObjectField[N], path: ObjectPath[N]]] =
@@ -531,13 +578,20 @@ proc eachPath*(
       let thisPath =
         if branch.isElse:
           parent & @[NObjectPathElem(
-            isElse: true, kindField: fld,
-            notOfValue: branch.notOfValue)]
+            # isElse: true,
+            kindField: fld,
+            branch: branch,
+            # notOfValue: branch.notOfValue,
+            # isFinalBranch: branch.isFinalBranch()
+          )]
 
         else:
           parent & @[NObjectPathElem(
-            isElse: false, kindField: fld,
-            ofValue: branch.ofValue)]
+            # isElse: false,
+            kindField: fld,
+            branch: branch
+            # ofValue: branch.ofValue
+          )]
 
       let cbRes = cb(thisPath, branch.flds).nilToDiscard()
       if branch.isElse:
@@ -594,6 +648,28 @@ func onPath*(self: NimNode, path: NObjectPath): NimNode =
 
   else:
     result = checks.foldl(newInfix("and", a, b))
+
+func fieldPath*(impl: NObjectDecl, name: string): NObjectPath =
+  proc aux(
+      field: NObjectField, path: NObjectPath, res: var NObjectPath): bool =
+
+    if field.name == name:
+      res = path
+      return true
+
+    elif field.isKind:
+      for branch in field.branches:
+        for caseField in branch.flds:
+          if aux(caseField, path & newObjectPathElem(
+            field, branch), res):
+            return true
+
+
+
+
+  for field in impl.flds:
+    if aux(field, @[], result):
+      return
 
 
 #========================  Other implementation  =========================#
