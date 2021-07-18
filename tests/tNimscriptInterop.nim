@@ -58,6 +58,11 @@ proc fromVm*(t: typedesc[string], node: PNode): string =
 genNewProcForType(VmVariant)
 
 macro fromVm*[T: object](obj: typedesc[T], vmNode: PNode): untyped =
+  let vmNode = copyNimNode(vmNode)
+
+  proc vmget(idx: int): NimNode =
+    newBracketExpr(newBracketExpr(vmNode, idx), 1)
+
   let
     impl = getObjectStructure(obj)
     field = newIdent("field")
@@ -67,15 +72,17 @@ macro fromVm*[T: object](obj: typedesc[T], vmNode: PNode): untyped =
 
   var
     declareKind = newStmtList()
-    loadKind = newCase(nameSwitch)
-    unpackCase = newCase(nameSwitch)
+    loadKind = newStmtList()
+    # unpackCase = newCase(nameSwitch)
 
-  var idx = 0
+  var fieldIdx: Table[string, int]
+  var idx = 1
   for implField in iterateFields(impl):
-    echov implField.name, idx
+    fieldIdx[implField.name] = idx
     inc idx
 
-    let fieldGet = newBracketExpr(field, 1)
+  for implField in iterateFields(impl):
+    let fieldGet = vmget(fieldIdx[implField.name])
     if implField.isKind:
       let
         accs = newDot(res, newIdent(implField.name))
@@ -83,45 +90,38 @@ macro fromVm*[T: object](obj: typedesc[T], vmNode: PNode): untyped =
 
       declareKind.add newVar(implField.name, implField.fieldType)
 
-      loadKind.addBranch(
-        newLit(implField.name),
-        newAsgn(name, newCall("fromVm", implField.fieldType.toNNode(), fieldGet)))
+      loadKind.add newAsgn(name, newCall(
+        "fromVm", implField.fieldType.toNNode(), fieldGet))
 
       constr.add newExprEq(name, name)
 
-    else:
-      var fieldAssign =
-        if implField.isExported:
-          let accs = newDot(res, ident(implField.name))
-          newAsgn(accs, newCall("fromVm", accs.callTypeof(), fieldGet))
+  let unpackCase = impl.mapItGroups(res.newDot(path[^1].name)):
+    var mapRes = newStmtList()
+    for implField in group:
+      if not implField.isKind:
+        let fieldGet = vmget(fieldIdx[implField.name])
+        let asgn =
+          if implField.isExported:
+            let accs = newDot(res, ident(implField.name))
+            newAsgn(accs, newCall("fromVm", accs.callTypeof(), fieldGet))
 
-        else:
-          setPrivate(
-            res, implField.name, newCall(
-              "fromVm", implField.fieldType.toNNode(), fieldGet))
+          else:
+            setPrivate(
+              res, implField.name, newCall(
+                "fromVm", implField.fieldType.toNNode(), fieldGet))
 
-      unpackCase.addBranch(
-        newLit(implField.name),
-        newIf(onPath(res, impl.fieldPath(implField.name)), fieldAssign))
+        mapRes.add asgn
 
-  if unpackCase.len == 1:
-    unpackCase = newDiscardStmt()
+    mapRes
 
-  result = newStmtList()
-
-  if declareKind.len > 0:
-    result.add quote do:
+  result = quote do:
+    block:
       `declareKind`
-      for `field` in `vmNode`[1 ..^ 1]:
-        `loadKind`
+      `loadKind`
 
-  result.add quote do:
-    var `res` = `constr`
-
-    for `field` in `vmNode`[1 .. ^1]:
+      var `res` = `constr`
       `unpackCase`
-
-    `res`
+      `res`
 
   echo result.repr
 
