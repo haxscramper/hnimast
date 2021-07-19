@@ -16,7 +16,7 @@ type
     field1*: int
     field2*: float
 
-  VmVariant* = object
+  VmVariant* = ref object
     beforeKind: char
     privateField: float
     tableField*: VmPrivateImpl[string]

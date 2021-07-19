@@ -90,7 +90,7 @@ proc genericParams*(T: NimNode): seq[NimNode] =
       of nnkTypeOfExpr:
         impl = getTypeInst(impl[0])
 
-      of nnkObjectTy:
+      of nnkObjectTy, nnkRefTy:
         break # ??
 
       of nnkBracketExpr:

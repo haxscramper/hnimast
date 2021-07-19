@@ -113,7 +113,9 @@ macro fromVmImpl*(obj: typedesc, vmNode: PNode): untyped =
             res.withPrivate(
               implField.name,
               newIdent("tmp"),
-              newCall("fromVm", newIdent("tmp"), fieldGet))
+              newCall("fromVm", newIdent("tmp"), fieldGet),
+              isRef = impl.isRef
+            )
 
         mapRes.add asgn
 
@@ -130,7 +132,7 @@ macro fromVmImpl*(obj: typedesc, vmNode: PNode): untyped =
 
   echo result.repr
 
-proc fromVm*[T: object](t: var T, node: PNode) =
+proc fromVm*[T: object or ref object](t: var T, node: PNode) =
   t = fromVmImpl(T, node)
 
 
@@ -160,10 +162,10 @@ proc main() =
     proc(args: VmArgs) {.nimcall, gcsafe.} =
       echo "Reading vm variant"
       let data = args.getNode(0)
-      echo data.treeRepr()
+      echov data.treeRepr()
       var parsed: VmVariant
       fromVm(parsed, data)
-      echov parsed
+      echov parsed[]
   )
 
   intr.implementRoutine("*", "scriptname", "dump",
@@ -204,7 +206,7 @@ let data = VmVariant(
 )
 
 readVmVariant(data)
-echo dump(data)
+echo dump(data)[]
 
 
 """))

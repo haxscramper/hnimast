@@ -111,10 +111,14 @@ suite "HNimAst":
     macro mcr(body: untyped): untyped =
       let obj = body[0][0].parseObject()
       let objid = ident "hjhh"
-      let impl = objid.eachCase(obj) do(fld: NObjectField) -> NimNode:
-        let fld = ident fld.name
-        quote do:
-          echo `objid`.`fld`
+      when NimMinor <= 4:
+        let impl = objid.eachCase(obj) do(fld: NObjectField) -> NimNode:
+          let fld = ident fld.name
+          quote do:
+            echo `objid`.`fld`
+
+      else:
+        let impl = newStmtList()
 
       result = newStmtList(body)
 
@@ -160,7 +164,7 @@ suite "HNimAst":
       let eqcmp = [ident "=="].newProcDeclNode(
         newNType("bool"),
         { "lhs" : obj.name, "rhs" : obj.name },
-        pragma = newNPragma("noSideEffect"),
+        pragma = newNPragma(newIdent("noSideEffect")),
         impl = (
           quote do:
             `impl`

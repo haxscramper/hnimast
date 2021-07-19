@@ -1453,13 +1453,17 @@ proc newFor*[N](forvar, expr: N, body: varargs[N]): N =
   newNTree[N](nnkForStmt, forvar, expr, wrapStmtList(body))
 
 proc withPrivate*[N](
-    target: N, fieldName: string, fieldIdent, expr: N): N =
+    target: N, fieldName: string,
+    fieldIdent, expr: N,
+    isRef: bool = false
+  ): N =
 
   let
     name = newNIdent[N]("fieldName")
 
   newFor(
-    [name, fieldIdent], newXCall("fieldPairs", target),
+    [name, fieldIdent], newXCall("fieldPairs",
+      tern(isRef, newXCall("[]", target), target)),
     newWhen(
       newXCall("==", name, newNLit[N, string](fieldName)),
       expr))

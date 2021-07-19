@@ -712,6 +712,7 @@ proc parseObject*[N](
   let declBody = tern(node.kind == nnkTypeDef, node[2], node)
 
   result = ObjectDecl[N](
+    isRef: declBody.kind.toNNK() in {nnkRefTy},
     docComment: node.getDocComment(),
     declNode: some(node),
     flds: declBody.getFields(none(N), sym))
