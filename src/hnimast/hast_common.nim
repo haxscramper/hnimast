@@ -10,6 +10,14 @@ template `[]`*(node: PNode, slice: HSLice[int, BackwardsIndex]): untyped =
   ## Get range of subnodes from `PNode`
   `[]`(node.sons, slice)
 
+proc `?`*(node: PNode): bool =
+  not isNil(node) and (node.len > 0)
+
+proc `[]`*(node: PNode, idx: int, kinds: set[TNodeKind]): PNode =
+  result = node[idx]
+  assertKind(result, kinds)
+
+
 proc add*(n: PNode, sub: seq[PNode]) =
   for node in sub:
     n.add node
@@ -131,7 +139,7 @@ type
     oakObjectField ## Annotation for object field
 
 
-template currIInfo*(): untyped =
+template currLInfo*(): untyped =
   let (file, line, col) = instantiationInfo()
   LineInfo(filename: file, line: line, column: col)
 
@@ -303,6 +311,16 @@ func newReturn*(expr: NimNode): NimNode =
   ## Create new return statement
   nnkReturnStmt.newTree(@[expr])
 
+func newNTree*[NNode: NimNode or PNode](
+  kind: NimNodeKind, subnodes: varargs[NNode]): NNode =
+  ## Create new tree with `subnodes` and `kind`
+  # STYLE rename to `toNNode`
+  when NNode is NimNode:
+    newTree(kind, toSeq(subnodes))
+
+  else:
+    newTree(kind.toNK(), toSeq(subnodes))
+
 func newReturn*[N](expr: N): N = newNTree[N](nnkReturnStmt, expr)
 func newRaise*[N](expr: N): N = newNTree[N](nnkRaiseStmt, expr)
 func newStmtListExpr*[N](args: varargs[N]): N =
@@ -318,15 +336,6 @@ func newNIdent*[NNode](str: string): NNode =
 
 func newNIdent*[N](n: N): N = n
 
-func newNTree*[NNode: NimNode or PNode](
-  kind: NimNodeKind, subnodes: varargs[NNode]): NNode =
-  ## Create new tree with `subnodes` and `kind`
-  # STYLE rename to `toNNode`
-  when NNode is NimNode:
-    newTree(kind, toSeq(subnodes))
-
-  else:
-    newTree(kind.toNK(), toSeq(subnodes))
 
 func newDiscardStmt*[N](expr: N): N =
   newNTree[N](nnkDiscardStmt, expr)
@@ -505,9 +514,6 @@ proc newBracketExpr*[N](lhs: N, rhs: varargs[N]): N =
   for arg in rhs:
     result.add arg
 
-proc newBracketExpr*[N](lhs: N, rhs: SomeInteger): N =
-  newNTree[N](nnkBracketExpr, lhs, newNLit[N, typeof(rhs)](rhs))
-
 
 proc newExprColon*[N](lhs, rhs: N): N =
   newNTree[N](nnkExprColonExpr, lhs, rhs)
@@ -542,9 +548,6 @@ proc newOr*[N](a, b: N): N =
 
 proc newNot*[N](a: N): N =
   newNTree[N](nnkPrefix, newNIdent[N]("not"), a)
-
-proc newIn*[N; E: enum](a: N, b: set[E]): N =
-  newNTree[N](nnkInfix, newNIdent[N]("in"), a, newNLit[N, set[E]](b))
 
 
 proc newBreak*(target: NimNode = newEmptyNode()): NimNode =
@@ -770,9 +773,9 @@ proc pprintCalls*(node: NimNode, level: int): void =
 
 proc lispRepr*(
     typ: PType, colored: bool = true, symkind: bool = true): string =
-  result = toMagenta(($typ.kind)[2..^1], colored)
+  result = "ty:" & toMagenta(($typ.kind)[2..^1], colored)
   if not isNil(typ.sym) and symkind:
-    result &= " " & toCyan(($typ.sym.kind)[2..^1], colored)
+    result &= " sk:" & toCyan(($typ.sym.kind)[2..^1], colored)
 
   if not isNil(typ.n):
     let t = $typ.n
@@ -841,17 +844,19 @@ func treeRepr*(
 
       of nkSym:
         result &= [
-          toBlue(($n.sym.kind)[2 ..^ 1], colored),
-          " ", toGreen(n.getStrVal(), colored),
+          toGreen(n.getStrVal(), colored),
+          " sk:", toBlue(($n.sym.kind)[2 ..^ 1], colored),
           " ", tern(
             isNil(n.sym.typ),
             "<no-type>",
-            n.sym.typ.lispRepr(colored, symkind = false)
-          ),
-          "\n",
-          " ", pref, to8Bit($n.sym.flags, 2, 0, 3),
-          " ", to8Bit($n.sym.magic, 2, 0, 5),
-        ]
+            n.sym.typ.lispRepr(colored, symkind = false))]
+
+        if n.sym.flags.len > 0:
+          result &= " flags:" & to8Bit($n.sym.flags, 2, 0, 3)
+
+        if n.sym.magic != mNone:
+          result &= " magic:" & to8Bit($n.sym.magic, 2, 0, 5)
+
 
 
       of nkCommentStmt:
@@ -967,7 +972,7 @@ proc typeLispRepr*(node: NimNode, colored: bool = true): string =
             else:
               discard
 
-          result &= node.getTypeInst().typeLispRepr(colored)
+          result &= "typ: " & node.getTypeInst().typeLispRepr(colored)
 
         of nskEnumField:
           let impl = node.getType().getTypeInst().getImpl()[2]
@@ -1419,6 +1424,15 @@ proc newNLit*[N, T](item: T): N =
 
   else:
     newPLit(item)
+
+
+proc newBracketExpr*[N](lhs: N, rhs: SomeInteger): N =
+  newNTree[N](nnkBracketExpr, lhs, newNLit[N, typeof(rhs)](rhs))
+
+proc newIn*[N; E: enum](a: N, b: set[E]): N =
+  newNTree[N](nnkInfix, newNIdent[N]("in"), a, newNLit[N, set[E]](b))
+
+
 
 proc addBranch*[N](main: var N, expr: enum, body: varargs[N]) =
   addBranch(main, newNLit[N, typeof(expr)](expr), body)

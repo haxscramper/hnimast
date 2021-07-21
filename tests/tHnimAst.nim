@@ -334,7 +334,7 @@ type Type = object
     var decls: seq[NimTypeDecl[PNode]]
 
     decls.add toNimTypeDecl(newPEnumDecl(
-      "Test", iinfo = hast_common.currIInfo()))
+      "Test", iinfo = currLInfo()))
 
     write(stdout, decls.toNimDecl())
 

@@ -1,16 +1,25 @@
-import macroutils
-import hmisc/hexceptions
 
-import std/[options, sets, options, tables,
-            strutils, strformat, macros, sequtils]
+import std/[
+  options, sets, options, tables, strutils,
+  strformat, macros, sequtils
+]
 
 export options
+
 import compiler/ast
-import hmisc/algo/[halgorithm, htree_mapping, namegen]
-import hmisc/helpers
-import hmisc/types/colorstring
-import object_decl, idents_types, hast_common, pragmas
-import hmisc/hdebug_misc
+
+import
+  hmisc/types/colorstring,
+  hmisc/[helpers, hexceptions, hdebug_misc],
+  hmisc/algo/[halgorithm, htree_mapping, namegen]
+
+import
+  ./object_decl,
+  ./idents_types,
+  ./hast_common,
+  ./pragmas,
+  ./hast_quote
+
 export pragmas
 
 # TODO support multiple fields declared on the same line - `fld1, fld2: Type`
@@ -763,7 +772,7 @@ proc unrollFieldLoop(
           tupleIdx = newLit(fld.tupleIdx)
           fldName = newLit("Field" & $fldIdx)
 
-        superquote do:
+        nquote do:
           let `lhsId` = `ident(genParam.lhsObj)`[`tupleIdx`]
           let `rhsId` = `ident(genParam.rhsObj)`[`tupleIdx`]
           const `ident(genParam.fldName)`: string = `fldName`
@@ -775,7 +784,7 @@ proc unrollFieldLoop(
 
         if genParam.hackFields:
           let fldType = fld.fldType.toNimNode()
-          let tmp = superquote do:
+          let tmp = nquote do:
             const `ident(genParam.fldName)`: string = `fldName`
             let `lhsId`: `fldType` = block:
               var tmp: `fldType`
@@ -799,12 +808,12 @@ proc unrollFieldLoop(
 
           tmp
         else:
-          superquote do:
+          nquote do:
             let `lhsId` = `ident(genParam.lhsObj)`.`fldId`
             let `rhsId` = `ident(genParam.rhsObj)`.`fldId`
             const `ident(genParam.fldName)`: string = `newLit(fld.name)`
 
-    tmpRes.add superquote do:
+    tmpRes.add nquote do:
       const `ident(genParam.isKindName)`: bool = `newLit(fld.isKind)`
       let `ident(genParam.idxName)`: int = `newLit(fldIdx)`
       `valDefs`
@@ -855,12 +864,12 @@ proc unrollFieldLoop(
       tmpRes.add do:
         if fld.isTuple:
           let fldIdx = newLit(fld.tupleIdx)
-          superquote do:
+          nquote do:
             if `ident(genParam.lhsObj)`[`fldIdx`] == `ident(genParam.rhsObj)`[`fldIdx`]:
               `caseBlock`
         else:
           let fldId = ident(fld.name)
-          superquote do:
+          nquote do:
             ## Case field comparison
             if `lhsId` == `rhsId`:
               `caseBlock`
@@ -870,6 +879,7 @@ proc unrollFieldLoop(
     let comment =
       if fld.isTuple:
         newCommentStmtNode("Tuple field idx: " & $fld.tupleIdx)
+
       else:
         newCommentStmtNode("Field: " & $fld.name)
 
@@ -952,12 +962,14 @@ accessed** in object. For example, in object like this:
   let (unrolled, _) = getFields(lhsObj, none(NimNode), sym).
     unrollFieldLoop(body, 0, genParams)
 
-  result = superquote do:
+  result = nquote do:
     block: ## Toplevel
       var `ident(genParams.valIdxName)`: int = 0
       let `ident(genParams.lhsObj)` = `lhsObj`
       let `ident(genParams.rhsObj)` = `rhsObj`
       `unrolled`
+
+  # echo result.repr
 
 
 
@@ -984,7 +996,8 @@ macro hackPrivateParallelFieldPairs*(
 
   let section = newCommentStmtNode(
     "Type: " & $lhsObj.getTypeInst().toStrLit())
-  result = superquote do:
+
+  result = nquote do:
     block: ## Toplevel
       `section`
       var `ident(genParams.valIdxName)`: int = 0

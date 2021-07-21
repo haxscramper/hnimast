@@ -3,7 +3,12 @@ import std/[strutils]
 import compiler/[lineinfos, ast]
 import hmisc/hexceptions
 
-func quoteAux(body: NimNode, resCall: string, pos: NimNode): NimNode =
+func quoteAux(
+    body: NimNode,
+    resCall: NimNode,
+    pos: NimNode,
+    identCall: NimNode
+  ): NimNode =
   if body.kind == nnkPrefix and
      body[0].eqIdent("@@@!"):
     return body[1]
@@ -12,7 +17,7 @@ func quoteAux(body: NimNode, resCall: string, pos: NimNode): NimNode =
        body[0].eqIdent(".@@@!"):
     return newCall(
       resCall, ident "nnkDotExpr",
-      quoteAux(body[1], resCall, pos),
+      quoteAux(body[1], resCall, pos, identCall),
       body[2].dropPar1()
     )
 
@@ -28,7 +33,7 @@ func quoteAux(body: NimNode, resCall: string, pos: NimNode): NimNode =
          # (which is not valid variable name even)
         let bodyLit = newLit body[0].strVal()
         return quote do:
-          newPTree(nnkAccQuoted, newPIdent(`bodyLit`))
+          `resCall`(nnkAccQuoted, `identCall`(`bodyLit`))
 
       else:
         var res: string
@@ -38,16 +43,16 @@ func quoteAux(body: NimNode, resCall: string, pos: NimNode): NimNode =
         return parseExpr(res)
 
     of nnkStrKinds, nnkCommentStmt:
-      result.add newLit body.strVal
+      result.add newLit(body.strVal)
 
     of nnkFloatKinds:
-      result.add newLit body.floatVal
+      result.add newLit(body.floatVal)
 
     of nnkIntKinds:
-      result.add newLit body.intVal
+      result.add newLit(body.intVal.int)
 
     of nnkIdent, nnkSym:
-      result = newCall("newPIdent", newLit(body.strVal))
+      result = newCall(identCall, newLit(body.strVal))
 
     else:
       var hasSplices = false
@@ -82,7 +87,7 @@ func quoteAux(body: NimNode, resCall: string, pos: NimNode): NimNode =
         var tree = ident "tree"
 
         result.add quote do:
-          var `tree` = newPTree(`kind`)
+          var `tree` = `resCall`(`kind`)
 
         for subnode in body:
           var splice = false
@@ -108,7 +113,8 @@ func quoteAux(body: NimNode, resCall: string, pos: NimNode): NimNode =
                 for val in `impl`:
                   `tree`.add val
             else:
-              let builder = quoteAux(subnode, resCall, pos)
+              let builder = quoteAux(
+                subnode, resCall, pos, identCall)
               result.add quote do:
                 `tree`.add `builder`
 
@@ -143,7 +149,7 @@ func quoteAux(body: NimNode, resCall: string, pos: NimNode): NimNode =
 
       else:
         for subnode in body:
-          result.add quoteAux(subnode, resCall, pos)
+          result.add quoteAux(subnode, resCall, pos, identCall)
 
   # result.setPosition(pos)
 
@@ -170,13 +176,16 @@ func newPQuoteTree*(
     assert subnodes.len == 1 and isSameCategory(
       subnodes[0].kind.toNNK(), kind),
       $subnodes.len & " " & $subnodes[0].kind & " " & $kind
-    return subnodes[0]
+    result = subnodes[0]
 
   elif kind == nnkCommentStmt:
-    return newCommentStmtNNode[PNode](subnodes[0].getStrVal())
+    result = newCommentStmtNNode[PNode](subnodes[0].getStrVal())
+
+  elif kind == nnkEmpty:
+    result = newEmptyPNode()
 
   else:
-    newPTree(kind, subnodes)
+    result = newPTree(kind, subnodes)
 
 func toNimNodeAux*(value: NimNode | NodeAuxTypes): NimNode =
   when value is NimNode:
@@ -193,13 +202,17 @@ func newNQuoteTree*(
     assert subnodes.len == 1 and isSameCategory(
       subnodes[0].kind, kind),
       $subnodes.len & " " & $subnodes[0].kind & " " & $kind
-    return subnodes[0]
+
+    result = subnodes[0]
 
   elif kind == nnkCommentStmt:
-    return newCommentStmtNNode[NimNode](subnodes[0].getStrVal())
+    result = newCommentStmtNNode[NimNode](subnodes[0].getStrVal())
+
+  elif kind == nnkEmpty:
+    result = newEmptyNode()
 
   else:
-    newTree(kind, subnodes)
+    result = newTree(kind, subnodes)
 
 macro pquote*(mainBody: untyped): untyped =
   ## `quote` macro to generate `PNode` builder. Similarly to `superquote`
@@ -228,9 +241,13 @@ macro pquote*(mainBody: untyped): untyped =
   ## between prefix and what should be spliced. Also allows for things like
   ## `@@@([arg1, arg2])` if needed.
 
-  result = quoteAux(mainBody, "newPQuoteTree", mainBody)
+  result = quoteAux(
+    mainBody, ident"newPQuoteTree", mainBody, ident"newPIdent")
 
 macro nquote*(mainBody: untyped): untyped =
   ## DSL and set of features is identical to `pquote`, but generates
   ## `NimNode` instead of `PNode`.
-  result = quoteAux(mainBody, "newNQuoteTree", mainBody)
+  result = quoteAux(
+    mainBody, ident"newNQuoteTree", mainBody, ident"ident")
+
+  # echo result.repr

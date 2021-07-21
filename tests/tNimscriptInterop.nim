@@ -174,7 +174,7 @@ proc main() =
       case slot.kind:
         of rkNode:
           let data = args.getNode(0)
-          # echo data.treeRepr()
+          echo data.treeRepr1(positionIndexed = false)
           args.setResult data
 
         of rkFloat:
@@ -206,7 +206,11 @@ let data = VmVariant(
 )
 
 readVmVariant(data)
-echo dump(data)[]
+
+# discard dump(nr(nr(), nr(), nr(), nr(), nr(nr(), nr(), nr())))
+
+discard dump(IgnoredArgsSeq(args: @["arg1", "arg2"]))
+discard dump(IgnoredArgsArray(args: ["arg1", "arg2"]))
 
 
 """))

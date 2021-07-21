@@ -1,6 +1,12 @@
 # import std/tables
 
 type
+  IgnoredArgsSeq* = object
+    args: seq[string]
+
+  IgnoredArgsArray* = object
+    args: array[2, string]
+
   VmPrivateImpl[T] = object
     test: string
     genr: T
@@ -50,3 +56,12 @@ type
 
 proc initVmPrivateImpl*[T](arg: string = ""): VmPrivateImpl[T] =
   result.test = arg
+
+type
+  VmWithRefFields* = ref object
+    subfields: seq[VmWithRefFields]
+
+proc nr*(args: varargs[VmWithRefFields]): VmWithRefFields =
+  result = VmWithRefFields()
+  for arg in args:
+    result.subfields.add arg

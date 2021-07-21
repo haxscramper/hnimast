@@ -94,4 +94,4 @@ proc genNewProc*[N](impl: ObjectDecl[N]): ProcDecl[N] =
 
 macro genNewProcForType*[T](InType: typedesc[T]): untyped =
   result = genNewProc(getObjectStructure(InType)).toNNode()
-  echo result.repr
+  # echo result.repr
