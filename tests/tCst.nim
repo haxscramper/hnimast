@@ -41,6 +41,11 @@ conf.mainPackageNotes.incl hintMsgOrigin
 
 let node = parseString1("""
 
+type
+  Test = object
+    field*: int = 10 ## Documentation
+    ## for multiline doc comment
+
 proc optLayout(
     self: var LytBlock,
     rest: var Option[LytSolution],

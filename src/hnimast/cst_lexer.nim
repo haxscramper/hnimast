@@ -23,6 +23,9 @@ import
     nimlexbase, llstream, wordrecg, lineinfos, pathutils
   ]
 
+import
+  hmisc/base_errors
+
 const
   MaxLineLength* = 80         # lines longer than this lead to a warning
   numChars*: set[char] = {'0'..'9', 'a'..'z', 'A'..'Z'}
@@ -72,7 +75,7 @@ type
     tkComma = ",", tkSemiColon = ";",
     tkColon = ":", tkColonColon = "::", tkEquals = "=",
     tkDot = ".", tkDotDot = "..", tkBracketLeColon = "[:",
-    tkOpr, tkComment, tkAccent = "`",
+    tkOpr, tkDocComment, tkCodeComment, tkAccent = "`",
     # these are fake tokens used by renderer.nim
     tkSpaces, tkInfixOpr, tkPrefixOpr, tkPostfixOpr
 
@@ -157,7 +160,7 @@ proc `$`*(tok: Token): string =
   case tok.tokType
   of tkIntLit..tkInt64Lit: $tok.iNumber
   of tkFloatLit..tkFloat64Lit: $tok.fNumber
-  of tkInvalid, tkStrLit..tkCharLit, tkComment: tok.literal
+  of tkInvalid, tkStrLit..tkCharLit, tkCodeComment, tkDocComment: tok.literal
   of tkParLe..tkColon, tkEof, tkAccent: $tok.tokType
   else:
     if tok.ident != nil:
@@ -1023,9 +1026,10 @@ proc skipMultiLineComment(L: var Lexer; tok: var Token; start: int;
 
 proc scanComment(L: var Lexer, tok: var Token) =
   var pos = L.bufpos
-  tok.tokType = tkComment
+  tok.tokType = tkDocComment
   # iNumber contains the number of '\n' in the token
   tok.iNumber = 0
+  raise newImplementError()
   assert L.buf[pos+1] == '#'
   when defined(nimpretty):
     tok.commentOffsetA = L.offsetBase + pos

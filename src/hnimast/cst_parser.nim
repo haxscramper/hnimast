@@ -33,6 +33,9 @@ import compiler/[
   llstream, idents, ast, msgs, options, lineinfos, pathutils
 ]
 
+import
+  hmisc/base_errors
+
 import ./cst_lexer, ./cst_types
 
 import std/[strutils]
@@ -51,8 +54,8 @@ type
     inPragma*: int            # Pragma level
     inSemiStmtList*: int
     emptyNode: CstNode
-    when defined(nimpretty):
-      em*: Emitter
+
+    lastComment*: CstRange
 
   SymbolMode = enum
     smNormal, smAllowNil, smAfterDot
@@ -106,13 +109,13 @@ proc getTok(p: var Parser) =
   ## `tok` member.
   rawGetTok(p.lex, p.tok)
   p.hasProgress = true
-  when defined(nimpretty):
-    emitTok(p.em, p.lex, p.tok)
-    # skip the additional tokens that nimpretty needs but the parser has no
-    # interest in:
-    while p.tok.tokType == tkComment:
+  if p.tok.tokType == tkCodeComment:
+    p.lastComment = CstRange()
+    p.lastComment.startPoint = p.parLineInfo()
+    while p.tok.tokType == tkCodeComment:
       rawGetTok(p.lex, p.tok)
-      emitTok(p.em, p.lex, p.tok)
+
+    p.lastComment.endPoint = p.parLineInfo()
 
 proc openParser*(p: var Parser, fileIdx: FileIndex, inputStream: PLLStream,
                  cache: IdentCache; config: ConfigRef) =
@@ -166,7 +169,8 @@ proc validInd(p: var Parser): bool {.inline.} =
   result = p.tok.indent < 0 or p.tok.indent > p.currInd
 
 proc rawSkipComment(p: var Parser, node: CstNode) =
-  if p.tok.tokType == tkComment:
+  # raise newImplementError()
+  if p.tok.tokType == tkCodeComment:
     if node != nil:
       when not defined(nimNoNilSeqs):
         if node.comment == nil: node.comment = ""
@@ -174,9 +178,9 @@ proc rawSkipComment(p: var Parser, node: CstNode) =
         if p.tok.commentOffsetB > p.tok.commentOffsetA:
           node.comment.add fileSection(p.lex.config, p.lex.fileIdx, p.tok.commentOffsetA, p.tok.commentOffsetB)
         else:
-          node.comment.add p.tok.literal
+          node.docComment.add p.tok.literal
       else:
-        node.comment.add  p.tok.literal
+        node.docComment.add  p.tok.literal
     else:
       parMessage(p, errInternal, "skipComment")
     getTok(p)
@@ -232,7 +236,7 @@ proc parLineInfo(p: Parser): CstPoint =
 
 proc indAndComment(p: var Parser, n: CstNode) =
   if p.tok.indent > p.currInd:
-    if p.tok.tokType == tkComment: rawSkipComment(p, n)
+    if p.tok.tokType == tkCodeComment: rawSkipComment(p, n)
     else: parMessage(p, errInvalidIndentation)
   else:
     skipComment(p, n)
@@ -1531,7 +1535,7 @@ proc parseReturnOrRaise(p: var Parser, kind: TNodeKind): CstNode =
   #| continueStmt = 'break' optInd expr?
   result = newNodeP(kind, p)
   getTok(p)
-  if p.tok.tokType == tkComment:
+  if p.tok.tokType == tkCodeComment:
     skipComment(p, result)
     result.add(p.emptyNode)
   elif p.tok.indent >= 0 and p.tok.indent <= p.currInd or not isExprStart(p):
@@ -1807,7 +1811,7 @@ proc parseRoutine(p: var Parser, kind: TNodeKind): CstNode =
 proc newCommentStmt(p: var Parser): CstNode =
   #| commentStmt = COMMENT
   result = newNodeP(nkCommentStmt, p)
-  result.comment.text = p.tok.literal
+  result.docComment.text = p.tok.literal
   getTok(p)
 
 proc parseSection(p: var Parser, kind: TNodeKind,
@@ -1826,7 +1830,7 @@ proc parseSection(p: var Parser, kind: TNodeKind,
           var a = defparser(p)
           skipComment(p, a)
           result.add(a)
-        of tkComment:
+        of tkDocComment:
           var a = newCommentStmt(p)
           result.add(a)
         else:
@@ -2004,7 +2008,7 @@ proc parseObject(p: var Parser): CstNode =
     result.add(a)
   else:
     result.add(p.emptyNode)
-  if p.tok.tokType == tkComment:
+  if p.tok.tokType == tkCodeComment:
     skipComment(p, result)
   # an initial IND{>} HAS to follow:
   if not realInd(p):
@@ -2055,7 +2059,7 @@ proc parseTypeClass(p: var Parser): CstNode =
     result.add(a)
   else:
     result.add(p.emptyNode)
-  if p.tok.tokType == tkComment:
+  if p.tok.tokType == tkCodeComment:
     skipComment(p, result)
   # an initial IND{>} HAS to follow:
   if not realInd(p):
@@ -2201,7 +2205,7 @@ proc simpleStmt(p: var Parser): CstNode =
   of tkExport: result = parseImport(p, nkExportStmt)
   of tkFrom: result = parseFromStmt(p)
   of tkInclude: result = parseIncludeStmt(p)
-  of tkComment: result = newCommentStmt(p)
+  of tkDocComment: result = newCommentStmt(p)
   else:
     if isExprStart(p): result = parseExprStmt(p)
     else: result = p.emptyNode

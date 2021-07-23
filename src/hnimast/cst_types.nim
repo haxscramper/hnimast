@@ -23,17 +23,27 @@ type
     tokenIdx*: int
     lineInfo*: TLineInfo
 
-  CstRange = object
+  CstRange* = object
     startPoint*, endPoint*: CstPoint
 
-  CstComment = object
+  CommentKind = enum
+    ckNone
+    ckLine ## Line comment for a single line
+    ckInline ## Inline coment
+    ckMultilineLine ## Line coment that spans multiple lines
+    ckMultilineInline ## Inline comment that spans multiple lines
+
+  CstComment* = object
+    kind*: CommentKind
+    isRawComment*: bool
     rangeInfo*: CstRange
     text*: string
 
   CstNode* = ref CstNodeObj
   CstNodeObj* = object
     rangeInfo*: CstRange
-    comment*: CstComment
+    docComment*: CstComment
+    nextComment*: CstComment
     flags*: set[TNodeFlag]
     baseTokens*: ref seq[Token]
 
@@ -191,7 +201,8 @@ template transitionNodeKindCommon(k: TNodeKind) =
   n[] = CstNodeObj(
     kind: k,
     rangeInfo: obj.rangeInfo,
-    comment: obj.comment,
+    docComment: obj.docComment,
+    nextComment: obj.nextComment,
     flags: obj.flags
   )
 
@@ -274,12 +285,24 @@ func treeRepr*(
       add ".."
       add $n.endPoint()
 
-    if n.comment.text.len > 0:
+    var hadComment = false
+    if n.docComment.text.len > 0:
       res.add "\n"
-      for line in split(n.comment.text, '\n'):
+      for line in split(n.docComment.text, '\n'):
+        res.addIndent(level + 2)
+        res.add "  ## " & toYellow(line) & "\n"
+
+      hadComment = true
+
+    if n.nextComment.text.len > 0:
+      res.add "\n"
+      for line in split(n.nextComment.text, '\n'):
+        res.addIndent(level + 2)
         res.add "  # " & toCyan(line) & "\n"
 
-    else:
+      hadComment = true
+
+    if not hadComment:
       res.add " "
 
 
@@ -304,7 +327,33 @@ initBlockFmtDsl()
 
 proc toFmtBlock*(node: CstNode): LytBlock
 
+proc lytDocComment(n: CstNode, prefix: string = ""): LytBlock =
+  if n.docComment.text.len > 0:
+    result = V[]
+    for line in n.docComment.text.split('\n'):
+      result.add T[prefix & "## " & line]
+
+  else:
+    result = E[]
+
+
+proc lytNextComment(n: CstNode, prefix: string): LytBlock =
+  case n.nextComment.kind:
+    of ckNone:
+      result = E[]
+
+    of ckLine:
+      result = T["# " & n.nextComment.text]
+
+    of ckInline:
+      result = T["#[ " & n.nextComment.text & "]#"]
+
+    else:
+      raise newImplementKindError(n.nextComment)
+
+
 proc lytIdentDefs(n: CstNode): tuple[idents, itype, default: LytBlock] =
+
   result.idents = H[joinItBlock(bkLine, n[0 ..^ 3], toFmtBlock(it), T[", "])]
 
   if n[^2].kind != nkEmpty:
@@ -319,6 +368,8 @@ proc lytIdentDefs(n: CstNode): tuple[idents, itype, default: LytBlock] =
 
   else:
     result.default = E[]
+
+
 
 proc lytIdentList(idents: seq[CstNode]): LytBlock =
   var argBlocks = mapIt(idents, lytIdentDefs(it))
@@ -444,7 +495,7 @@ proc toFmtBlock*(node: CstNode): LytBlock =
 
       of nkIdentDefs:
         let (idents, itype, default) = lytIdentDefs(n)
-        result = H[idents, itype, default]
+        result = H[idents, itype, default, lytDocComment(n, " ")]
 
       of nkForStmt:
         var head = H[T["for "]]
@@ -465,10 +516,35 @@ proc toFmtBlock*(node: CstNode): LytBlock =
       of nkVarTy:
         result = H[T["var "], aux(n[0])]
 
-      of nkCommentStmt:
+      of nkTypeSection:
+        var types = V[]
+        for t in n:
+          types.add aux(t)
+          types.add S[]
+
+        result = V[T["type"], I[2, types]]
+
+      of nkRecList:
         result = V[]
-        for line in n.comment.text.split('\n'):
-          result.add T["## " & line]
+        for item in n:
+          if item.kind != nkEmpty:
+            result.add aux(item)
+
+      of nkTypeDef:
+        var body = V[]
+        for field in n[2]:
+          if field.kind != nkEmpty:
+            body.add aux(field)
+
+        case n[2].kind:
+          of nkObjectTy:
+            result = V[H[aux(n[0]), T[" = object"]], I[2, body]]
+
+          else:
+            raise newImplementKindError(n[2])
+
+      of nkCommentStmt:
+        result = lytDocComment(n)
 
       of nkIfStmt:
         result = V[]
@@ -526,7 +602,6 @@ proc toFmtBlock*(node: CstNode): LytBlock =
           var alt = V[H[T[name], aux(n[0]), aux(n[1]), aux(n[2]), T["("]]]
           alt.add I[4, lytIdentList(n[3][1..^1])]
           alt.add H[T["  ): "], aux(n[3][0]), T[" = "]]
-          alt.add S[]
           alts.add alt
 
 
