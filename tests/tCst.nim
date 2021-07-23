@@ -40,30 +40,22 @@ var conf = newCOnfigRef()
 conf.mainPackageNotes.incl hintMsgOrigin
 
 let node = parseString1("""
-iterator pairs*(main: `mainType`, slice: SliceTypes):
-  (int, `fieldType`) =
-  let slice = clamp(slice, main.`field`.high)
-  for idx in slice:
-    yield (idx, main.`field`[idx])
 
-proc opt*(
-    name,
-    doc, docDetailed, docBrief: string,
-    default:       CliDefault                  = nil,
-    values:        openarray[(string, string)] = @[],
-    docFull:       string                      = "",
-    alt:           seq[string]                 = @[],
-    defaultAsFlag: CLiDefault                  = nil,
-    groupKind:     CliOptKind                  = coOpt,
-    varname:       string                      = name,
-    maxRepeat:     int                         = 1,
-    aliasof:       CliOpt                      = CliOpt(),
-    selector:      CliCheck                    = nil,
-    check:         CliCheck                    = nil,
-    disabled:      string                      = ""
-  ): CliDesc =
+proc optLayout(
+    self: var LytBlock,
+    rest: var Option[LytSolution],
+    opts: LytOptions
+  ): Option[LytSolution] =
+  ## Retrieve or compute the least-cost (optimum) layout for this block.
+  ## - @arg{rest} :: text to the right of this block.
+  ## - @ret{} :: Optimal layout for this block and the rest of the line.
+  # Deeply-nested choice block may result in the same continuation
+  # supplied repeatedly to the same block. Without memoisation, this
+  # may result in an exponential blow-up in the layout algorithm.
+  if rest notin self.layoutCache:
+    self.layoutCache[rest] = self.doOptLayout(rest, opts)
 
-  discard
+  return self.layoutCache[rest]
 
 """)
 

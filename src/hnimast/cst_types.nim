@@ -325,9 +325,10 @@ proc lytIdentList(idents: seq[CstNode]): LytBlock =
   let nameW = mapIt(argBlocks, it.idents.minWidth).sorted()[^2]
   let typeW = maxIt(argBlocks, it.itype.minWidth)
 
-  for (idents, itype, _) in mitems(argBlocks):
+  for (idents, itype, default) in mitems(argBlocks):
     idents.add T[repeat(" ", clampIdx(nameW - idents.minWidth))]
-    itype.add T[repeat(" ", clampIdx(typeW - itype.minWidth))]
+    if not isEmpty(default):
+      itype.add T[repeat(" ", clampIdx(typeW - itype.minWidth))]
 
   result = V[]
   for idx, (idents, itype, default) in pairs(argBlocks):
@@ -458,8 +459,44 @@ proc toFmtBlock*(node: CstNode): LytBlock =
       of nkDiscardStmt:
         result = H[T["discard "], aux(n[0])]
 
+      of nkReturnStmt:
+        result = H[T["return "], aux(n[0])]
+
+      of nkVarTy:
+        result = H[T["var "], aux(n[0])]
+
+      of nkCommentStmt:
+        result = V[]
+        for line in n.comment.text.split('\n'):
+          result.add T["## " & line]
+
+      of nkIfStmt:
+        result = V[]
+        for idx, branch in n:
+          if idx == 0:
+            result.add V[
+              H[T["if "], aux(branch[0]), T[":"]],
+              I[2, aux(branch[1])]
+            ]
+
+          else:
+            if branch.kind == nnkElifBranch:
+              result.add V[
+                H[T["elif "], aux(branch[0]), T[":"]],
+                I[2, aux(branch[1])]
+              ]
+
+            else:
+              result.add V[
+                H[T["else:"]],
+                I[2, aux(branch[0])]
+              ]
+
       of nkNilLit:
         result = T["nil"]
+
+      of nkAsgn:
+        result = H[aux(n[0]), T[" = "], aux(n[1])]
 
       of nkLetSection:
         if n.len == 1:
