@@ -396,6 +396,7 @@ proc lytIdentList(idents: seq[CstNode]): LytBlock =
 
 
 
+
 proc toFmtBlock*(node: CstNode): LytBlock =
   proc aux(n: CstNode): LytBLock =
     case n.kind:
@@ -412,6 +413,12 @@ proc toFmtBlock*(node: CstNode): LytBlock =
 
       of nkStrLit:
         result = T[&"\"{n.strVal}\""]
+
+      of nkCharLit:
+        var buf = "'"
+        buf.addEscapedChar(n.intVal.int.char)
+        buf.add '\''
+        result = T[buf]
 
       of nkElse:
         result = V[T["else:"], I[2, aux(n[0])], S[]]
@@ -488,15 +495,21 @@ proc toFmtBlock*(node: CstNode): LytBlock =
         result = T[txt]
 
       of nkCall:
-        result = H[aux(n[0]), T["("]]
-        for idx, arg in n[1 ..^ 1]:
-          if idx > 0: result.add T[", "]
-          result.add aux(arg)
+        if n.len == 2 and
+           n[0].kind == nkIdent and
+           n[0].getStrVal() in ["inc", "dec", "echo"]:
+          result = H[aux(n[0]), T[" "], aux(n[1])]
 
-        result.add T[")"]
+        else:
+          result = H[aux(n[0]), T["("]]
+          for idx, arg in n[1 ..^ 1]:
+            if idx > 0: result.add T[", "]
+            result.add aux(arg)
+
+          result.add T[")"]
 
       of nkEmpty:
-        result = T[""]
+        result = lytNextComment(n)
 
       of nkIdentDefs:
         let (idents, itype, default) = lytIdentDefs(n)
@@ -513,6 +526,19 @@ proc toFmtBlock*(node: CstNode): LytBlock =
         head.add aux(n[^2])
         result = V[H[head], I[2, aux(n[^1])]]
 
+      of nkWhileStmt:
+        result = V[
+          H[T["while "], aux(n[0]), T[":"]],
+          I[2, aux(n[1])]
+        ]
+
+      of nkCaseStmt:
+        result = V[
+          H[T["case "], aux(n[0]), T[":"]],
+          I[2, joinItBlock(bkStack, n[1 ..^ 1], aux(it), S[])]
+        ]
+
+
       of nkYieldStmt:
         result = H[T["yield "], aux(n[0])]
 
@@ -521,6 +547,25 @@ proc toFmtBlock*(node: CstNode): LytBlock =
 
       of nkReturnStmt:
         result = H[T["return "], aux(n[0])]
+
+      of nkBreakStmt:
+        result = H[T["break "], aux(n[0])]
+
+      of nkCurly:
+        let isSet = allIt(n, it.kind != nkExprColonExpr)
+
+        if isSet:
+          var alts: seq[LytBlock]
+          block:
+            var alt = H[T["{ "]]
+            alt.addItBlock(n, aux(it), T[", "])
+            alt.add T[" }"]
+            alts.add alt
+
+          result = C[alts]
+
+        else:
+          raise newImplementError()
 
       of nkVarTy:
         result = H[T["var "], aux(n[0])]
@@ -561,21 +606,23 @@ proc toFmtBlock*(node: CstNode): LytBlock =
           if idx == 0:
             result.add V[
               H[T["if "], aux(branch[0]), T[":"]],
-              I[2, aux(branch[1])]
-            ]
+              I[2, aux(branch[1])],
+              S[]]
 
           else:
             if branch.kind == nnkElifBranch:
               result.add V[
                 H[T["elif "], aux(branch[0]), T[":"]],
-                I[2, aux(branch[1])]
-              ]
+                I[2, aux(branch[1])],
+                S[]]
 
             else:
               result.add V[
                 H[T["else:"]],
-                I[2, aux(branch[0])]
-              ]
+                I[2, aux(branch[0])],
+                S[]]
+
+        # result.add S[]
 
       of nkNilLit:
         result = T["nil"]
@@ -619,7 +666,7 @@ proc toFmtBlock*(node: CstNode): LytBlock =
 
 
       else:
-        raise newImplementKindError(n, n.treeRepr())
+        raise newImplementKindError(n, n.treeRepr(maxdepth = 4))
 
     assertRef result, $n.kind
 

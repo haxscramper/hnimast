@@ -74,8 +74,71 @@ let
   t3 #[ inline inline comment ]# = 3
 """
 
-let node = parseString1(str3)
+let str4 = """
+while true:
+  case L.buf[pos]
+  of ' ':
+    inc(pos)
+    inc(tok.strongSpaceA)
+  of '\t':
+    if not L.allowTabs: lexMessagePos(
+      L, errGenerated, pos, "tabs are not allowed, use spaces instead")
+
+    inc(pos)
+  of CR, LF:
+    tokenEndPrevious(tok, pos)
+    pos = handleCRLF(L, pos)
+    var indent = 0
+    while true:
+      if L.buf[pos] == ' ':
+        inc(pos)
+        inc(indent)
+      elif L.buf[pos] == '#' and L.buf[pos+1] == '[':
+        hasComment = true
+        if tok.line < 0:
+          tok.line = L.lineNumber
+          commentIndent = indent
+        tok.literal.add "#["
+        skipMultiLineComment(L, tok, pos+2, false)
+        pos = L.bufpos
+      else:
+        break
+    tok.strongSpaceA = 0
+    if L.buf[pos] == '#' and tok.line < 0: commentIndent = indent
+    if L.buf[pos] > ' ' and (L.buf[pos] != '#' or L.buf[pos+1] == '#'):
+      tok.indent = indent
+      L.currLineIndent = indent
+      break
+  of '#':
+    # do not skip documentation comment:
+    if L.buf[pos+1] == '#': break
+    hasComment = true
+    if tok.line < 0:
+      tok.line = L.lineNumber
+
+    if L.buf[pos+1] == '[':
+      tok.literal.add "#["
+      skipMultiLineComment(L, tok, pos+2, false)
+      pos = L.bufpos
+    else:
+      tokenBegin(tok, pos)
+      while L.buf[pos] notin {CR, LF, nimlexbase.EndOfFile}:
+        tok.literal.add L.buf[pos]
+        inc(pos)
+      tokenEndIgnore(tok, pos+1)
+      tok.commentOffsetB = L.offsetBase + pos + 1
+  else:
+    break                   # EndOfFile also leaves the loop
+"""
+
+let str5 = """
+while true:
+  # code comment
+  echo 12
+"""
+
+let node = parseString1(str4)
 
 
-echo node.treeRepr()
+# echo node.treeRepr()
 echo node

@@ -429,8 +429,6 @@ proc exprColonEqExpr(p: var Parser): CstNode =
 
 proc exprList(p: var Parser, endTok: TokType, result: CstNode) =
   #| exprList = expr ^+ comma
-  when defined(nimpretty):
-    inc p.em.doIndentMore
   getTok(p)
   optInd(p, result)
   # progress guaranteed
@@ -440,8 +438,6 @@ proc exprList(p: var Parser, endTok: TokType, result: CstNode) =
     if p.tok.tokType != tkComma: break
     getTok(p)
     optInd(p, a)
-  when defined(nimpretty):
-    dec p.em.doIndentMore
 
   p.endNode(result)
 
