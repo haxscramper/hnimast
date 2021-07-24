@@ -24,7 +24,7 @@ import
   ]
 
 import
-  hmisc/base_errors
+  hmisc/[base_errors, hdebug_misc]
 
 const
   MaxLineLength* = 80         # lines longer than this lead to a warning
@@ -109,10 +109,9 @@ type
     literal*: string          # the parsed (string) literal; and
                               # documentation comments are here too
     line*, col*: int
-    when defined(nimpretty):
-      offsetA*, offsetB*: int # used for pretty printing so that literals
-                              # like 0b01 or  r"\L" are unaffected
-      commentOffsetA*, commentOffsetB*: int
+    offsetA*, offsetB*: int # used for pretty printing so that literals
+                            # like 0b01 or  r"\L" are unaffected
+    commentOffsetA*, commentOffsetB*: int
 
 
   ErrorHandler* = proc (
@@ -155,6 +154,34 @@ proc isNimIdentifier*(s: string): bool =
       if i < sLen and s[i] notin SymChars: return
       inc(i)
     result = true
+
+import std/[strformat, parseutils]
+
+proc lispRepr*(tok: Token): string =
+  result = "("
+  result &= $tok.tokType
+  result &= &" :ind {tok.indent} :l {tok.line} :c {tok.col}"
+
+  case tok.tokType
+    of tkIntLit..tkInt64Lit:
+      result &= " " & $tok.iNumber
+
+    of tkFloatLit..tkFloat64Lit:
+      result &= " " & $tok.fNumber
+
+    of tkInvalid, tkStrLit..tkCharLit, tkCodeComment, tkDocComment:
+      let skip = tok.literal.skipUntil('\n')
+      result &= " \"" & tok.literal[0 ..< skip]
+      if skip < tok.literal.len:
+        result &= "\\n..."
+
+      result &= "\""
+
+
+    else:
+      discard
+
+  result &= ")"
 
 proc `$`*(tok: Token): string =
   case tok.tokType
@@ -1026,10 +1053,9 @@ proc skipMultiLineComment(L: var Lexer; tok: var Token; start: int;
 
 proc scanComment(L: var Lexer, tok: var Token) =
   var pos = L.bufpos
-  tok.tokType = tkDocComment
+  tok.tokType = tkCodeComment
   # iNumber contains the number of '\n' in the token
   tok.iNumber = 0
-  raise newImplementError()
   assert L.buf[pos+1] == '#'
   when defined(nimpretty):
     tok.commentOffsetA = L.offsetBase + pos
@@ -1059,6 +1085,7 @@ proc scanComment(L: var Lexer, tok: var Token) =
       inc(indent)
 
     if L.buf[pos] == '#' and L.buf[pos+1] == '#':
+      tok.tokType = tkDocComment
       tok.literal.add "\n"
       inc(pos, 2)
       var c = toStrip
@@ -1072,19 +1099,17 @@ proc scanComment(L: var Lexer, tok: var Token) =
       tokenEndIgnore(tok, pos)
       break
   L.bufpos = pos
-  when defined(nimpretty):
-    tok.commentOffsetB = L.offsetBase + pos - 1
+  tok.commentOffsetB = L.offsetBase + pos - 1
 
 proc skip(L: var Lexer, tok: var Token) =
   var pos = L.bufpos
   tokenBegin(tok, pos)
   tok.strongSpaceA = 0
-  when defined(nimpretty):
-    var hasComment = false
-    var commentIndent = L.currLineIndent
-    tok.commentOffsetA = L.offsetBase + pos
-    tok.commentOffsetB = tok.commentOffsetA
-    tok.line = -1
+  var hasComment = false
+  var commentIndent = L.currLineIndent
+  tok.commentOffsetA = L.offsetBase + pos
+  tok.commentOffsetB = tok.commentOffsetA
+  tok.line = -1
   while true:
     case L.buf[pos]
     of ' ':

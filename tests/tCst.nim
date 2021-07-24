@@ -39,8 +39,9 @@ var conf = newCOnfigRef()
 
 conf.mainPackageNotes.incl hintMsgOrigin
 
-let node = parseString1("""
+startHax()
 
+let node = parseString1("""
 type
   Test = object
     field*: int = 10 ## Documentation
@@ -64,7 +65,6 @@ proc optLayout(
 
 """)
 
-startHax()
 
 echo node.treeRepr()
 echo node

@@ -34,11 +34,11 @@ import compiler/[
 ]
 
 import
-  hmisc/base_errors
+  hmisc/[base_errors, hdebug_misc]
 
 import ./cst_lexer, ./cst_types
 
-import std/[strutils]
+import std/[strutils, strformat]
 
 when defined(nimpretty):
   import layouter
@@ -149,7 +149,9 @@ proc parMessage(p: Parser, msg: string, tok: Token) =
 
 proc parMessage(p: Parser, arg: string) =
   ## Produce and emit the parser message `arg` to output.
-  lexMessageTok(p.lex, errGenerated, p.tok, arg)
+  lexMessageTok(
+    p.lex, errGenerated, p.tok, arg &
+    &". Parser token is '{p.tok.lispRepr()}'")
 
 template withInd(p, body: untyped) =
   let oldInd = p.currInd
@@ -169,18 +171,30 @@ proc validInd(p: var Parser): bool {.inline.} =
   result = p.tok.indent < 0 or p.tok.indent > p.currInd
 
 proc rawSkipComment(p: var Parser, node: CstNode) =
-  # raise newImplementError()
-  if p.tok.tokType == tkCodeComment:
+  if p.tok.tokType in {tkCodeComment, tkDocComment}:
     if node != nil:
       when not defined(nimNoNilSeqs):
         if node.comment == nil: node.comment = ""
+
       when defined(nimpretty):
         if p.tok.commentOffsetB > p.tok.commentOffsetA:
-          node.comment.add fileSection(p.lex.config, p.lex.fileIdx, p.tok.commentOffsetA, p.tok.commentOffsetB)
+          node.comment.add fileSection(
+            p.lex.config, p.lex.fileIdx, p.tok.commentOffsetA, p.tok.commentOffsetB)
+
+        else:
+          if p.tok.tokType == tkCodeComment:
+            node.nextComment.add p.tok.literal
+
+          else:
+            node.docComment.add p.tok.literal
+
+      else:
+        if p.tok.tokType == tkCodeComment:
+          node.nextComment.add p.tok.literal
+
         else:
           node.docComment.add p.tok.literal
-      else:
-        node.docComment.add  p.tok.literal
+
     else:
       parMessage(p, errInternal, "skipComment")
     getTok(p)
