@@ -86,6 +86,7 @@ const
                 tkParRi, tkParDotRi, tkBracketRi, tkBracketDotRi,
                 tkCurlyRi} # \
     # tokens that should not be considered for previousToken
+  tkComment* = { tkCodeComment, tkDocComment }
   tokKeywordLow* = succ(tkSymbol)
   tokKeywordHigh* = pred(tkIntLit)
 

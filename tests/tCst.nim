@@ -70,5 +70,5 @@ let str2 = "var test: int = 12 # Regular comment"
 let node = parseString1(str2)
 
 
-# echo node.treeRepr()
+echo node.treeRepr()
 echo node

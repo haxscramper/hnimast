@@ -34,7 +34,7 @@ import compiler/[
 ]
 
 import
-  hmisc/[base_errors, hdebug_misc]
+  hmisc/[base_errors, hdebug_misc, hexceptions]
 
 import ./cst_lexer, ./cst_types
 
@@ -108,15 +108,16 @@ proc getTok(p: var Parser) =
   ## Get the next token from the parser's lexer, and store it in the parser's
   ## `tok` member.
   rawGetTok(p.lex, p.tok)
-  echov "get tok", p.tok.lispRepr()
   p.hasProgress = true
-  if p.tok.tokType == tkCodeComment:
-    p.lastComment = CstRange()
-    p.lastComment.startPoint = p.parLineInfo()
-    while p.tok.tokType == tkCodeComment:
-      rawGetTok(p.lex, p.tok)
+  # pprintStackTrace()
 
-    p.lastComment.endPoint = p.parLineInfo()
+  # if p.tok.tokType == tkCodeComment:
+  #   p.lastComment = CstRange()
+  #   p.lastComment.startPoint = p.parLineInfo()
+  #   while p.tok.tokType == tkCodeComment:
+  #     rawGetTok(p.lex, p.tok)
+
+  #   p.lastComment.endPoint = p.parLineInfo()
 
 proc openParser*(p: var Parser, fileIdx: FileIndex, inputStream: PLLStream,
                  cache: IdentCache; config: ConfigRef) =
@@ -240,10 +241,14 @@ proc parLineInfo(p: Parser): CstPoint =
 
 proc indAndComment(p: var Parser, n: CstNode) =
   if p.tok.indent > p.currInd:
-    if p.tok.tokType == tkCodeComment: rawSkipComment(p, n)
+    if p.tok.tokType in tkComment: rawSkipComment(p, n)
     else: parMessage(p, errInvalidIndentation)
+
   else:
     skipComment(p, n)
+
+  if p.tok.tokType == tkCodeComment:
+    rawSkipComment(p, n)
 
 proc newNodeP(kind: TNodeKind, p: Parser): CstNode =
   result = newNodeI(kind, parLineInfo(p), p.lex.tokens)
