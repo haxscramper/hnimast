@@ -47,6 +47,9 @@ type
     flags*: set[TNodeFlag]
     baseTokens*: ref seq[Token]
 
+    height* {.requiresinit.}: int ## Max height of the tree
+    size* {.requiresinit.}: int ## Total number of subnodes
+
     case kind*: TNodeKind
       of nkCharLit..nkUInt64Lit:
         intVal*: BiggestInt
@@ -63,11 +66,31 @@ type
       else:
         subnodes*: seq[CstNode]
 
+macro wrapKindAst*(main: typed, kind: typed): untyped =
+  let
+    eqTil = ident("=~")
+
+  result = quote do:
+    func has*(n: `main`, idx: int): bool =
+      0 <= idx and idx < len(n)
+
+    func `eqTil`*(n: `main`, k: `kind`): bool = n.kind == k
+    func `eqTil`*(n: `main`, k: set[`kind`]): bool = n.kind in k
+    func `eqTil`*(n: `main`, sub: openarray[`kind`]): bool =
+      if len(n) != len(sub):
+        result = false
+
+      else:
+        for idx, val in pairs(sub):
+          if n[idx].kind != val:
+            return false
+
 macro wrapSeqContainer*(
     main: typed,
     fieldType: typed,
     isRef: static[bool] = false,
-    withIterators: static[bool] = true
+    withIterators: static[bool] = true,
+    ignore: openarray[string]{nkBracket} = [""]
   ) =
 
   ## - TODO :: Generate kind using `assertKind`
@@ -76,27 +99,42 @@ macro wrapSeqContainer*(
     mainType = main[0]
     field = main[1]
     mutType = if isRef: mainType else: nnkVarTy.newTree(mainType)
+    ignore = mapIt(ignore, it.strVal)
 
   let
     indexOp = ident("[]")
     indexAsgn = ident("[]=")
 
-  result = quote do:
-    proc len*(main: `mainType`): int = len(main.`field`)
-    proc high*(main: `mainType`): int = high(main.`field`)
-    proc add*(main: `mutType`, other: `mainType` | seq[`mainType`]) =
-      add(main.`field`, other)
+  result = newStmtList()
 
-    proc `indexOp`*(main: `mainType`, index: IndexTypes): `fieldType` =
-      main.`field`[index]
+  if "len" notin ignore:
+    result.add quote do:
+      proc len*(main: `mainType`): int = len(main.`field`)
 
-    proc `indexOp`*(main: `mainType`, slice: SliceTypes): seq[`fieldType`] =
-      main.`field`[slice]
+  if "high" notin ignore:
+    result.add quote do:
+      proc high*(main: `mainType`): int = high(main.`field`)
 
-    proc `indexAsgn`*(
-        main: `mainType`, index: IndexTypes, value: `fieldType`) =
+  if "add" notin ignore:
+    result.add quote do:
+      proc add*(main: `mutType`, other: `mainType` | seq[`mainType`]) =
+        add(main.`field`, other)
 
-      main.`field`[index] = value
+
+  if "[]" notin ignore:
+    result.add quote do:
+      proc `indexOp`*(main: `mainType`, index: IndexTypes): `fieldType` =
+        main.`field`[index]
+
+      proc `indexOp`*(main: `mainType`, slice: SliceTypes): seq[`fieldType`] =
+        main.`field`[slice]
+
+  if "[]=" notin ignore:
+    result.add quote do:
+      proc `indexAsgn`*(
+          main: `mainType`, index: IndexTypes, value: `fieldType`) =
+
+        main.`field`[index] = value
 
   if withIterators:
     result.add quote do:
@@ -157,11 +195,22 @@ macro wrapStructContainer*(
 
       prev = @[]
 
+wrapSeqContainer(
+  CstNode.subnodes, CstNode, isRef = true, ignore = ["add"])
+
+wrapKindAst(CstNode, TNodeKind)
+
 wrapStructContainer(
   CstNode.rangeInfo, { startPoint, endPoint: CstPoint }, isRef = true)
 
-wrapSeqContainer(CstNode.subnodes, CstNode, isRef = true)
+func add*(node: CstNode, other: CstNode) =
+  node.subnodes.add other
+  node.height = max(node.height, other.height + 1)
+  node.size += other.size
 
+func add*(node: CstNode, other: openarray[CstNode]) =
+  for o in other:
+    node.add o
 
 func getStrVal*(p: CstNode, doRaise: bool = true): string =
   ## Get string value from `PNode`
@@ -176,11 +225,15 @@ func getStrVal*(p: CstNode, doRaise: bool = true): string =
       else:
         ""
 
-func newEmptyCNode*(): CstNode = CstNode(kind: nkEmpty)
+func newEmptyCNode*(): CstNode =
+  CstNode(kind: nkEmpty, size: 1, height: 1)
+
 func add*(comm: var CstComment, str: string) = comm.text.add str
 func newNodeI*(
     kind: TNodeKind, point: CstPoint, base: ref seq[Token]): CstNode =
   CstNode(
+    size: 1,
+    height: 1,
     baseTokens: base,
     kind: kind,
     rangeInfo: CstRange(startPoint: point))
@@ -196,11 +249,15 @@ proc newTreeI*(
     result.startPoint = children[0].startPoint
 
   result.subnodes = @children
+  result.height = maxIt(children, it.height) + 1
+  result.size = sumIt(children, it.size) + 1
 
 
 template transitionNodeKindCommon(k: TNodeKind) =
   let obj {.inject.} = n[]
   n[] = CstNodeObj(
+    size: obj.size,
+    height: obj.height,
     kind: k,
     rangeInfo: obj.rangeInfo,
     docComment: obj.docComment,
@@ -248,21 +305,18 @@ func `$`*(point: CstPoint): string =
 
 func treeRepr*(
     pnode: CstNode,
-    colored: bool = true,
-    pathIndexed: bool = false,
-    positionIndexed: bool = true,
-    maxdepth: int = 120,
-    maxlen: int = 30
+    opts: HDisplayOpts = defaultHDisplay,
+    withSize: bool = false
   ): string =
 
   var p = addr result
   template res(): untyped = p[]
 
   proc aux(n: CstNode, level: int, idx: seq[int]) =
-    if pathIndexed:
+    if opts.pathIndexed:
       res &= idx.join("", ("[", "]")) & "    "
 
-    elif positionIndexed:
+    elif opts.positionIndexed:
       if level > 0:
         res &= "  ".repeat(level - 1) & "\e[38;5;240m#" & $idx[^1] & "\e[0m" &
           "\e[38;5;237m/" & alignLeft($level, 2) & "\e[0m" & " "
@@ -273,19 +327,26 @@ func treeRepr*(
     else:
       res.addIndent(level)
 
-    if level > maxdepth:
+    if level > opts.maxdepth:
       res &= " ..."
       return
+
     elif isNil(n):
-      res &= toRed("<nil>", colored)
+      res &= toRed("<nil>", opts.colored)
       return
+
+    if withSize:
+      res &= &"h{n.height}×s{n.size} "
 
     with res:
       add ($n.kind)[2..^1]
-      add " "
-      add $n.startPoint()
-      add ".."
-      add $n.endPoint()
+
+    if opts.withRanges:
+      with res:
+        add " "
+        add $n.startPoint()
+        add ".."
+        add $n.endPoint()
 
     var hadComment = false
     if n.docComment.text.len > 0:
@@ -309,17 +370,27 @@ func treeRepr*(
 
 
     case n.kind:
-      of nkStringKinds: res &= "\"" & toYellow(n.getStrVal(), colored) & "\""
-      of nkIntKinds: res &= toBlue($n.intVal, colored)
-      of nkFloatKinds: res &= toMagenta($n.floatVal, colored)
-      of nkIdent, nkSym: res &= toGreen(n.getStrVal(), colored)
-      of nkCommentStmt: discard
+      of nkStringKinds:
+        res &= "\"" & toYellow(n.getStrVal(), opts.colored) & "\""
+
+      of nkIntKinds:
+        res &= toBlue($n.intVal, opts.colored)
+
+      of nkFloatKinds:
+        res &= toMagenta($n.floatVal, opts.colored)
+
+      of nkIdent, nkSym:
+        res &= toGreen(n.getStrVal(), opts.colored)
+
+      of nkCommentStmt:
+        discard
+
       else:
         if n.len > 0: res &= "\n"
         for newIdx, subn in n:
           aux(subn, level + 1, idx & newIdx)
-          if level + 1 > maxDepth: break
-          if newIdx > maxLen: break
+          if level + 1 > opts.maxDepth: break
+          if newIdx > opts.maxLen: break
           if newIdx < n.len - 1: res &= "\n"
 
   aux(pnode, 0, @[])
@@ -373,6 +444,40 @@ proc lytIdentDefs(n: CstNode): tuple[idents, itype, default: LytBlock] =
 
   else:
     result.default = E[]
+
+proc lytSplitExpression(n: CstNode, spaces: bool = true):
+    tuple[start: LytBlock, middle: seq[LytBlock], final: LytBlock] =
+
+  case n.kind:
+    of nkCurly:
+      result.start = (T["{ "], T["{"]) ?? spaces
+      result.middle = mapIt(n, toFmtBlock(it))
+      result.final = (T[" }"], T["}"]) ?? spaces
+
+    of nkBracket:
+      result.start = (T["[ "], T["["]) ?? spaces
+      result.middle = mapIt(n, toFmtBlock(it))
+      result.final = (T[" ]"], T["]"]) ?? spaces
+
+    else:
+      raise newImplementError()
+
+proc lytStmtHead(start: LytBlock, middle: CstNode, final: LytBlock): LytBlock =
+  result = C[]
+  result.add H[start, toFmtBlock(middle), final]
+
+  if middle =~ nkInfix and
+     middle[2].size > 10:
+
+    let (start, splitMiddle, final) = lytSplitExpression(
+      middle[2], spaces = false)
+
+    result.add V[
+      H[T["if "], toFmtBlock(middle[1]), T[" "], toFmtBlock(middle[0]), T[" "], start],
+      I[2, W[splitMiddle, ", "]],
+      H[final, T[":"]]
+    ]
+
 
 
 
@@ -440,6 +545,27 @@ proc toFmtBlock*(node: CstNode): LytBlock =
 
       of nkElse:
         result = V[T["else:"], I[2, aux(n[0])], S[]]
+
+      of nkImportStmt, nkExportStmt:
+        if n.has(1):
+          result = V[]
+          for imp in n:
+            echov imp.treeRepr()
+            if imp =~ nkInfix and imp[^1] =~ nkBracket:
+              let (start, middle, final) = lytSplitExpression(imp[^1])
+              result.add V[
+                H[aux(imp[0]), start],
+                I[2, H[W[middle, ", "], final, T[", "]]]]
+
+            else:
+              result.add H[aux(imp), T[","]]
+
+
+
+          result = V[T["import"], I[2, result]]
+
+        else:
+          result = H[T["import "], aux(n[0])]
 
       of nkOfBranch:
         var alts = C[]
@@ -624,7 +750,7 @@ proc toFmtBlock*(node: CstNode): LytBlock =
         for idx, branch in n:
           if idx == 0:
             result.add V[
-              H[T["if "], aux(branch[0]), T[":"]],
+              lytStmtHead(T["if "], branch[0], T[":"]),
               I[2, aux(branch[1])],
               S[]]
 
@@ -685,7 +811,8 @@ proc toFmtBlock*(node: CstNode): LytBlock =
 
 
       else:
-        raise newImplementKindError(n, n.treeRepr(maxdepth = 4))
+        raise newImplementKindError(
+          n, n.treeRepr(hdisplay(maxdepth = 4), true))
 
     assertRef result, $n.kind
 

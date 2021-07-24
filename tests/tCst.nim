@@ -75,66 +75,15 @@ let
 """
 
 let str4 = """
-proc parseStmt(p: var Parser): CstNode =
-  #| stmt = (IND{>} complexOrSimpleStmt^+(IND{=} / ';') DED)
-  #|      / simpleStmt ^+ ';'
-  if p.tok.indent > p.currInd:
-    # nimpretty support here
-    result = newNodeP(nkStmtList, p)
-    withInd(p):
-      while true:
-        if p.tok.indent == p.currInd:
-          discard
-        elif p.tok.tokType == tkSemiColon:
-          getTok(p)
-          if p.tok.indent < 0 or p.tok.indent == p.currInd: discard
-          else: break
-        else:
-          if p.tok.indent > p.currInd and p.tok.tokType != tkDot:
-            parMessage(p, errInvalidIndentation)
-          break
-        if p.tok.tokType in {tkCurlyRi, tkParRi, tkCurlyDotRi, tkBracketRi}:
-          # XXX this ensures tnamedparamanonproc still compiles;
-          # deprecate this syntax later
-          break
-        p.hasProgress = false
-        if p.tok.tokType in {tkElse, tkElif}:
-          break # Allow this too, see tests/parser/tifexprs
+if p.tok.tokType in {tkCurlyRi, tkParRi, tkCurlyDotRi, tkBracketRi,tkCurlyRi, tkParRi, tkCurlyDotRi, tkBracketRi,tkCurlyRi, tkParRi, tkCurlyDotRi, tkBracketRi }:
 
-        let a = complexOrSimpleStmt(p)
-        if a.kind == nkEmpty and not p.hasProgress:
-          parMessage(p, errExprExpected, p.tok)
-          break
-        else:
-          result.add a
+  discard
 
-        if not p.hasProgress and p.tok.tokType == tkEof: break
-  else:
-    # the case statement is only needed for better error messages:
-    case p.tok.tokType
-    of tkIf, tkWhile, tkCase, tkTry, tkFor, tkBlock, tkAsm, tkProc, tkFunc,
-       tkIterator, tkMacro, tkType, tkConst, tkWhen, tkVar:
-      parMessage(p, "nestable statement requires indentation")
-      result = newEmptyCNode()
-    else:
-      if p.inSemiStmtList > 0:
-        result = simpleStmt(p)
-        if result.kind == nkEmpty: parMessage(p, errExprExpected, p.tok)
-      else:
-        result = newNodeP(nkStmtList, p)
-        while true:
-          if p.tok.indent >= 0:
-            parMessage(p, errInvalidIndentation)
-          p.hasProgress = false
-          let a = simpleStmt(p)
-          let err = not p.hasProgress
-          if a.kind == nkEmpty: parMessage(p, errExprExpected, p.tok)
-          result.add(a)
-          if p.tok.tokType != tkSemiColon: break
-          getTok(p)
-          if err and p.tok.tokType == tkEof: break
 
-  p.endNode(result)
+if p.tok.tokType in {
+                                     tkCurlyRi, tkParRi  }:
+
+  discard
 """
 
 let str5 = """
@@ -143,8 +92,35 @@ while true:
   echo 12
 """
 
-let node = parseString1(str4)
+let str6 = """
+import
+  ../docentry,
+  ../docentry_io,
+  ../parse/docentry_link
+
+import
+  hnimast/[compiler_aux, nimble_aux],
+  compiler/[trees, types, sighashes, scriptconfig],
+  nimblepkg/[packageinfo, common, version],
+  packages/docutils/[rst]
+
+import std/[
+  strutils, strformat, tables, sequtils, with, sets, options, hashes]
+
+export options
+
+import
+  hnimast,
+  hmisc/[hdebug_misc, helpers],
+  hmisc/other/[oswrap, hlogger, hpprint],
+  hmisc/algo/[hstring_algo, halgorithm, hseq_distance, hlex_base]
+
+import
+  haxorg/[semorg, ast, importer_nim_rst, parser]
+"""
+
+let node = parseString1(str6)
 
 
-echo node.treeRepr()
+echo node.treeRepr(withSize = true)
 echo node
