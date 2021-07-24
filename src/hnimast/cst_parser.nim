@@ -108,6 +108,7 @@ proc getTok(p: var Parser) =
   ## Get the next token from the parser's lexer, and store it in the parser's
   ## `tok` member.
   rawGetTok(p.lex, p.tok)
+  echov "get tok", p.tok.lispRepr()
   p.hasProgress = true
   if p.tok.tokType == tkCodeComment:
     p.lastComment = CstRange()
@@ -123,8 +124,6 @@ proc openParser*(p: var Parser, fileIdx: FileIndex, inputStream: PLLStream,
   ##
   initToken(p.tok)
   openLexer(p.lex, fileIdx, inputStream, cache, config)
-  when defined(nimpretty):
-    openEmitter(p.em, cache, config, fileIdx)
   getTok(p)                   # read the first token
   p.firstTok = true
   p.emptyNode = newEmptyCNode()
@@ -136,8 +135,6 @@ proc openParser*(p: var Parser, filename: AbsoluteFile, inputStream: PLLStream,
 proc closeParser(p: var Parser) =
   ## Close a parser, freeing up its resources.
   closeLexer(p.lex)
-  when defined(nimpretty):
-    closeEmitter(p.em)
 
 proc parMessage(p: Parser, msg: TMsgKind, arg = "") =
   ## Produce and emit the parser message `arg` to output.
@@ -170,30 +167,23 @@ template sameOrNoInd(p): bool = p.tok.indent == p.currInd or p.tok.indent < 0
 proc validInd(p: var Parser): bool {.inline.} =
   result = p.tok.indent < 0 or p.tok.indent > p.currInd
 
+proc fileSection*(conf: ConfigRef; fid: FileIndex; a, b: int): string =
+  substr(conf.m.fileInfos[fid.int].fullPath.string.readFile(), a, b)
+
 proc rawSkipComment(p: var Parser, node: CstNode) =
   if p.tok.tokType in {tkCodeComment, tkDocComment}:
     if node != nil:
-      when not defined(nimNoNilSeqs):
-        if node.comment == nil: node.comment = ""
+      if p.tok.commentOffsetB > p.tok.commentOffsetA:
+        if false:
+          discard fileSection(
+            p.lex.config, p.lex.fileIdx,
+            p.tok.commentOffsetA, p.tok.commentOffsetB)
 
-      when defined(nimpretty):
-        if p.tok.commentOffsetB > p.tok.commentOffsetA:
-          node.comment.add fileSection(
-            p.lex.config, p.lex.fileIdx, p.tok.commentOffsetA, p.tok.commentOffsetB)
-
-        else:
-          if p.tok.tokType == tkCodeComment:
-            node.nextComment.add p.tok.literal
-
-          else:
-            node.docComment.add p.tok.literal
+      if p.tok.tokType == tkCodeComment:
+        node.nextComment.add p.tok.literal
 
       else:
-        if p.tok.tokType == tkCodeComment:
-          node.nextComment.add p.tok.literal
-
-        else:
-          node.docComment.add p.tok.literal
+        node.docComment.add p.tok.literal
 
     else:
       parMessage(p, errInternal, "skipComment")

@@ -111,8 +111,10 @@ macro wrapSeqContainer*(
       iterator pairs*(main: `mainType`, slice: SliceTypes):
         (int, `fieldType`) =
         let slice = clamp(slice, main.`field`.high)
+        var resIdx = 0
         for idx in slice:
-          yield (idx, main.`field`[idx])
+          yield (resIdx, main.`field`[idx])
+          inc resIdx
 
       iterator items*(main: `mainType`, slice: SliceTypes): `fieldType` =
         for idx, item in pairs(main, slice):
@@ -574,12 +576,13 @@ proc toFmtBlock*(node: CstNode): LytBlock =
       of nkAsgn:
         result = H[aux(n[0]), T[" = "], aux(n[1])]
 
-      of nkLetSection:
+      of nkLetSection, nkVarSection:
+        let word = if n.kind == nkLetSection: "let" else: "var"
         if n.len == 1:
-          result = H[T["let "], aux(n[0])]
+          result = H[T[word & " "], aux(n[0])]
 
         else:
-          result = V[T["let"], I[2, V[mapIt(n, aux(it))]]]
+          result = V[T[word], I[2, V[mapIt(n, aux(it))]]]
 
       of nkProcDeclKinds:
         let name =

@@ -1146,10 +1146,9 @@ proc skip(L: var Lexer, tok: var Token) =
     of '#':
       # do not skip documentation comment:
       if L.buf[pos+1] == '#': break
-      when defined(nimpretty):
-        hasComment = true
-        if tok.line < 0:
-          tok.line = L.lineNumber
+      hasComment = true
+      if tok.line < 0:
+        tok.line = L.lineNumber
 
       if L.buf[pos+1] == '[':
         skipMultiLineComment(L, tok, pos+2, false)
@@ -1157,20 +1156,18 @@ proc skip(L: var Lexer, tok: var Token) =
       else:
         tokenBegin(tok, pos)
         while L.buf[pos] notin {CR, LF, nimlexbase.EndOfFile}:
-          when defined(nimpretty): tok.literal.add L.buf[pos]
+          tok.literal.add L.buf[pos]
           inc(pos)
         tokenEndIgnore(tok, pos+1)
-        when defined(nimpretty):
-          tok.commentOffsetB = L.offsetBase + pos + 1
+        tok.commentOffsetB = L.offsetBase + pos + 1
     else:
       break                   # EndOfFile also leaves the loop
   tokenEndPrevious(tok, pos-1)
   L.bufpos = pos
-  when defined(nimpretty):
-    if hasComment:
-      tok.commentOffsetB = L.offsetBase + pos - 1
-      tok.tokType = tkComment
-      tok.indent = commentIndent
+  if hasComment:
+    tok.commentOffsetB = L.offsetBase + pos - 1
+    tok.tokType = tkCodeComment
+    tok.indent = commentIndent
 
 proc rawGetTok*(L: var Lexer, tok: var Token) =
   template atTokenEnd() {.dirty.} =
@@ -1188,10 +1185,9 @@ proc rawGetTok*(L: var Lexer, tok: var Token) =
   else:
     tok.indent = -1
   skip(L, tok)
-  when defined(nimpretty):
-    if tok.tokType == tkComment:
-      L.indentAhead = L.currLineIndent
-      return
+  if tok.tokType == tkCodeComment:
+    L.indentAhead = L.currLineIndent
+    return
   var c = L.buf[L.bufpos]
   tok.line = L.lineNumber
   tok.col = getColNumber(L, L.bufpos)

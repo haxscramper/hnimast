@@ -41,7 +41,7 @@ conf.mainPackageNotes.incl hintMsgOrigin
 
 startHax()
 
-let node = parseString1("""
+let str1 = """
 type
   Test = object
     field*: int = 10 ## Documentation
@@ -63,8 +63,12 @@ proc optLayout(
 
   return self.layoutCache[rest]
 
-""")
+"""
+
+let str2 = "var test: int = 12 # Regular comment"
+
+let node = parseString1(str2)
 
 
-echo node.treeRepr()
+# echo node.treeRepr()
 echo node
