@@ -339,10 +339,13 @@ proc lytDocComment(n: CstNode, prefix: string = ""): LytBlock =
     result = E[]
 
 
-proc lytNextComment(n: CstNode, prefix: string): LytBlock =
+proc lytNextComment(n: CstNode, prefix: string = ""): LytBlock =
+  if n.nextComment.text.len == 0:
+    return E[]
+
   case n.nextComment.kind:
     of ckNone:
-      result = E[]
+      result = T[prefix & n.nextComment.text]
 
     of ckLine:
       result = T["# " & n.nextComment.text]
@@ -402,7 +405,7 @@ proc toFmtBlock*(node: CstNode): LytBlock =
           result.add aux(sub)
 
       of nkIdent:
-        result = T[n.getStrVal()]
+        result = H[T[n.getStrVal()], lytNextComment(n, " ")]
 
       of nkIntLit:
         result = T[$n.intVal]
@@ -497,7 +500,11 @@ proc toFmtBlock*(node: CstNode): LytBlock =
 
       of nkIdentDefs:
         let (idents, itype, default) = lytIdentDefs(n)
-        result = H[idents, itype, default, lytDocComment(n, " ")]
+        result = H[
+          idents, itype, default,
+          lytDocComment(n, " "),
+          lytNextComment(n, " ")
+        ]
 
       of nkForStmt:
         var head = H[T["for "]]

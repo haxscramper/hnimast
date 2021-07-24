@@ -256,8 +256,12 @@ proc newNodeP(kind: TNodeKind, p: Parser): CstNode =
 proc newNodeI(kind: TNodeKind, info: CstPoint, p: Parser): CstNode =
   result = newNodeI(kind, info, p.lex.tokens)
 
-proc endNode(parser: Parser, node: CstNode) =
-  node.endPoint = parser.parLineInfo()
+proc endNode(parser: var Parser, node: CstNode) =
+  # echov node, parser.tok.lispRepr()
+  # node.endPoint = parser.parLineInfo()
+  if parser.tok.tokType == tkCodeComment:
+    rawSkipComment(parser, node)
+  # echov parser.tok.lispRepr()
 
 proc newIntNodeP(kind: TNodeKind, intVal: BiggestInt, p: Parser): CstNode =
   result = newNodeP(kind, p)

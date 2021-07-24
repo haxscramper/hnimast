@@ -24,7 +24,7 @@ import
   ]
 
 import
-  hmisc/[base_errors, hdebug_misc]
+  hmisc/[base_errors, hdebug_misc, hexceptions]
 
 const
   MaxLineLength* = 80         # lines longer than this lead to a warning
@@ -112,6 +112,7 @@ type
     line*, col*: int
     offsetA*, offsetB*: int # used for pretty printing so that literals
                             # like 0b01 or  r"\L" are unaffected
+    tokenIdx*: int
     commentOffsetA*, commentOffsetB*: int
 
 
@@ -240,6 +241,7 @@ proc openLexer*(lex: var Lexer, fileIdx: FileIndex, inputstream: PLLStream;
   when defined(nimsuggest):
     lex.previousToken.fileIndex = fileIdx
   lex.config = config
+  new(lex.tokens)
 
 proc openLexer*(lex: var Lexer, filename: AbsoluteFile, inputstream: PLLStream;
                 cache: IdentCache; config: ConfigRef) =
@@ -276,8 +278,7 @@ proc matchTwoChars(L: Lexer, first: char, second: set[char]): bool =
 template tokenBegin(tok, pos) {.dirty.} =
   when defined(nimsuggest):
     var colA = getColNumber(L, pos)
-  when defined(nimpretty):
-    tok.offsetA = L.offsetBase + pos
+  tok.offsetA = L.offsetBase + pos
 
 template tokenEnd(tok, pos) {.dirty.} =
   when defined(nimsuggest):
@@ -297,8 +298,7 @@ template tokenEndIgnore(tok, pos) =
       L.config.m.trackPos.fileIndex = trackPosInvalidFileIdx
       L.config.m.trackPos.line = 0'u16
     colA = 0
-  when defined(nimpretty):
-    tok.offsetB = L.offsetBase + pos
+  tok.offsetB = L.offsetBase + pos
 
 template tokenEndPrevious(tok, pos) =
   when defined(nimsuggest):
@@ -311,8 +311,8 @@ template tokenEndPrevious(tok, pos) =
       L.config.m.trackPos = L.previousToken
       L.config.m.trackPosAttached = true
     colA = 0
-  when defined(nimpretty):
-    tok.offsetB = L.offsetBase + pos
+
+  tok.offsetB = L.offsetBase + pos
 
 template eatChar(L: var Lexer, t: var Token, replacementChar: char) =
   t.literal.add(replacementChar)
@@ -989,6 +989,7 @@ proc newlineFollows*(L: Lexer): bool =
 
 proc skipMultiLineComment(L: var Lexer; tok: var Token; start: int;
                           isDoc: bool) =
+  # pprintStackTrace()
   var pos = start
   var toStrip = 0
   tokenBegin(tok, pos)
@@ -1006,12 +1007,17 @@ proc skipMultiLineComment(L: var Lexer; tok: var Token; start: int;
   while true:
     case L.buf[pos]
     of '#':
+      # tok.literal.add '#'
       if isDoc:
         if L.buf[pos+1] == '#' and L.buf[pos+2] == '[':
           inc nesting
-        tok.literal.add '#'
+        # tok.literal.add '#'
       elif L.buf[pos+1] == '[':
         inc nesting
+        # tok.literal.add '['
+
+      tok.literal.add L.buf[pos]
+
       inc pos
     of ']':
       if isDoc:
@@ -1026,7 +1032,10 @@ proc skipMultiLineComment(L: var Lexer; tok: var Token; start: int;
         if nesting == 0:
           tokenEndIgnore(tok, pos+1)
           inc(pos, 2)
+          tok.literal.add "]#"
           break
+
+        tok.literal.add ']'
         dec nesting
       inc pos
     of CR, LF:
@@ -1046,11 +1055,10 @@ proc skipMultiLineComment(L: var Lexer; tok: var Token; start: int;
       lexMessagePos(L, errGenerated, pos, "end of multiline comment expected")
       break
     else:
-      if isDoc or defined(nimpretty): tok.literal.add L.buf[pos]
+      tok.literal.add L.buf[pos]
       inc(pos)
   L.bufpos = pos
-  when defined(nimpretty):
-    tok.commentOffsetB = L.offsetBase + pos - 1
+  tok.commentOffsetB = L.offsetBase + pos - 1
 
 proc scanComment(L: var Lexer, tok: var Token) =
   var pos = L.bufpos
@@ -1058,10 +1066,10 @@ proc scanComment(L: var Lexer, tok: var Token) =
   # iNumber contains the number of '\n' in the token
   tok.iNumber = 0
   assert L.buf[pos+1] == '#'
-  when defined(nimpretty):
-    tok.commentOffsetA = L.offsetBase + pos
+  tok.commentOffsetA = L.offsetBase + pos
 
   if L.buf[pos+2] == '[':
+    tok.literal.add "#["
     skipMultiLineComment(L, tok, pos+3, true)
     return
   tokenBegin(tok, pos)
@@ -1117,7 +1125,9 @@ proc skip(L: var Lexer, tok: var Token) =
       inc(pos)
       inc(tok.strongSpaceA)
     of '\t':
-      if not L.allowTabs: lexMessagePos(L, errGenerated, pos, "tabs are not allowed, use spaces instead")
+      if not L.allowTabs: lexMessagePos(
+        L, errGenerated, pos, "tabs are not allowed, use spaces instead")
+
       inc(pos)
     of CR, LF:
       tokenEndPrevious(tok, pos)
@@ -1128,18 +1138,17 @@ proc skip(L: var Lexer, tok: var Token) =
           inc(pos)
           inc(indent)
         elif L.buf[pos] == '#' and L.buf[pos+1] == '[':
-          when defined(nimpretty):
-            hasComment = true
-            if tok.line < 0:
-              tok.line = L.lineNumber
-              commentIndent = indent
+          hasComment = true
+          if tok.line < 0:
+            tok.line = L.lineNumber
+            commentIndent = indent
+          tok.literal.add "#["
           skipMultiLineComment(L, tok, pos+2, false)
           pos = L.bufpos
         else:
           break
       tok.strongSpaceA = 0
-      when defined(nimpretty):
-        if L.buf[pos] == '#' and tok.line < 0: commentIndent = indent
+      if L.buf[pos] == '#' and tok.line < 0: commentIndent = indent
       if L.buf[pos] > ' ' and (L.buf[pos] != '#' or L.buf[pos+1] == '#'):
         tok.indent = indent
         L.currLineIndent = indent
@@ -1152,6 +1161,7 @@ proc skip(L: var Lexer, tok: var Token) =
         tok.line = L.lineNumber
 
       if L.buf[pos+1] == '[':
+        tok.literal.add "#["
         skipMultiLineComment(L, tok, pos+2, false)
         pos = L.bufpos
       else:
@@ -1169,6 +1179,11 @@ proc skip(L: var Lexer, tok: var Token) =
     tok.commentOffsetB = L.offsetBase + pos - 1
     tok.tokType = tkCodeComment
     tok.indent = commentIndent
+
+proc trackTok*(L: var Lexer, tok: var Token) =
+  tok.tokenIdx = L.tokenIdx
+  L.tokens[].add tok
+  inc L.tokenIdx
 
 proc rawGetTok*(L: var Lexer, tok: var Token) =
   template atTokenEnd() {.dirty.} =
@@ -1188,6 +1203,7 @@ proc rawGetTok*(L: var Lexer, tok: var Token) =
   skip(L, tok)
   if tok.tokType == tkCodeComment:
     L.indentAhead = L.currLineIndent
+    L.trackTok(tok)
     return
   var c = L.buf[L.bufpos]
   tok.line = L.lineNumber
@@ -1328,6 +1344,8 @@ proc rawGetTok*(L: var Lexer, tok: var Token) =
         tok.tokType = tkInvalid
         lexMessage(L, errGenerated, "invalid token: " & c & " (\\" & $(ord(c)) & ')')
         inc(L.bufpos)
+
+  L.trackTok(tok)
   atTokenEnd()
 
 proc getIndentWidth*(fileIdx: FileIndex, inputstream: PLLStream;

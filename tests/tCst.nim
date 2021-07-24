@@ -67,7 +67,14 @@ proc optLayout(
 
 let str2 = "var test: int = 12 # Regular comment"
 
-let node = parseString1(str2)
+let str3 = """
+let
+  t1: int = 2 # Regular comment
+  t2: float = 2 #[ trailing inline comment ]#
+  t3 #[ inline inline comment ]# = 3
+"""
+
+let node = parseString1(str3)
 
 
 echo node.treeRepr()
