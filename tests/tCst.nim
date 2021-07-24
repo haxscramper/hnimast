@@ -75,60 +75,66 @@ let
 """
 
 let str4 = """
-while true:
-  case L.buf[pos]
-  of ' ':
-    inc(pos)
-    inc(tok.strongSpaceA)
-  of '\t':
-    if not L.allowTabs: lexMessagePos(
-      L, errGenerated, pos, "tabs are not allowed, use spaces instead")
+proc parseStmt(p: var Parser): CstNode =
+  #| stmt = (IND{>} complexOrSimpleStmt^+(IND{=} / ';') DED)
+  #|      / simpleStmt ^+ ';'
+  if p.tok.indent > p.currInd:
+    # nimpretty support here
+    result = newNodeP(nkStmtList, p)
+    withInd(p):
+      while true:
+        if p.tok.indent == p.currInd:
+          discard
+        elif p.tok.tokType == tkSemiColon:
+          getTok(p)
+          if p.tok.indent < 0 or p.tok.indent == p.currInd: discard
+          else: break
+        else:
+          if p.tok.indent > p.currInd and p.tok.tokType != tkDot:
+            parMessage(p, errInvalidIndentation)
+          break
+        if p.tok.tokType in {tkCurlyRi, tkParRi, tkCurlyDotRi, tkBracketRi}:
+          # XXX this ensures tnamedparamanonproc still compiles;
+          # deprecate this syntax later
+          break
+        p.hasProgress = false
+        if p.tok.tokType in {tkElse, tkElif}:
+          break # Allow this too, see tests/parser/tifexprs
 
-    inc(pos)
-  of CR, LF:
-    tokenEndPrevious(tok, pos)
-    pos = handleCRLF(L, pos)
-    var indent = 0
-    while true:
-      if L.buf[pos] == ' ':
-        inc(pos)
-        inc(indent)
-      elif L.buf[pos] == '#' and L.buf[pos+1] == '[':
-        hasComment = true
-        if tok.line < 0:
-          tok.line = L.lineNumber
-          commentIndent = indent
-        tok.literal.add "#["
-        skipMultiLineComment(L, tok, pos+2, false)
-        pos = L.bufpos
-      else:
-        break
-    tok.strongSpaceA = 0
-    if L.buf[pos] == '#' and tok.line < 0: commentIndent = indent
-    if L.buf[pos] > ' ' and (L.buf[pos] != '#' or L.buf[pos+1] == '#'):
-      tok.indent = indent
-      L.currLineIndent = indent
-      break
-  of '#':
-    # do not skip documentation comment:
-    if L.buf[pos+1] == '#': break
-    hasComment = true
-    if tok.line < 0:
-      tok.line = L.lineNumber
+        let a = complexOrSimpleStmt(p)
+        if a.kind == nkEmpty and not p.hasProgress:
+          parMessage(p, errExprExpected, p.tok)
+          break
+        else:
+          result.add a
 
-    if L.buf[pos+1] == '[':
-      tok.literal.add "#["
-      skipMultiLineComment(L, tok, pos+2, false)
-      pos = L.bufpos
-    else:
-      tokenBegin(tok, pos)
-      while L.buf[pos] notin {CR, LF, nimlexbase.EndOfFile}:
-        tok.literal.add L.buf[pos]
-        inc(pos)
-      tokenEndIgnore(tok, pos+1)
-      tok.commentOffsetB = L.offsetBase + pos + 1
+        if not p.hasProgress and p.tok.tokType == tkEof: break
   else:
-    break                   # EndOfFile also leaves the loop
+    # the case statement is only needed for better error messages:
+    case p.tok.tokType
+    of tkIf, tkWhile, tkCase, tkTry, tkFor, tkBlock, tkAsm, tkProc, tkFunc,
+       tkIterator, tkMacro, tkType, tkConst, tkWhen, tkVar:
+      parMessage(p, "nestable statement requires indentation")
+      result = newEmptyCNode()
+    else:
+      if p.inSemiStmtList > 0:
+        result = simpleStmt(p)
+        if result.kind == nkEmpty: parMessage(p, errExprExpected, p.tok)
+      else:
+        result = newNodeP(nkStmtList, p)
+        while true:
+          if p.tok.indent >= 0:
+            parMessage(p, errInvalidIndentation)
+          p.hasProgress = false
+          let a = simpleStmt(p)
+          let err = not p.hasProgress
+          if a.kind == nkEmpty: parMessage(p, errExprExpected, p.tok)
+          result.add(a)
+          if p.tok.tokType != tkSemiColon: break
+          getTok(p)
+          if err and p.tok.tokType == tkEof: break
+
+  p.endNode(result)
 """
 
 let str5 = """
@@ -140,5 +146,5 @@ while true:
 let node = parseString1(str4)
 
 
-# echo node.treeRepr()
+echo node.treeRepr()
 echo node

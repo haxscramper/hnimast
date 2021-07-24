@@ -378,7 +378,7 @@ proc lytIdentDefs(n: CstNode): tuple[idents, itype, default: LytBlock] =
 
 proc lytIdentList(idents: seq[CstNode]): LytBlock =
   var argBlocks = mapIt(idents, lytIdentDefs(it))
-  let nameW = mapIt(argBlocks, it.idents.minWidth).sorted()[^2]
+  let nameW = mapIt(argBlocks, it.idents.minWidth).sorted().getClamped(^2)
   let typeW = maxIt(argBlocks, it.itype.minWidth)
 
   for (idents, itype, default) in mitems(argBlocks):
@@ -394,6 +394,11 @@ proc lytIdentList(idents: seq[CstNode]): LytBlock =
     else:
       result.add H[idents, itype, default]
 
+func isSimpleExprList(list: seq[CstNode]): bool =
+  result = true
+  for expr in list:
+    if expr.kind notin nkTokenKinds:
+      return false
 
 
 
@@ -402,8 +407,21 @@ proc toFmtBlock*(node: CstNode): LytBlock =
     case n.kind:
       of nkStmtList:
         result = V[]
+        var lastLet: CstNode
         for sub in n:
-          result.add aux(sub)
+          if sub.kind == nkLetSection:
+            if isNil(lastLet):
+              lastLet = sub
+
+            else:
+              lastLet.add sub[0..^1]
+
+          else:
+            if not isNil(lastLet):
+              result.add aux(lastLet)
+              lastLet = nil
+
+            result.add aux(sub)
 
       of nkIdent:
         result = H[T[n.getStrVal()], lytNextComment(n, " ")]
@@ -424,24 +442,38 @@ proc toFmtBlock*(node: CstNode): LytBlock =
         result = V[T["else:"], I[2, aux(n[0])], S[]]
 
       of nkOfBranch:
-        var head = H[T["of "]]
-        for idx, expr in pairs(n, 0 ..^ 2):
-          if idx > 0:
-            head.add T[", "]
+        var alts = C[]
+        block:
+          var alt = H[]
+          for idx, expr in pairs(n, 0 ..^ 2):
+            if idx > 0:
+              alt.add T[", "]
 
-          head.add aux(expr)
+            alt.add aux(expr)
 
-        head.add T[":"]
-        result = V[head, I[2, aux(n[^1])], S[]]
+          alts.add alt
 
-      of nkCommand:
-        var head = H[aux(n[0]), T[" "]]
+        if isSimpleExprList(n[0 ..^ 2]):
+          alts.add joinItBlock(bkWrap, n[0..^2], aux(it), T[", "])
+
+        result = V[H[T["of "], alts, T[":"]], I[2, aux(n[^1])], S[]]
+
+      of nkCommand, nkCall:
+        let isCall = n.kind == nkCall
+        if n.kind == nkCall and
+           n.len == 2 and
+           n[0].kind == nkIdent and
+           n[0].getStrVal() in ["inc", "dec", "echo"]:
+          result = H[aux(n[0]), T[" "], aux(n[1])]
+
+
+        var head = H[aux(n[0]), (T["("], T[" "]) ?? isCall]
         var body = V[]
         var commandBody = false
         for sub in items(n, 1 ..^ 1):
           if sub.kind in { nkOfBranch, nkStmtList, nkElse }:
             if not commandBody:
-              head.add T[":"]
+              head.add (T["):"], T[":"]) ?? isCall
 
             commandBody = true
 
@@ -452,6 +484,7 @@ proc toFmtBlock*(node: CstNode): LytBlock =
             head.add aux(sub)
 
         if not commandBody:
+          if isCall: head.add T[")"]
           result = head
 
         else:
@@ -493,20 +526,6 @@ proc toFmtBlock*(node: CstNode): LytBlock =
         txt.add "`"
 
         result = T[txt]
-
-      of nkCall:
-        if n.len == 2 and
-           n[0].kind == nkIdent and
-           n[0].getStrVal() in ["inc", "dec", "echo"]:
-          result = H[aux(n[0]), T[" "], aux(n[1])]
-
-        else:
-          result = H[aux(n[0]), T["("]]
-          for idx, arg in n[1 ..^ 1]:
-            if idx > 0: result.add T[", "]
-            result.add aux(arg)
-
-          result.add T[")"]
 
       of nkEmpty:
         result = lytNextComment(n)

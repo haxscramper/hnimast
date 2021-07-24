@@ -1061,6 +1061,7 @@ proc skipMultiLineComment(L: var Lexer; tok: var Token; start: int;
   tok.commentOffsetB = L.offsetBase + pos - 1
 
 proc scanComment(L: var Lexer, tok: var Token) =
+  # echov "Scan comment"
   var pos = L.bufpos
   tok.tokType = tkCodeComment
   # iNumber contains the number of '\n' in the token
@@ -1109,6 +1110,7 @@ proc scanComment(L: var Lexer, tok: var Token) =
       break
   L.bufpos = pos
   tok.commentOffsetB = L.offsetBase + pos - 1
+  # echov tok.lispRepr()
 
 proc skip(L: var Lexer, tok: var Token) =
   var pos = L.bufpos
@@ -1169,6 +1171,7 @@ proc skip(L: var Lexer, tok: var Token) =
         while L.buf[pos] notin {CR, LF, nimlexbase.EndOfFile}:
           tok.literal.add L.buf[pos]
           inc(pos)
+        tok.literal.add "\n"
         tokenEndIgnore(tok, pos+1)
         tok.commentOffsetB = L.offsetBase + pos + 1
     else:
