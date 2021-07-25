@@ -105,9 +105,3 @@ Object[ast.PNode, Pragma[ast.PNode]]
   - ~ObjTree~ - 'stringly typed' representation of object value.
     mainly used in ~hpprint~, but due to dependency reasons type
     definitions is still here.
-
-
-* Contribution & development
-
-If you have any question about implementation, API etc. you can join
-my [[https://discord.gg/hjfYJCU][discord server]] and ask there.
