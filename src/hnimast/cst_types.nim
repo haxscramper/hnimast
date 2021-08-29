@@ -68,8 +68,56 @@ type
         subnodes*: seq[CstNode]
 
 
-wrapSeqContainer(
-  CstNode.subnodes, CstNode, isRef = true, ignore = ["add"])
+
+func len*(main: CstNode): int =
+  result = len(main.subnodes)
+
+func high*(main: CstNode): int =
+  result = high(main.subnodes)
+
+func `[]`*(main: CstNode; index: IndexTypes): CstNode =
+  main.subnodes[index]
+
+func `[]`*(main: CstNode; slice: SliceTypes): seq[CstNode] =
+  main.subnodes[slice]
+
+func `[]=`*(main: CstNode; index: IndexTypes;
+           value: CstNode) =
+  main.subnodes[index] = value
+
+iterator rpairs*(main: CstNode): (int, CstNode) =
+  var idx = high(main.subnodes)
+  while (
+    0 <= idx):
+    yield (idx, main.subnodes[idx])
+    dec idx, 1
+
+iterator pairs*(main: CstNode): (int, CstNode) =
+  for idx in 0 ..< len(main):
+    yield (idx, main.subnodes[idx])
+
+iterator pairs*(main: CstNode; slice: SliceTypes): (int, CstNode) =
+  let slice = clamp(slice, main.subnodes.high)
+  var resIdx = 0
+  for idx in slice:
+    yield (resIdx, main.subnodes[idx])
+    inc resIdx
+
+iterator ritems*(main: CstNode): CstNode =
+  var idx = high(main.subnodes)
+  while (
+    0 <= idx):
+    yield main.subnodes[idx]
+    dec idx, 1
+
+iterator items*(main: CstNode): CstNode =
+  for item in items(main.subnodes):
+    yield item
+
+iterator items*(main: CstNode; slice: SliceTypes): CstNode =
+  let slice = clamp(slice, main.subnodes.high)
+  for idx in slice:
+    yield main.subnodes[idx]
 
 wrapKindAst(CstNode, TNodeKind)
 
@@ -245,7 +293,7 @@ func treeRepr*(
 
       else:
         if n.len > 0: add "\n"
-        for newIdx, subn in pairs(n, 0 .. ^1):
+        for newIdx, subn in pairs(n):
           aux(subn, level + 1, idx & newIdx)
           if level + 1 > opts.maxDepth: break
           if newIdx > opts.maxLen: break
