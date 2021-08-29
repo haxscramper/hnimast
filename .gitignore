@@ -22,3 +22,4 @@ tests/*
 callgrind.out.*
 nimdoc.cfg
 cache/*
+docs/*
