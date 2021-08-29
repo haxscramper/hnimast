@@ -8,9 +8,9 @@ srcDir        = "src"
 
 # Dependencies
 
-requires "nim >= 1.4.0"
-requires "hmisc >= 0.11.19"
-requires "compiler >= 1.4.0"
+requires "nim >= 1.4.8"
+requires "hmisc >= 0.12.0"
+requires "compiler >= 1.4.8"
 
 
 import std/[os, strutils, strformat]
