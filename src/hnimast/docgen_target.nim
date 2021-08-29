@@ -1,3 +1,5 @@
+{.define(ssl).}
+
 import
   compiler_aux,
   cst_lexer,
