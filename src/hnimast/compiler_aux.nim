@@ -1,8 +1,10 @@
 
 import hmisc/other/[oswrap, hshell, hjson]
-import hmisc/helpers
-import hmisc/types/[colortext]
+import hmisc/core/all
+import hmisc/types/[colortext, colorstring]
 import std/[parseutils, sequtils, with, hashes]
+
+export colorstring
 
 import ./hast_common
 
@@ -118,7 +120,7 @@ proc headSym*(node: PNode): PSym =
       result = node.typ.skipTypes({tyRef}).sym
 
     else:
-      raiseImplementKindError(node, node.treeRepr())
+      raise newImplementKindError(node, $node.treeRepr())
 
 proc getPragma*(n: PNode, name: string): Option[PNode] =
   case n.kind:
@@ -140,7 +142,7 @@ proc getPragma*(n: PNode, name: string): Option[PNode] =
               return some n[0]
 
           else:
-            raiseImplementKindError(n[0], n.treeRepr())
+            raise newImplementKindError(n[0], $n.treeRepr())
 
     of nkTypeDef, nkIdentDefs, nkRecCase:
       return getPragma(n[0], name)
@@ -157,7 +159,7 @@ proc typeHead*(node: PNode): PNode =
     of nkTypeDef: typeHead(node[0])
     of nkPragmaExpr: typeHead(node[0])
     else:
-      raiseImplementKindError(node)
+      raise newImplementKindError(node)
 
 proc declHead*(node: PNode): PNode =
   case node.kind:
@@ -191,14 +193,14 @@ proc declHead*(node: PNode): PNode =
 
     of nkTypeDef:
       let head = typeHead(node)
-      doAssert head.kind == nkSym, head.treeRepr()
+      doAssert head.kind == nkSym, $head.treeRepr()
       result = head
 
     of nkObjectTy:
       result = node
 
     else:
-      raiseImplementKindError(node, node.treeRepr())
+      raise newImplementKindError(node, $node.treeRepr())
 
 
 
@@ -228,7 +230,7 @@ proc effectSpec*(n: PNode, effectType: set[TSpecialWord]): PNode =
   assertKind(n, {nkPragma, nkEmpty})
   for it in n:
     case it.kind:
-      of nkExprColonExpr:
+      of nkExprColonExpr, nkCall:
         if whichPragma(it) in effectType:
           result = it[1]
           if result.kind notin {nkCurly, nkBracket}:
@@ -240,7 +242,7 @@ proc effectSpec*(n: PNode, effectType: set[TSpecialWord]): PNode =
         discard
 
       else:
-        raise newUnexpectedKindError(it)
+        raise newUnexpectedKindError(it, $treeRepr(it))
 
 
 proc effectSpec*(sym: PSym, word: TSpecialWord): PNode =
@@ -264,7 +266,7 @@ proc hash*(s: PSym): Hash = hash($s)
 
 proc newModuleGraph*(
     file: AbsFile,
-    path: AbsDir,
+    path: AbsDir = getStdPath(),
     structuredErrorHook: proc(
       config: ConfigRef; info: TLineInfo; msg: string; level: Severity
     ) {.closure, gcsafe.} = nil,
@@ -272,6 +274,8 @@ proc newModuleGraph*(
     symDefines: seq[string] = @[],
     optionsConfig: proc(config: var ConfigRef) = nil
   ): ModuleGraph =
+
+  assert file.ext() == "nim"
 
   var
     cache: IdentCache = newIdentCache()
@@ -283,7 +287,7 @@ proc newModuleGraph*(
     cmd = cmdIdeTools
 
   config.verbosity = 0
-  config.options -= optHints
+  config.options.excl optHints
   config.searchPaths.add @[
     config.libpath,
     path / "pure",
@@ -335,7 +339,7 @@ proc compileString*(
 
   var graph {.global.}: ModuleGraph
   var moduleName {.global.}: string
-  moduleName = "compileStringModuleName"
+  moduleName = "compileStringModuleName.nim"
   graph = newModuleGraph(AbsFile(moduleName), stdpath,
     proc(config: ConfigRef; info: TLineInfo; msg: string; level: Severity) =
       if config.errorCounter >= config.errorMax:

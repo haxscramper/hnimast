@@ -14,8 +14,9 @@ export newVRAny, packageinfo
 import std/[parsecfg, streams, tables, sets, strutils, sequtils]
 from std/options as std_opt import Option, none, some
 import std/os as std_os
+
 import
-  hmisc/base_errors,
+  hmisc/core/all,
   hmisc/other/oswrap
 
 
@@ -154,10 +155,10 @@ proc getStrValues(node: PNode): seq[string] =
 
   elif node.kind in {nkIdent, nkCall, nkWhenStmt, nkInfix}:
     raise NimsParseFail(
-      msg: "Cannot get property value from " & node.treeRepr())
+      msg: "Cannot get property value from " & $node.treeRepr())
 
   else:
-    raiseImplementKindError(node, node.treeRepr())
+    raise newImplementKindError(node, $node.treeRepr())
 
   return values
 
@@ -252,9 +253,9 @@ proc parsePackageInfoNims*(
 
 
                   else:
-                    raiseImplementError(
+                    raise newImplementError(
                       "Unhandled node kind for requires argument: \n" &
-                        treeRepr(arg))
+                        $treeRepr(arg))
 
             of "task": res.nimbleTasks.incl node[1].getStrVal()
             of "after": res.postHooks.incl node[1].getStrVal()
@@ -299,16 +300,16 @@ proc parsePackageInfoNims*(
                     res.version = NimVersion
 
                   else:
-                    raiseImplementError(
-                      "Unhandled node structure: " & treeRepr(node[1]))
+                    raise newImplementError(
+                      "Unhandled node structure: " & $treeRepr(node[1]))
 
                 of nkIdent, nkBracketExpr, nkCall, nkCommand:
                   fails[property] = NimsParseFail(
                     msg: "Cannot get version value from " & $node[1].kind)
 
                 else:
-                  raiseImplementError(
-                    "Unhandled node structure: " & treeRepr(node[1]))
+                  raise newImplementError(
+                    "Unhandled node structure: " & $treeRepr(node[1]))
 
 
             of "license": res.license         = tryStr node[1].getStrValues()[0]
@@ -351,9 +352,9 @@ proc parsePackageInfoNims*(
 
                 else:
                   echo node[1]
-                  raiseImplementError(
+                  raise newImplementError(
                     "Unhandled node structure: \n" &
-                      treeRepr(node[1]))
+                      $treeRepr(node[1]))
 
             of "mode":
               discard
@@ -361,9 +362,6 @@ proc parsePackageInfoNims*(
 
             else:
               discard
-              # raise NimsParseFail(
-              #   msg: "Assignment to unknown property: " & property &
-              #     "\n" & treeRepr(node))
 
       of nkWhenStmt:
         for branch in node:
@@ -371,8 +369,8 @@ proc parsePackageInfoNims*(
             of nkElifBranch, nkElifExpr: parseStmts(branch[1], res, fails)
             of nkElseExpr, nkElse: parseStmts(branch[0], res, fails)
             else:
-              raiseImplementError(
-                "Unhandled node structure: " & treeRepr(branch))
+              raise newImplementError(
+                "Unhandled node structure: " & $treeRepr(branch))
 
       of nkCommentStmt, nkImportStmt, nkFromStmt, nkIncludeStmt,
          nkConstSection, nkVarSection, nkLetSection, nkTypeSection,
@@ -394,8 +392,8 @@ proc parsePackageInfoNims*(
         discard
 
       else:
-        raiseImplementError(
-          "Unhandled configuration file element: \n" & treeRepr(node))
+        raise newImplementError(
+          "Unhandled configuration file element: \n" & $treeRepr(node))
 
 
 
@@ -515,7 +513,7 @@ proc resolveNimbleDeps*(
 
     if pkg.isNone():
       if dep.name != "nim":
-        raiseImplementError("")
+        raise newImplementError("")
 
     else:
       result.add(pkg.get())
@@ -542,7 +540,7 @@ proc getPackageInfo*(dir: AbsDir, absPath: bool = true): PackageInfo =
   let file = dir.findNimbleFile()
   if file.isNone():
     # REFACTOR use error dereived from `hmisc.PathError`
-    raiseArgumentError(
+    raise newGetterError(
       "Could not find nimble package in directory " & $dir)
 
   else:

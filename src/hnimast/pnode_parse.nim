@@ -2,7 +2,7 @@ import compiler/[
   parser, llstream, idents, options, pathutils, ast, lineinfos]
 
 import
-  hmisc/base_errors
+  hmisc/core/all
 
 import
   std/strformat
@@ -43,9 +43,9 @@ proc parsePNodeStr*(str: string, doRaise: bool = false): PNode =
   try:
     result = parseAll(pars)
     closeParser(pars)
-  except NimParseError:
+  except Exception as e:
     if doRaise:
-      raise
+      raise e
 
     else:
       return nil

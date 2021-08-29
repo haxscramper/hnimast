@@ -1,7 +1,12 @@
-import ./hast_common
-import compiler/[ast]
 import std/[macros, options, tables, sequtils]
-import hmisc/helpers
+
+import ./hast_common
+
+import
+  compiler/[ast]
+
+import
+  hmisc/core/all
 
 type
   Pragma*[N] = object
@@ -29,7 +34,7 @@ func indexOf*[N](pragma: PRagma[N], name: string): int =
           return idx
 
       else:
-        raiseImplementKindError(elem)
+        raise newImplementKindError(elem)
 
 
 func getElem*(pragma: NPragma, name: string): Option[NimNode] =
@@ -90,7 +95,8 @@ func parseSomePragma*[N](node: N): Option[Pragma[N]] =
       return parseSomePragma(node[0])
 
     else:
-      raiseImplementKindError(node, node.treeRepr())
+      raise newImplementKindError(node, node.treeRepr())
+      # raiseImplementKindError(node, node.treeRepr())
 
 func parsePragma*[N](node: N): Pragma[N] =
   let res = parseSomePragma(node)

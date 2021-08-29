@@ -10,7 +10,7 @@ import
   hnimast,
   hnimast/store_decl,
   hmisc/other/[oswrap],
-  hmisc/[base_errors, hdebug_misc]
+  hmisc/core/all
 
 import
   std/[tables]

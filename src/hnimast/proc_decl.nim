@@ -2,10 +2,10 @@ import
   ./hast_common, ./idents_types, ./pragmas
 
 import
-  hmisc/helpers
+  hmisc/core/all
 
 import
-  std/[sequtils, strutils, macros, options, strformat]
+  std/[sequtils, strutils, macros, options, strformat, tables]
 
 import
   compiler/[ast, lineinfos]
@@ -67,6 +67,10 @@ proc arguments*(procDecl: var PProcDecl): var seq[NIdentDefs[PNode]] =
 proc arguments*[N](procDecl: ProcDecl[N]): seq[NIdentDefs[N]] =
   procDecl.signature.arguments
 
+proc genTable*[N](procDecl: ProcDecl[N]): Table[string, int] =
+  for idx, param in procDecl.genParams:
+    result[param.head] = idx
+
 proc addArgument*[N](
     procDecl: var ProcDecl[N],
     argName: string, argType: NType[N], kind: NVarDeclKind = nvdLet,
@@ -93,12 +97,23 @@ iterator argumentIdents*[N](procDecl: ProcDecl[N]): N =
     for ident in argument.idents:
       yield ident
 
-iterator argumentTypes*[N](procDecl: ProcDecl[N]): NType[N] =
+
+func argumentNames*[N](procDecl: ProcDecl[N]): seq[string] =
   for argument in procDecl.signature.arguments:
-    yield argument.vtype
+    for ident in argument.idents:
+      result.add ident.getStrVal()
+
+func argumentTypes*[N](procDecl: ProcDecl[N]): seq[NType[N]] =
+  for argument in procDecl.signature.arguments:
+    for ident in argument.idents:
+      result.add argument.vtype
 
 proc returnType*[N](procDecl: ProcDecl[N]): Option[NType[N]] =
   procDecl.signature.returnType()
+
+
+proc argumentType*[N](procDecl: ProcDecl[N], idx: int): NType[N] =
+  procDecl.signature.argumentType(idx)
 
 proc `returnType=`*[N](procDecl: var ProcDecl[N], retType: NType[N]) =
   procDecl.signature.returnType = retType
@@ -195,6 +210,10 @@ func newProcDecl*[N](name: string): ProcDecl[N] =
   result.name = name
   result.signature = NType[N](kind: ntkProc)
 
+func copyForward*[N](decl: ProcDecl[N]): ProcDecl[N] =
+  result = decl
+  result.impl = newEmptyNNode[N]()
+
 func newPProcDecl*(
     name:        string,
     args:        openarray[(string, NType[PNode])] = @[],
@@ -214,8 +233,7 @@ func newPProcDecl*(
   result.exported = exported
   result.signature = NType[PNode](
     kind: ntkProc,
-    arguments: toNIdentDefs(args)
-  )
+    arguments: toNIdentDefs(args))
 
   result.declType         = declType
   result.signature.pragma = pragma
@@ -443,11 +461,15 @@ proc parseProc*[N](node: N): ProcDecl[N] =
   case toNNK(node.kind):
     of nnkProcDeclKinds:
       case toNNK(node[0].kind):
-        of nnkSym, nnkIdent:
+        of nnkSym, nnkIdent, nnkAccQuoted:
           result.name = node[0].getStrVal()
 
+        of nnkPostfix:
+          result.name = node[0][1].getStrVal()
+          result.exported = true
+
         else:
-          raise newImplementError()
+          raise newImplementKindError(node[0])
 
 
       case toNNK(node[1].kind):
@@ -472,7 +494,7 @@ proc parseProc*[N](node: N): ProcDecl[N] =
       result.docComment = node.getDocComment()
 
     else:
-      raiseImplementError($node.kind & " " & $node.getInfo())
+      raise newImplementKindError(node, $node.getInfo())
 
 type
   IcppPartKind* = enum

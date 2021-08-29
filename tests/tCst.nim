@@ -7,7 +7,7 @@ import
   std/[strformat]
 
 import
-  hmisc/[base_errors, hdebug_misc]
+  hmisc/core/all
 
 proc parseString1*(str: string): CstNode =
   let cache: IdentCache = newIdentCache()
@@ -117,6 +117,18 @@ import
 
 import
   haxorg/[semorg, ast, importer_nim_rst, parser]
+"""
+
+let str7 = """
+if notNil(gen.returnType) and
+   gen.returnType.specialKind == ctskLValueRef and
+   gen.arguments.len > 0 and
+   sameNoTy(
+     result.argumentType(0),
+     result.returnType().get(),
+     noParams = true):
+
+  result.signature.pragma.add(newPident("discardable"))
 """
 
 let node = parseString1(str6)

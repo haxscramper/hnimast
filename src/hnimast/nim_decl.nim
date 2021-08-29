@@ -8,7 +8,7 @@ import
 
 import
   std/[sequtils],
-  hmisc/helpers,
+  hmisc/core/all,
   compiler/[ast]
 
 type
@@ -141,7 +141,7 @@ func `==`*[N](a, b: NimDecl[N]): bool =
       of nekPassthroughCode: a.passthrough == b.passthrough
       of nekMultitype:
         a.typedecls.len == b.typedecls.len and
-        zip(a.typedecls, b.typedecls).allOfIt(it[0] == it[1])
+        zip(a.typedecls, b.typedecls).allIt(it[0] == it[1])
   )
 
 

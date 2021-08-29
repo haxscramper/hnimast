@@ -1,7 +1,13 @@
-import hast_common
-import std/[strutils]
-import compiler/[lineinfos, ast]
-import hmisc/hexceptions
+import ./hast_common
+
+import
+  std/[strutils]
+
+import
+  compiler/[lineinfos, ast]
+
+import
+  hmisc/core/[all, code_errors]
 
 func quoteAux(
     body: NimNode,
@@ -187,17 +193,10 @@ func newPQuoteTree*(
   else:
     result = newPTree(kind, subnodes)
 
-func toNimNodeAux*(value: NimNode | NodeAuxTypes): NimNode =
-  when value is NimNode:
-    return value
+func toNimNodeAux*(value: NodeAuxTypes): NimNode = newLit(value)
+func toNimNodeAux*(value: NimNode): NimNode = value
 
-  else:
-    return newLit(value)
-
-func newNQuoteTree*(
-    kind: NimNodeKind, subnodes: varargs[NimNode, toNimNodeAux]): NimNode =
-
-
+func newNQuoteTree*(kind: NimNodeKind, subnodes: seq[NimNode]): NimNode =
   if kind in nnkTokenKinds:
     assert subnodes.len == 1 and isSameCategory(
       subnodes[0].kind, kind),
@@ -213,6 +212,13 @@ func newNQuoteTree*(
 
   else:
     result = newTree(kind, subnodes)
+
+
+func newNQuoteTree*(
+  kind: NimNodeKind,
+  subnodes: varargs[NimNode, `toNimNodeAux`]): NimNode =
+  newNQuoteTree(kind, @subnodes)
+
 
 macro pquote*(mainBody: untyped): untyped =
   ## `quote` macro to generate `PNode` builder. Similarly to `superquote`

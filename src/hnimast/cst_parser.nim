@@ -34,7 +34,7 @@ import compiler/[
 ]
 
 import
-  hmisc/[base_errors, hdebug_misc, hexceptions]
+  hmisc/core/all
 
 import ./cst_lexer, ./cst_types
 

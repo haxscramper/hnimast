@@ -10,7 +10,7 @@ import compiler/ast
 
 import
   hmisc/types/colorstring,
-  hmisc/[helpers, hexceptions, hdebug_misc],
+  hmisc/core/all,
   hmisc/algo/[halgorithm, htree_mapping, namegen]
 
 import
@@ -53,7 +53,7 @@ proc addConst*[N](sym: var SymTable[N], c: N) =
           enumName = inst.getStrVal()
 
         else:
-          raiseImplementKindError(inst)
+          raise newImplementKindError(inst)
 
 
       case val.kind.toNNK():
@@ -75,10 +75,10 @@ proc addConst*[N](sym: var SymTable[N], c: N) =
             val, val, sym.enumCache[enumName])
 
         else:
-          raiseImplementKindError(val)
+          raise newImplementKindError(val)
 
     else:
-      raiseImplementKindError(c)
+      raise newImplementKindError(c)
 
 proc fieldTypeNode*[N](field: N): N =
   case field.kind.toNNK():
@@ -91,7 +91,7 @@ proc fieldTypeNode*[N](field: N): N =
         return result[1]
 
     else:
-      raiseUnexpectedKindError(field, field.treeRepr())
+      raise newUnexpectedKindError(field, field.treeRepr())
 
 proc enumValueGroup*[N](
     sym: SymTable[N], field: N): Option[EnumValueGroup[N]] =
@@ -208,7 +208,7 @@ proc getFieldDescriptions[N](node: N): seq[FieldDesc[N]] =
             echo "type is not nil"
 
           fldType = newNNType[N]("TYPE_DETECTION_ERROR")
-          raiseImplementError(node.treeRepr())
+          raise newImplementError(node.treeRepr())
           # echo node
           # fldType.declNode = some node
 
@@ -240,9 +240,10 @@ proc getFields*[N](
     of nnkSym, nnkCall, nnkDotExpr:
       when node is PNode:
         if level == 0:
-          raiseAssert(
-            "Parsing PNode from symbol on the first level is not supported " & $level
-          )
+          raise newArgumentError(
+            "Parsing PNode from symbol on the first ",
+            "level is not supported ", $level)
+
         else:
           if node.kind.toNNK() == nnkSym:
             for descr in getFieldDescriptions(node):
@@ -262,7 +263,7 @@ proc getFields*[N](
                 result[^1].pragma = some descr.pragma[0]
 
           else:
-            raiseImplementError("")
+            raise newImplementError("")
 
       else:
         let kind = node.getTypeImpl().kind
@@ -275,7 +276,8 @@ proc getFields*[N](
             result = getFields(node.getTypeImpl(), isCheckedOn, sym, level + 1)
 
           else:
-            raiseAssert("Unknown parameter kind: " & $kind)
+            raise newUnexpectedKindError(
+              kind, "Unknown parameter kind: ")
 
     of nnkObjectTy:
       # echov node[2].treeRepr1()
@@ -287,7 +289,7 @@ proc getFields*[N](
           return getFields(node[0], none(N), sym, level)
 
         else:
-          raiseImplementKindError(node[0])
+          raise newImplementKindError(node[0])
 
       else:
         if node[0].kind == nnkObjectTy:
@@ -354,8 +356,6 @@ proc getFields*[N](
     of nnkIdentDefs:
       let descr = getFieldDescriptions(node)
       for idx, desc in descr:
-        # if desc.name == "fDebugTrigger":
-        #   raiseImplementError("")
 
         var field = ObjectField[N](
           docComment: node.getDocComment(),
@@ -422,7 +422,7 @@ proc getFields*[N](
       discard
 
     else:
-      raiseImplementKindError(node)
+      raise newImplementKindError(node)
 
 template filterIt2(op, body: untyped): untyped = filterIt(body, op)
 
@@ -605,14 +605,10 @@ func getTypeImplBody*(
               raise newImplementError()
 
           else:
-            # debugecho inst.treeRepr1()
-            # debugecho node.treeRepr1()
-            # debugecho inst.getImpl().treeRepr1()
             raise newUnexpectedKindError(inst)
-            # raiseImplementKindError(inst)
 
     of nnkIdent:
-      raiseImplementError("Cannot get type implementation from ident")
+      raise newImplementError("Cannot get type implementation from ident")
 
     of nnkTypeofExpr:
       result = getTypeImplBody(node[0].getType(), getImpl)
@@ -635,7 +631,7 @@ func getTypeImplBody*(
       result = nil
 
     else:
-      raiseImplementKindError(node, node.treeRepr())
+      raise newImplementKindError(node, node.treeRepr())
 
 proc bodySymTable*(inNode: NimNode): SymTable[NimNode] =
   ## Return list of unique symbols used in node
@@ -699,7 +695,7 @@ proc parseObject*[N](
 
       of nnkSym:
         when N is PNode:
-          raiseImplementError(
+          raise newImplementError(
             "Parsing PNode from symbol on the first level is not supported")
 
         else:
@@ -716,7 +712,7 @@ proc parseObject*[N](
       sym.addConst(c)
 
   if node.kind notin {nnkTypeDef, nnkObjectTy}:
-    raiseImplementKindError(node, node.treeRepr())
+    raise newImplementKindError(node, node.treeRepr())
 
   let declBody = tern(node.kind == nnkTypeDef, node[2], node)
 

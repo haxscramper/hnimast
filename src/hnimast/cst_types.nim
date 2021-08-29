@@ -8,13 +8,14 @@ import
   ./cst_lexer
 
 import
-  std/[macros, with, strformat, sequtils]
+  std/[macros, with, strformat, sequtils, strutils, algorithm]
 
 import
-  hmisc/[helpers, hexceptions, base_errors, hdebug_misc],
+  hmisc/core/all,
   hmisc/types/colorstring,
   hmisc/algo/[halgorithm, clformat],
-  hmisc/other/blockfmt
+  hmisc/other/blockfmt,
+  hmisc/macros/wrapfields
 
 
 
@@ -66,134 +67,6 @@ type
       else:
         subnodes*: seq[CstNode]
 
-macro wrapKindAst*(main: typed, kind: typed): untyped =
-  let
-    eqTil = ident("=~")
-
-  result = quote do:
-    func has*(n: `main`, idx: int): bool =
-      0 <= idx and idx < len(n)
-
-    func `eqTil`*(n: `main`, k: `kind`): bool = n.kind == k
-    func `eqTil`*(n: `main`, k: set[`kind`]): bool = n.kind in k
-    func `eqTil`*(n: `main`, sub: openarray[`kind`]): bool =
-      if len(n) != len(sub):
-        result = false
-
-      else:
-        for idx, val in pairs(sub):
-          if n[idx].kind != val:
-            return false
-
-macro wrapSeqContainer*(
-    main: typed,
-    fieldType: typed,
-    isRef: static[bool] = false,
-    withIterators: static[bool] = true,
-    ignore: openarray[string]{nkBracket} = [""]
-  ) =
-
-  ## - TODO :: Generate kind using `assertKind`
-
-  let
-    mainType = main[0]
-    field = main[1]
-    mutType = if isRef: mainType else: nnkVarTy.newTree(mainType)
-    ignore = mapIt(ignore, it.strVal)
-
-  let
-    indexOp = ident("[]")
-    indexAsgn = ident("[]=")
-
-  result = newStmtList()
-
-  if "len" notin ignore:
-    result.add quote do:
-      proc len*(main: `mainType`): int = len(main.`field`)
-
-  if "high" notin ignore:
-    result.add quote do:
-      proc high*(main: `mainType`): int = high(main.`field`)
-
-  if "add" notin ignore:
-    result.add quote do:
-      proc add*(main: `mutType`, other: `mainType` | seq[`mainType`]) =
-        add(main.`field`, other)
-
-
-  if "[]" notin ignore:
-    result.add quote do:
-      proc `indexOp`*(main: `mainType`, index: IndexTypes): `fieldType` =
-        main.`field`[index]
-
-      proc `indexOp`*(main: `mainType`, slice: SliceTypes): seq[`fieldType`] =
-        main.`field`[slice]
-
-  if "[]=" notin ignore:
-    result.add quote do:
-      proc `indexAsgn`*(
-          main: `mainType`, index: IndexTypes, value: `fieldType`) =
-
-        main.`field`[index] = value
-
-  if withIterators:
-    result.add quote do:
-      iterator pairs*(main: `mainType`): (int, `fieldType`) =
-        for item in pairs(main.`field`):
-          yield item
-
-      iterator items*(main: `mainType`): `fieldType` =
-        for item in items(main.`field`):
-          yield item
-
-      iterator pairs*(main: `mainType`, slice: SliceTypes):
-        (int, `fieldType`) =
-        let slice = clamp(slice, main.`field`.high)
-        var resIdx = 0
-        for idx in slice:
-          yield (resIdx, main.`field`[idx])
-          inc resIdx
-
-      iterator items*(main: `mainType`, slice: SliceTypes): `fieldType` =
-        for idx, item in pairs(main, slice):
-          yield item
-
-macro wrapStructContainer*(
-    main: untyped,
-    fieldList: untyped,
-    isRef: static[bool] = false
-  ): untyped =
-
-  assertKind(main, {nnkDotExpr})
-
-  let
-    mainType = main[0]
-    structField = main[1]
-    mutType = if isRef: mainType else: nnkVarTy.newTree(mainType)
-
-  result = newStmtList()
-
-  var prev: seq[NimNode]
-  for field in fieldList:
-    if field.kind != nnkExprColonExpr:
-      prev.add field
-
-    else:
-      for name in prev & field[0]:
-        assertNodeKind(name, {nnkIdent})
-        let fieldType = field[1]
-        assertNodeKind(fieldType, {nnkIdent, nnkBracketExpr})
-
-        let asgn = ident(name.strVal() & "=")
-
-        result.add quote do:
-          func `name`*(n: `mainType`): `fieldType` =
-            n.`structField`.`name`
-
-          func `asgn`*(n: `mutType`, value: `fieldType`) =
-            n.`structField`.`name` = value
-
-      prev = @[]
 
 wrapSeqContainer(
   CstNode.subnodes, CstNode, isRef = true, ignore = ["add"])
@@ -219,7 +92,7 @@ func getStrVal*(p: CstNode, doRaise: bool = true): string =
     of nkStringKinds: p.strVal
     else:
       if doRaise:
-        raiseArgumentError(
+        raise newArgumentError(
           "Cannot get string value from node of kind " & $p.kind)
 
       else:
@@ -297,101 +170,86 @@ proc newProcNode*(
 
 func `$`*(point: CstPoint): string =
   with result:
-    add hshow(point.lineInfo.line)
+    add $hshow(point.lineInfo.line)
     add ":"
-    add hshow(point.lineInfo.col)
+    add $hshow(point.lineInfo.col)
     add "@", tcGrey27.fg + tcDefault.bg
-    add hshow(point.tokenIdx)
+    add $hshow(point.tokenIdx)
 
 func treeRepr*(
     pnode: CstNode,
     opts: HDisplayOpts = defaultHDisplay,
     withSize: bool = false
-  ): string =
+  ): ColoredText =
 
-  var p = addr result
-  template res(): untyped = p[]
+  coloredResult()
 
   proc aux(n: CstNode, level: int, idx: seq[int]) =
-    if opts.pathIndexed:
-      res &= idx.join("", ("[", "]")) & "    "
-
-    elif opts.positionIndexed:
-      if level > 0:
-        res &= "  ".repeat(level - 1) & "\e[38;5;240m#" & $idx[^1] & "\e[0m" &
-          "\e[38;5;237m/" & alignLeft($level, 2) & "\e[0m" & " "
-
-      else:
-        res &= "    "
-
-    else:
-      res.addIndent(level)
+    add joinPrefix(level, idx, opts.pathIndexed, opts.positionIndexed)
 
     if level > opts.maxdepth:
-      res &= " ..."
+      add " ..."
       return
 
     elif isNil(n):
-      res &= toRed("<nil>", opts.colored)
+      add toRed("<nil>", opts.colored)
       return
 
     if withSize:
-      res &= &"h{n.height}×s{n.size} "
+      add &"h{n.height}×s{n.size} "
 
-    with res:
-      add ($n.kind)[2..^1]
+    add ($n.kind)[2..^1]
 
     if opts.withRanges:
-      with res:
-        add " "
-        add $n.startPoint()
-        add ".."
-        add $n.endPoint()
+      add " "
+      add $n.startPoint()
+      add ".."
+      add $n.endPoint()
 
     var hadComment = false
     if n.docComment.text.len > 0:
-      res.add "\n"
+      add "\n"
       for line in split(n.docComment.text, '\n'):
-        res.addIndent(level + 2)
-        res.add "  ## " & toYellow(line) & "\n"
+        addIndent(level + 2)
+        add "  ## " & toYellow(line) & "\n"
 
       hadComment = true
 
     if n.nextComment.text.len > 0:
-      res.add "\n"
+      add "\n"
       for line in split(n.nextComment.text, '\n'):
-        res.addIndent(level + 2)
-        res.add "  # " & toCyan(line) & "\n"
+        addIndent(level + 2)
+        add "  # " & toCyan(line) & "\n"
 
       hadComment = true
 
     if not hadComment:
-      res.add " "
+      add " "
 
 
     case n.kind:
       of nkStringKinds:
-        res &= "\"" & toYellow(n.getStrVal(), opts.colored) & "\""
+        add hshow(n.getStrVal(), opts)
 
       of nkIntKinds:
-        res &= toBlue($n.intVal, opts.colored)
+        add hshow(n.intVal, opts)
 
       of nkFloatKinds:
-        res &= toMagenta($n.floatVal, opts.colored)
+        add hshow(n.floatVal, opts)
 
       of nkIdent, nkSym:
-        res &= toGreen(n.getStrVal(), opts.colored)
+        add toGreen(n.getStrVal(), opts.colored)
 
       of nkCommentStmt:
         discard
 
       else:
-        if n.len > 0: res &= "\n"
-        for newIdx, subn in n:
+        if n.len > 0: add "\n"
+        for newIdx, subn in pairs(n, 0 .. ^1):
           aux(subn, level + 1, idx & newIdx)
           if level + 1 > opts.maxDepth: break
           if newIdx > opts.maxLen: break
-          if newIdx < n.len - 1: res &= "\n"
+          if newIdx < n.len - 1: add "\n"
 
   aux(pnode, 0, @[])
 
@@ -547,6 +405,10 @@ proc toFmtBlock*(node: CstNode): LytBlock =
         result = V[T["else:"], I[2, aux(n[0])], S[]]
 
       of nkImportStmt, nkExportStmt:
+        # TODO collect list of imports for a file ... group import
+        # sections. Then split them again, grouping by package name. This
+        # would enforce `std/` prefix, as otherwise all imports would be
+        # scattered over standalone imports.
         if n.has(1):
           result = V[]
           for imp in n:

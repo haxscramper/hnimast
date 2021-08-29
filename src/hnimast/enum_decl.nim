@@ -1,9 +1,16 @@
-import ./hast_common, ./pragmas
+import
+  ./hast_common, ./pragmas
+
 export hast_common
 
-import hmisc/helpers
-import std/[macros, options, sugar, strformat, parseutils, sequtils]
-import compiler/[ast]
+import
+  std/[macros, options, sugar, strformat, parseutils, sequtils]
+
+import
+  hmisc/core/all
+
+import
+  compiler/[ast]
 
 type
   EnumFieldVal* = enum
@@ -134,7 +141,7 @@ func parseEnumField*[NNode](fld: NNode): EnumField[NNode] =
           result = EnumField[NNode](kind: efvIdent, ident: val)
 
         else:
-          raiseArgumentError(
+          raise newArgumentError(
             &"Unexpected node kind for enum field: {val.kind}")
 
       result.name = fld[0].getStrVal
@@ -143,7 +150,7 @@ func parseEnumField*[NNode](fld: NNode): EnumField[NNode] =
       result = makeEnumField(name = fld.getStrVal, value = none(NNode))
 
     else:
-      raiseImplementError(&"#[ IMPLEMENT {fld.kind} ]#")
+      raise newImplementError(&"#[ IMPLEMENT {fld.kind} ]#")
 
 
   result.declNode = some(fld)
@@ -171,7 +178,7 @@ func parseRTimeOrdinal*[NNode](nnode: NNode): RTimeOrdinal =
           true
 
         else:
-          raiseArgumentError(
+          raise newArgumentError(
             "Unexpected identifier for parsing RTimeOrdinal " &
               nnode.getStrVal())
 
@@ -179,7 +186,7 @@ func parseRTimeOrdinal*[NNode](nnode: NNode): RTimeOrdinal =
       RTimeOrdinal(kind: rtokBool, boolVal: val)
 
     else:
-      raiseArgumentError(
+      raise newArgumentError(
         &"Unexpected node kind for parsing RTimeOrdinal: {kind}")
 
 
@@ -302,7 +309,7 @@ func parseEnumImpl*[NNode](en: NNode): EnumDecl[NNode] =
   case en.kind.toNNK():
     of nnkSym:
       when NNode is PNode:
-        raiseImplementError(
+        raise newImplementError(
           "Parsing of enum implementation from " &
           "Sym node is not yet support for PNode")
 
@@ -318,7 +325,7 @@ func parseEnumImpl*[NNode](en: NNode): EnumDecl[NNode] =
             result = parseEnumImpl(impl)
 
           else:
-            raiseImplementError(&"#[ IMPLEMENT {impl.kind} ]#")
+            raise newImplementError(&"#[ IMPLEMENT {impl.kind} ]#")
 
     of nnkTypeDef:
       result = parseEnumImpl(en[2])
@@ -332,7 +339,7 @@ func parseEnumImpl*[NNode](en: NNode): EnumDecl[NNode] =
           result.pragma = parsePragma(en[0][1])
 
         else:
-          raiseImplementError($en[0].kind & $treeRepr(en[0]))
+          raise newImplementError($en[0].kind & $treeRepr(en[0]))
 
     of nnkEnumTy:
       for fld in en[1..^1]:
@@ -342,10 +349,10 @@ func parseEnumImpl*[NNode](en: NNode): EnumDecl[NNode] =
       result = parseEnumImpl(en[0])
 
     of nnkObjectTy:
-      raiseUnexpectedKindError(en)
+      raise newUnexpectedKindError(en)
 
     else:
-      raiseImplementKindError(en)
+      raise newImplementKindError(en)
 
 func parseEnum*[NNode: not enum](node: NNode): EnumDecl[NNode] =
   result = parseEnumImpl(node)

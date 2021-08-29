@@ -3,9 +3,6 @@
 ## generating and working with pragma annotations, parsing object
 ## defintions etc.
 
-import hmisc/[base_errors]
-export base_errors
-
 import std/[options, macros]
 import compiler/[ast, idents, lineinfos, renderer]
 export idents, lineinfos
@@ -20,7 +17,7 @@ import hnimast/[
   idents_types,
   hast_quote,
   nim_decl,
- obj_field_macros,
+  obj_field_macros,
 ]
 
 export pnode_parse,

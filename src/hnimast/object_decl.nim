@@ -1,9 +1,15 @@
-import hast_common, idents_types, pragmas
-import std/[macros, tables, options, strutils, sequtils]
-import compiler/[ast]
-import hmisc/helpers
-import hmisc/types/colorstring
-import hast_common
+import
+  ./hast_common, ./idents_types, ./pragmas
+
+import
+  std/[macros, tables, options, strutils, sequtils, strformat]
+
+import
+  compiler/[ast]
+
+import
+  hmisc/core/all,
+  hmisc/types/colorstring
 
 type
   ObjectBranch*[N] = ref object
@@ -532,7 +538,7 @@ proc eachStaticPath*(
     if fld.isKind:
       inc kindCount
       if kindCount > 1:
-        raiseArgumentError(
+        raise newArgumentError(
           "Found more than one top-level kind field. " &
             "Single-argument static path only supports one kind.")
 
@@ -926,7 +932,7 @@ func `==`*(lhs, rhs: ObjTree): bool =
         of okTable:
           lhs.keyType == rhs.keyType and
           lhs.valType == rhs.valType and
-          zip(lhs.valPairs, rhs.valPairs).allOfIt(
+          zip(lhs.valPairs, rhs.valPairs).allIt(
             (it[0].key == it[1].key) and (it[0].val == it[1].val)
           )
         of okComposed:
@@ -998,19 +1004,19 @@ func getAtPath*(obj: var ObjTree, path: ObjPath): var ObjTree =
               if fld.name == path[0].name:
                  return fld.value.getAtPath(path[1..^1])
 
-            argumentError:
-              "Cannot get field name '{path[0].name}'"
-              "from object - no such field found"
+            raise newArgumentError(
+              &"Cannot get field name '{path[0].name}'",
+              &"from object - no such field found")
 
           else:
-            argumentError:
-              "Cannot get field name '{path[0].name}'"
-              "from object with unnamed fields"
+            raise newArgumentError(
+              &"Cannot get field name '{path[0].name}'",
+              &"from object with unnamed fields")
 
     of okConstant:
       if path.len > 1:
-        argumentError:
-          "Attempt to access subelements of constant value at path {path}"
+        raise newArgumentError(
+          &"Attempt to access subelements of constant value at path {path}")
 
       else:
         return obj
@@ -1019,9 +1025,9 @@ func getAtPath*(obj: var ObjTree, path: ObjPath): var ObjTree =
         return obj
 
       if path[0].kind != okSequence:
-        argumentError:
-          "Cannot access sequence elements by name, path {path}"
-          "starts with non-index"
+        raise newArgumentError(
+          &"Cannot access sequence elements by name, path {path}",
+          "starts with non-index")
 
       elif path.len == 1:
         return obj.valItems[path[0].idx]
@@ -1030,7 +1036,7 @@ func getAtPath*(obj: var ObjTree, path: ObjPath): var ObjTree =
         return obj.valItems[path[0].idx].getAtPath(path[1..^1])
 
     else:
-      raiseImplementError("")
+      raise newImplementError("")
 
 func hasPragma*[N](decl: ObjectDecl[N], name: string): bool =
   decl.pragma.isSome() and decl.pragma.get().hasElem(name)

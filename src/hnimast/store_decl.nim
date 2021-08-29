@@ -1,9 +1,8 @@
 import ./object_decl, ./enum_decl
 
 import hnimast
-import hmisc/hexceptions
+import hmisc/core/all
 import hmisc/algo/halgorithm
-import hmisc/hdebug_misc
 import std/[macros, options, sequtils, strutils, tables]
 
 var objectImplMap {.compiletime.}: Table[string, NObjectDecl]
@@ -69,10 +68,10 @@ proc baseImplSym*(t: NimNode, passSym: bool = false): NimNode =
                 result = baseImplSym(impl[0], passSym = passSym)
 
             else:
-              raiseImplementKindError(impl, impl.treeRepr1())
+              raise newImplementKindError(impl, impl.treeRepr1())
 
     else:
-      raiseImplementKindError(t, t.treeRepr())
+      raise newImplementKindError(t, t.treeRepr())
 
 proc genericParams*(T: NimNode): seq[NimNode] =
   var impl = getTypeImpl(T)
@@ -175,11 +174,10 @@ proc getObjectStructure*(obj: NimNode): NObjectDecl =
       result = objectImplMap[hash]
 
     else:
-      raiseArgumentError(
+      raise newGetterError(
         "Cannot get object structure for node " &
         obj.toStrLit().strVal() &
-        " - not recorded in object impl map"
-      )
+        " - not recorded in object impl map")
 
 
 macro storeTraitsImpl*(obj: typed, consts: varargs[typed]) =

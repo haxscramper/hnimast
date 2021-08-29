@@ -1,9 +1,17 @@
-import std/[options, sequtils, strutils, strformat, sugar]
-import hmisc/helpers
-import hmisc/macros/cl_logic
-import ./pragmas, ./hast_common
-import hmisc/algo/namegen
-import compiler/ast
+import
+  std/[options, sequtils, strutils, strformat, sugar, tables]
+
+import
+  ./pragmas,
+  ./hast_common
+
+import
+  hmisc/core/all,
+  hmisc/macros/cl_logic,
+  hmisc/algo/[namegen, hstring_algo]
+
+import
+  compiler/ast
 
 type
   NTypeKind* = enum
@@ -40,7 +48,7 @@ type
         #   Things like `[T: string | float]`.
 
       of ntkProc, ntkNamedTuple:
-        rType*: Option[SingleIt[NType[NNode]]] ## Optional return type
+        rType*: Option[It[NType[NNode]]] ## Optional return type
         arguments*: seq[NIdentDefs[NNode]] ## Sequence of argument identifiers
         pragma*: Pragma[NNode] ## Pragma annotation for proc
 
@@ -48,14 +56,14 @@ type
         rngStart*, rngEnd*: NNode
 
       of ntkVarargs:
-        vaTypeIt: SingleIt[NType[NNode]]
+        vaTypeIt: It[NType[NNode]]
         vaConverter*: Option[NNode]
 
       of ntkValue, ntkTypeofExpr:
         value*: NNode
 
       of ntkCurly:
-        curlyHeadIt: SingleIt[NType[NNode]]
+        curlyHeadIt: It[NType[NNode]]
         curlyArgs: seq[NNode]
 
       of ntkNone:
@@ -100,6 +108,15 @@ func `returnType=`*[N](t: var NType[N], val: NType[N]) =
 func returnType*[N](t: NType[N]): Option[NType[N]] =
   if t.rType.isSome():
     result = some(t.rtype.get().getIt())
+
+func argumentType*[N](t: NType[N], idx: int): NType[N] =
+  t.arguments[idx].vtype
+
+func argumentTypes*[N](t: NType[N]): seq[NType[N]] =
+  for arg in t.arguments:
+    for _ in arg.idents:
+      result.add arg.vtype
+
 
 func directUsedTypes*[N](ntype: NType[N]): seq[NType[N]] =
   case ntype.kind:
@@ -164,6 +181,25 @@ func `==`*(l, r: NType): bool =
       of ntkNone:
         true
   )
+
+func sameNoTy*(l, r: NType, noParams: bool = false): bool =
+  case l.kind:
+    of ntkIdent:
+      if l.head in ["var", "ref", "ptr", "lent"]:
+        result = sameNoTy(l.genParams[0], r, noParams)
+
+      elif r.head in ["var", "ref", "ptr", "lent"]:
+        result = sameNoTy(l, r.genParams[0], noParams)
+
+      else:
+        if noParams:
+          result = l.head == r.head
+
+        else:
+          result = l == r
+
+    else:
+      result = l == r
 
 func `rType=`*[NNode](t: var NType[NNode], val: NType[NNode]): void =
     t.rtype = some(newIt(val))
@@ -320,9 +356,8 @@ func toNNode*[NNode](
           # TODO handle `lent`, `sink` and other things like that
           if ntype.genParams.len != 1:
             let args = join(ntype.genParams.mapIt($!toNNode[NNode](it)), " ",)
-            argumentError:
-              "Expected single generic parameter for `ref/ptr`"
-              "type, but got [{args}]"
+            raise newArgumentError(
+              &"Expected single generic parameter for `ref/ptr` type, but got [{args}]")
 
           var ty: NimNodeKind
           case ntype.head:
@@ -408,6 +443,15 @@ func toFormalParam*(nident: NIdentDefs[NimNode]): NimNode =
   toNFormalParam[NimNode](nident)
 
 
+func skip*[N](
+    ntype: NType[N],
+    head: seq[string] = @["ref", "var", "sink", "ptr"]
+  ): NType[N] =
+
+  result = ntype
+  while result.kind == ntkIdent and result.head in head:
+    result = result.genParams[0]
+
 func newNType*(name: string, gparams: seq[string] = @[]): NType[NimNode] =
   ## Make `NType` with `name` as string and `gparams` as generic
   ## parameters
@@ -472,17 +516,26 @@ func newProcNType*[NNode](args: seq[NType[NNode]]): NType[NNode] =
   NType[NNode](
     kind: ntkProc,
     arguments: toNIdentDefs[NNode](args.mapIt(("", it))),
-    rtype: none(SingleIt[NType[NNode]]),
+    rtype: none(It[NType[NNode]]),
     pragma: newNNPragma[NNode]()
   )
 
 func parseNidentDefs*[N](node: N): NIdentDefs[N]
+
+func splitIdent*[N](node: N): tuple[module: Option[N], head: string] =
+  if node.kind == nnkDotExpr:
+    result.module = some node[0]
+    result.head = node[1].getStrVal()
+
+  else:
+    result.head = node.getStrVal()
+
 func newNTypeNNode*[NNode](node: NNode): NType[NNode] =
   # REFACTOR rename to `parseNType`
   ## Convert type described in `NimNode` into `NType`
   case node.kind.toNNK():
     of nnkBracketExpr:
-      let head = node[0].getStrVal()
+      let (module, head) = node[0].splitIdent()
       if head == "range":
         result = NType[NNode](
           kind: ntkRange, rngStart: node[1][1], rngEnd: node[1][2])
@@ -585,7 +638,7 @@ func newNTypeNNode*[NNode](node: NNode): NType[NNode] =
         result = NType[NNode](kind: ntkTypeofExpr, value: node)
 
       else:
-        raiseArgumentError(
+        raise newArgumentError(
           "Unexpected call node for type: " & toShow(node[0]))
 
     of nnkPrefix:
@@ -596,7 +649,7 @@ func newNTypeNNode*[NNode](node: NNode): NType[NNode] =
         result = newNTypeNNode(node[1])
 
       else:
-        raiseArgumentError(
+        raise newArgumentError(
           "Unexpected prefix node for type: " & toShow(node[0]))
 
     of nnkNilLit:
@@ -639,7 +692,7 @@ func newNTypeNNode*[NNode](node: NNode): NType[NNode] =
       result = newNTypeNNode(node[0])
 
     else:
-      raiseImplementError(
+      raise newImplementError(
         &"Implement NType conversion for '{node.kind}' '" &
           node.toStrLit().getStrVal() & "' " &
           $node.getInfo()
@@ -727,6 +780,23 @@ func parseNidentDefs*[N](node: N): NIdentDefs[N] =
 
 
 #===========================  Pretty-printing  ===========================#
+func `$`*[NNode](nt: NType[NNode]): string
+
+func `$`*[N](i: NIdentDefs[N]): string =
+  for idx, id in i.idents:
+    if idx > 0: result.add ", "
+    result.add $id
+
+  result.add ": "
+  if i.kind == nvdVar:
+    result.add "var "
+
+  result.add $i.vtype
+  if i.value.isSome():
+    result.add " = "
+    result.add $i.value.get()
+
+
 func `$`*[NNode](nt: NType[NNode]): string =
   ## Convert `NType` to texual representation
   case nt.kind:
@@ -766,10 +836,10 @@ func `$`*[NNode](nt: NType[NNode]): string =
 
     of ntkProc:
       {.cast(noSideEffect).}:
-        let rtype: string = nt.rtype.getSomeIt($it & ": ", "")
+        let rtype = nt.rtype.getSomeIt(": " & $it.getIt(), "")
         let pragma: string =
           if nt.pragma.len > 0:
-            toString(nt.pragma.toNNode()) & " "
+            $nt.pragma.toNNode() & " "
 
           else:
             ""
@@ -873,3 +943,39 @@ proc newVar*[N: NimNode | PNode](
         default
     )
   ))
+
+proc unify*[N](t1, t2: NType[N], gen1, gen2: Table[string, int]): bool =
+  if t1.kind == t2.kind:
+    case t1.kind:
+      of ntkIdent:
+        if (
+          (
+            # Compare generic parameter names using gentable indices
+            t1.head in gen1 and
+            t2.head in gen2 and
+            gen1[t1.head] == gen2[t2.head]
+          ) or (
+            t1.head == t2.head
+          )
+        ) and t1.genParams.len == t2.genParams.len:
+          result = true
+          for (p1, p2) in zip(t1.genParams, t2.genParams):
+            if not unify(p1, p2, gen1, gen2):
+              return false
+
+      of ntkProc:
+        if t1.rType.isSome() != t2.rType.isSome():
+          return false
+
+        else:
+          result = true
+          if t1.rType.isSome() and t2.rType.isSome():
+            if not unify(t1.rtype.get(), t2.rtype.get(), gen1, gen2):
+              return false
+
+          for (a1, a2) in zip(t1.argumentTypes(), t2.argumentTypes()):
+            if not unify(a1, a2, gen1, gen2):
+              return false
+
+      else:
+        raise newImplementKindError(t1)

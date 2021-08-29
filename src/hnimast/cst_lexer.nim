@@ -24,7 +24,7 @@ import
   ]
 
 import
-  hmisc/[base_errors, hdebug_misc, hexceptions]
+  hmisc/core/all
 
 const
   MaxLineLength* = 80         # lines longer than this lead to a warning

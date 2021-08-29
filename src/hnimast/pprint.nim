@@ -1,14 +1,18 @@
-import hmisc/other/blockfmt
-import hmisc/helpers
-import hmisc/hexceptions
-import hmisc/macros/cl_logic
+import
+  hmisc/other/blockfmt,
+  hmisc/core/all,
+  hmisc/macros/cl_logic,
+  hmisc/algo/[htemplates, halgorithm]
 
-import ../hnimast, nim_decl
+import
+  ../hnimast,
+  nim_decl
 
-import std/[options, strutils, strformat, sequtils, streams, # sugar,
-            macros]
-import compiler/[ast, # idents,
-                 lineinfos]
+import
+  std/[options, strutils, strformat, sequtils, streams, macros]
+
+import
+  compiler/[ast, lineinfos]
 
 proc str(n: PNode): string = `$`(n)
 

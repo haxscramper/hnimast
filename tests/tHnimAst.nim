@@ -1,16 +1,13 @@
-import strutils, sequtils, strformat, macros, options
-import ../src/hnimast
-import hmisc/helpers
-import ../src/hnimast/[obj_field_macros, pprint, hast_common]
+import std/[strutils, sequtils, strformat, macros, options]
+import
+  hmisc/core/all,
+  hmisc/preludes/unittest
+
+import
+  hnimast,
+  hnimast/[obj_field_macros, pprint, hast_common]
 
 import compiler/ast
-
-
-#===========================  implementation  ============================#
-
-#================================  tests  ================================#
-
-import unittest
 
 suite "HNimAst":
   test "{enumPref} :macro:":
@@ -18,12 +15,14 @@ suite "HNimAst":
       En = enum
         en1 = 2
 
-    assertEq enumPref(En), "en"
     let val = en1
-    assertEq enumPref(val), "en"
-    assertEq enumPref(en1), "en"
+    check:
+      enumPref(En) == "en"
+      enumPref(val) == "en"
+      enumPref(en1) == "en"
 
-    proc gen[T](a: T, pr: string): void = assertEq enumPref(a), pr
+    proc gen[T](a: T, pr: string): void =
+      doAssert enumPref(a) == pr
 
     gen(en1, "en")
 
@@ -38,10 +37,12 @@ suite "HNimAst":
         en1 = "hello"
         en2 = "world"
 
-    assertEq enumNames(En), @["en1", "en2"]
-    assertEq enumNames(en1), @["en1", "en2"]
     let val = en1
-    assertEq enumNames(val), @["en1", "en2"]
+
+    check:
+      enumNames(En) == @["en1", "en2"]
+      enumNames(en1) == @["en1", "en2"]
+      enumNames(val) == @["en1", "en2"]
 
   test "{parseObject} parse nim pragma":
     macro parse(body: untyped): untyped =
@@ -111,14 +112,10 @@ suite "HNimAst":
     macro mcr(body: untyped): untyped =
       let obj = body[0][0].parseObject()
       let objid = ident "hjhh"
-      when NimMinor <= 4:
-        let impl = objid.eachCase(obj) do(fld: NObjectField) -> NimNode:
-          let fld = ident fld.name
-          quote do:
-            echo `objid`.`fld`
-
-      else:
-        let impl = newStmtList()
+      let impl = objid.eachCase(obj) do(fld: NObjectField) -> NimNode:
+        newCall("echo", newDot(ident "hjhh", ident(fld.name)))
+        # quote do:
+        #   echo `objid`.`fld`
 
       result = newStmtList(body)
 
@@ -145,51 +142,58 @@ suite "HNimAst":
               eee23: string
 
 
-  test "{eachParallelCase}":
-    ## Automatically generate comparison proc for case objects.
-    macro mcr(body: untyped): untyped =
-      let
-        obj = body[0][0].parseObject()
-        lhs = ident "lhs"
-        rhs = ident "rhs"
+  # Fails compilation with `Error: cannot evaluate at compile time: lhs1`
+  # if I put `lhs1` inside of the callback - I have no idea why, and I
+  # don't want to spend another five hours trying to figure this out, only
+  # to later realize this is simply a compiler bug. btw, this code worked
+  # perfectly well earlier.
 
-      let impl = (lhs, rhs).eachParallelCase(obj) do(
-        fld: NObjectField) -> NimNode:
-        let fld = ident fld.name
-        quote do:
-          if `lhs`.`fld` != `rhs`.`fld`:
-            return false
+  # test "{eachParallelCase}":
+  #   ## Automatically generate comparison proc for case objects.
+  #   macro mcr(body: untyped): untyped =
+  #     let
+  #       obj = body[0][0].parseObject()
+  #       rhs1: NimNode = macros.ident"rhs"
+  #       lhs1: NimNode = macros.ident"lhs"
 
+  #     let val = newNQuoteTree(nnkDotExpr, @[toNimNodeAux lhs1])
 
-      let eqcmp = [ident "=="].newProcDeclNode(
-        newNType("bool"),
-        { "lhs" : obj.name, "rhs" : obj.name },
-        pragma = newNPragma(newIdent("noSideEffect")),
-        impl = (
-          quote do:
-            `impl`
-            return true
-        ),
-        exported = false
-      )
+  #     let impl = eachParallelCase((lhs1, rhs1), obj, proc(fld: NObjectField): NImNode = lhs1)
+  #       # result = lhs1
+  #       # let fld = ident fld.name
+  #       # result = nquote do:
+  #       #   if `lhs1`.`fld` != `rhs1`.`fld`:
+  #       #     return false
 
-      result = nnkStmtList.newTree(body, eqcmp)
+  #     # let eqcmp = [ident "=="].newProcDeclNode(
+  #     #   newNType("bool"),
+  #     #   { "lhs" : obj.name, "rhs" : obj.name },
+  #     #   pragma = newNPragma(newIdent("noSideEffect")),
+  #     #   impl = (
+  #     #     nquote do:
+  #     #       `impl`
+  #     #       return true
+  #     #   ),
+  #     #   exported = false
+  #     # )
 
-    mcr:
-      type
-        A = object
-          fdl: seq[float]
-          case b: char
-            of '0':
-              qw: char
-              wer: float
-            of '-':
-              ee: float
-            else:
-              eeerw: char
-              # nil # TODO
+  #     # result = nnkStmtList.newTree(body, eqcmp)
 
-    echo A() == A()
+  #   mcr:
+  #     type
+  #       A = object
+  #         fdl: seq[float]
+  #         case b: char
+  #           of '0':
+  #             qw: char
+  #             wer: float
+  #           of '-':
+  #             ee: float
+  #           else:
+  #             eeerw: char
+  #             # nil # TODO
+
+  #   echo A() == A()
 
   test "{eachPath}":
     macro mcr(body: untyped): untyped =

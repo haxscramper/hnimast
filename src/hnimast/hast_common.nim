@@ -1,10 +1,18 @@
-import std/[macros, sequtils, strformat, strutils,
-            tables, sets, options, math]
-import compiler/[ast, idents, lineinfos, renderer]
-import hmisc/types/colorstring
-import hmisc/helpers
+import std/[
+  macros, sequtils, strformat, strutils,
+  tables, sets, options, math, os
+]
 
-export macros
+
+import
+  compiler/[ast, idents, lineinfos, renderer]
+
+import
+  hmisc/types/colorstring,
+  hmisc/algo/[htemplates, clformat, hstring_algo, hseq_mapping],
+  hmisc/core/all
+
+export macros, colorstring
 
 template `[]`*(node: PNode, slice: HSLice[int, BackwardsIndex]): untyped =
   ## Get range of subnodes from `PNode`
@@ -16,6 +24,9 @@ proc `?`*(node: PNode): bool =
 proc `[]`*(node: PNode, idx: int, kinds: set[TNodeKind]): PNode =
   result = node[idx]
   assertKind(result, kinds)
+
+
+
 
 
 proc add*(n: PNode, sub: seq[PNode]) =
@@ -147,6 +158,13 @@ const defaultIInfo* = LineInfo()
 
 proc getInfo*(n: NimNode): LineInfo = n.lineInfoObj
 proc getInfo*(n: PNode): TLineInfo = n.info
+# proc getInfo*(n: PNode, file: string): TLineInfo =
+#   result = n.info
+#   result.filename = file
+
+# proc getInfo*(n: PNode, file: AbsFile): TLineInfo =
+#   result = n.info
+#   result.filename = getStr(file)
 
 func dropPar1*(nn: NimNode): NimNode =
   if nn.kind == nnkPar: nn[0] else: nn
@@ -178,7 +196,7 @@ proc `&`*(n: PNode, str: string): PNode =
     result.strVal &= str
 
   else:
-    raiseArgumentError(
+    raise newArgumentError(
       "Cannot concatentate non-string node with string")
 
 func getStrVal*(n: NimNode): string =
@@ -196,11 +214,37 @@ func getStrVal*(p: PNode, doRaise: bool = true): string =
     of nkAccQuoted: ($p)[1..^2]
     else:
       if doRaise:
-        raiseArgumentError(
+        raise newArgumentError(
           "Cannot get string value from node of kind " & $p.kind)
 
       else:
         ""
+
+proc `=~`*(
+  node: PNode,
+  check: tuple[kind: TNodeKind, strVals: seq[string]]): bool =
+
+  node.kind == check.kind and node.getStrVal() in check.strVals
+
+proc `=~`*(node: PNode, kind: TNodeKind): bool =
+  node.kind == kind
+
+proc `=~`*(node: PNode, kind: set[TNodeKind]): bool =
+  node.kind in kind
+
+proc `=~`*(node: PNode, check: (TNodeKind, string)): bool =
+  node.kind == check[0] and node.getStrVal() == check[1]
+
+proc `=~`*(node: PNode, check: string): bool =
+  node.getStrVal() == check
+
+proc `=~`*[R](nodes: seq[PNode], kinds: array[R, TNodeKind]): bool =
+  for (node, kind) in zip(nodes, kinds):
+    if node.kind != kind:
+      return false
+
+  return true
+
 
 func safeStrVal*(n: PNode): string = getStrVal(n, false)
 
@@ -274,7 +318,7 @@ func `==`*(k1: TNodeKind, k2: NimNodeKind): bool = k1.toNNK() == k2
 func expectKind*(expr: PNode, kind: NimNodeKind): void =
   ## Raise assertion error of `expr` kind is not equal to `kind`
   if expr.kind != kind.toNK():
-    raiseArgumentError(
+    raise newArgumentError(
       &"Unexpected node kind: got {expr.kind}, but expected {kind}")
 
 #==========================  Tree construction  ==========================#
@@ -347,7 +391,7 @@ func newPTree*(kind: NimNodeKind, subnodes: varargs[PNode]): PNode =
   ## Create new `PNode` tree
   if kind in nnkTokenKinds:
     if subnodes.len > 0:
-      raiseArgumentError(
+      raise newArgumentError(
         &"Cannot create node of kind {kind} with subnodes")
 
     else:
@@ -538,7 +582,12 @@ proc newWhile*[N](expr: N, body: varargs[N]): N =
     nnkWhileStmt, expr, newNtree[N](nnkStmtList, body))
 
 proc addArgument*[N](n: N, name: string, expr: N) =
+  # TODO support adding arguments to declarations as well
   n.add newNTree[N](nnkExprEqExpr, newIdent(name), expr)
+
+proc addPragma*[N](decl: N, prag: N) =
+  ## Add pragma to procedure, type or variable declarations. TODO implement
+  raise newImplementError() 
 
 proc newAnd*[N](a, b: N): N =
   newNTree[N](nnkInfix, newNIdent[N]("and"), a, b)
@@ -772,8 +821,8 @@ proc pprintCalls*(node: NimNode, level: int): void =
       echo ($node.toStrLit()).indent(level * 2)
 
 proc lispRepr*(
-    typ: PType, colored: bool = true, symkind: bool = true): string =
-  result = "ty:" & toMagenta(($typ.kind)[2..^1], colored)
+    typ: PType, colored: bool = true, symkind: bool = true): ColoredText =
+  result.add "ty:" & toMagenta(($typ.kind)[2..^1], colored)
   if not isNil(typ.sym) and symkind:
     result &= " sk:" & toCyan(($typ.sym.kind)[2..^1], colored)
 
@@ -787,12 +836,13 @@ func treeRepr*(
     pathIndexed: bool = false,
     positionIndexed: bool = true,
     maxdepth: int = 120,
-    maxlen: int = 30
-  ): string =
+    maxlen: int = 30,
+    lineInfo: bool = false
+  ): ColoredText =
 
-  # raise newImplementError()
+  coloredResult()
 
-  proc aux(n: PNode, level: int, idx: seq[int]): string =
+  proc aux(n: PNode, level: int, idx: seq[int]) =
     let pref =
       if pathIndexed:
         idx.join("", ("[", "]")) & "    "
@@ -808,79 +858,94 @@ func treeRepr*(
       else:
         "  ".repeat(level)
 
+    add pref
     if isNil(n):
-      return pref & toRed("<nil>", colored)
+      add toRed("<nil>", colored)
+      return
 
     if level > maxdepth:
-      return pref & " ..."
+      add " ..."
+      return
 
-    result &= pref & ($n.kind)[2..^1]
+    add hshow(n.kind)
     if n.comment.len > 0:
-      result.add "\n"
+      add "\n"
       for line in split(n.comment, '\n'):
-        result.add pref & "  # " & toCyan(line) & "\n"
+        add pref & "  # " & toCyan(line) & "\n"
 
-      result.add pref
+      add pref
 
     else:
-      result.add " "
+      add " "
 
-    # if n.kind == nkSym and notNil(n.sym.ast):
-    #   debugecho n.sym.ast
-
+    if lineInfo:
+      add "@"
+      add $n.info.fileIndex.int + fgBlue
+      add "/"
+      add $n.info.line + fgCyan
+      add ":"
+      add $n.info.col + fgCyan
+      add " "
 
     case n.kind:
       of nkStrKinds:
-        result &= "\"" & toYellow(n.getStrVal(), colored) & "\""
+        add "\"" & toYellow(n.getStrVal(), colored) & "\""
 
       of nkIntKinds:
-        result &= toBlue($n.intVal, colored)
+        add toBlue($n.intVal, colored)
 
       of nkFloatKinds:
-        result &= toMagenta($n.floatVal, colored)
+        add toMagenta($n.floatVal, colored)
 
       of nkIdent:
-        result &= toGreen(n.getStrVal(), colored)
+        add toGreen(n.getStrVal(), colored)
 
       of nkSym:
-        result &= [
-          toGreen(n.getStrVal(), colored),
-          " sk:", toBlue(($n.sym.kind)[2 ..^ 1], colored),
-          " ", tern(
-            isNil(n.sym.typ),
-            "<no-type>",
-            n.sym.typ.lispRepr(colored, symkind = false))]
+        add toGreen(n.getStrVal(), colored)
+        add " sk:"
+        add toBlue(($n.sym.kind)[2 ..^ 1], colored)
+        add " "
+        if isNil(n.sym.typ):
+          add "<no-type>"
+
+        else:
+          add n.sym.typ.lispRepr(colored, symkind = false)
 
         if n.sym.flags.len > 0:
-          result &= " flags:" & to8Bit($n.sym.flags, 2, 0, 3)
+          add " flags:" & to8Bit($n.sym.flags, 2, 0, 3)
 
         if n.sym.magic != mNone:
-          result &= " magic:" & to8Bit($n.sym.magic, 2, 0, 5)
-
-
+          add " magic:" & to8Bit($n.sym.magic, 2, 0, 5)
 
       of nkCommentStmt:
         discard
 
       else:
-        if not isNil(n.typ):
-          result &= n.typ.lispRepr(colored)
+        discard
 
-        if n.len > 0:
-          result &= "\n"
+    if not isNil(n.typ):
+      add " "
+      add n.typ.lispRepr(colored)
 
-        for newIdx, subn in n:
-          result &= aux(subn, level + 1, idx & newIdx)
-          if level + 1 > maxDepth:
-            break
+    if n.flags.len > 0:
+      add " nflags:" & to8Bit($n.flags, 2, 0, 3)
 
-          if newIdx > maxLen:
-            break
+    if n.kind notin nkTokenKinds:
+      if n.len > 0:
+        add "\n"
 
-          if newIdx < n.len - 1:
-            result &= "\n"
+      for newIdx, subn in n:
+        aux(subn, level + 1, idx & newIdx)
+        if level + 1 > maxDepth:
+          break
 
-  return aux(pnode, 0, @[])
+        if newIdx > maxLen:
+          break
+
+        if newIdx < n.len - 1:
+          add "\n"
+
+  aux(pnode, 0, @[])
 
 
 proc treeRepr1*(
@@ -889,7 +954,7 @@ proc treeRepr1*(
     pathIndexed: bool = false,
     positionIndexed: bool = true,
     maxdepth: int = 120,
-  ): string =
+  ): ColoredText =
 
   ## - TODO :: optionally show node positions
   ## - TODO :: make output identical to `treeRepr1` for `NimNode`
@@ -900,6 +965,8 @@ proc treeRepr1*(
     pathIndexed = pathIndexed,
     positionIndexed = positionIndexed
   )
+
+
 
 type
   EnumFieldDef*[N] = object
@@ -954,25 +1021,24 @@ proc splitEnumImpl*[N](impl: N): seq[EnumFieldDef[N]] =
     inc fNum
 
 
-
-
-proc typeLispRepr*(node: NimNode, colored: bool = true): string =
+proc typeLispRepr*(node: NimNode, colored: bool = true): ColoredText =
+  coloredResult()
   case node.kind:
     of nnkSym:
       case node.symKind:
         of nskType:
-          result = toStrLit(node).strVal().toRed(colored)
+          add toStrLit(node).strVal().toRed(colored)
 
         of nskField:
           let inst = node.getType()
           case inst.kind:
             of nnkEnumTy:
-              result = toBlue("enum/", colored)
+              add toBlue("enum/", colored)
 
             else:
               discard
 
-          result &= "typ: " & node.getTypeInst().typeLispRepr(colored)
+          add node.getTypeInst().typeLispRepr(colored)
 
         of nskEnumField:
           let impl = node.getType().getTypeInst().getImpl()[2]
@@ -980,30 +1046,36 @@ proc typeLispRepr*(node: NimNode, colored: bool = true): string =
           for field in impl.splitEnumImpl():
             if field.name == node.strVal():
               if field.name == field.strVal:
-                return $field.intVal
+                add $field.intVal
 
               else:
-                return &["(", $field.intVal, ", ", field.strVal, ")"]
+                add "("
+                add $field.intVal
+                add ", "
+                add field.strVal
+                add ")"
 
         of nskTemplate:
           let impl = node.getImpl()
-          return impl.toStrLit().strVal().toYellow(colored)
+          add impl.toStrLit().strVal().toYellow(colored)
 
         of nskConst:
-          return node.getImpl().toStrLit().strVal().toBlue(colored)
+          add node.getImpl().toStrLit().strVal().toBlue(colored)
 
         of nskProc:
-          return node.getTypeImpl().toStrLit().strVal().toBlue(colored)
+          add node.getTypeImpl().toStrLit().strVal().toBlue(colored)
 
         else:
-          return toGreen($node.symKind, colored)
+          add toGreen($node.symKind, colored)
 
     of nnkEnumTy:
-      result = "enum".toRed(colored)
+      add "enum".toRed(colored)
 
     else:
-      result = node.lispRepr().toGreen(colored)
-      # raiseImplementKindError(node, node.treeRepr())
+      add node.lispRepr().toGreen(colored)
+
+  endResult()
+
 
 proc treeRepr1*(
     pnode: NimNode,
@@ -1011,89 +1083,88 @@ proc treeRepr1*(
     pathIndexed: bool = false,
     positionIndexed: bool = true,
     maxdepth: int = 120,
-  ): string =
-  ## Advanced `treeRepr` version.
-  ##
-  ## - show symbol kinds and types
-  ## - use colored representation for literals and comments
-  ## - support max depth limit using @arg{maxdepth}
-  ## - optionally show full index path for each entry
-  ## - show node position index
-  ## - differentiate between `NilLit` and *actually* `nil` nodes
+    lineInfo: bool = false
+  ): ColoredText =
+  coloredResult()
 
-  proc aux(n: NimNode, level: int, idx: seq[int]): string =
-    let pref =
-      if pathIndexed:
-        idx.join("", ("[", "]")) & "    "
 
-      elif positionIndexed:
-        if level > 0:
-          "  ".repeat(level - 1) & to8Bit(
-            alignLeft("#" & $idx[^1], 3), 10) &
-            to8Bit("/" & alignLeft($level, 2), 20) & " "
+  proc aux(n: NimNode, level: int, idx: seq[int]) =
+    let pref = joinPrefix(level, idx, pathIndexed, positionIndexed)
 
-        else:
-          "    "
-
-      else:
-        "  ".repeat(level)
-
+    add pref
     if isNil(n):
-      return pref & toRed("<nil>", colored)
+      add toRed("<nil>", colored)
+      return
 
     if level > maxdepth:
-      return pref & " ..."
+      add " ..."
+      return
 
-    result &= pref & ($n.kind)[3 ..^ 1]
+    add hshow(n.kind) # pref & ($n.kind)[3 ..^ 1]
+    if lineInfo:
+      let info = n.lineInfoObj()
+      add "@"
+      add splitFile(info.filename).name + fgBlue
+      add "/"
+      add $info.line + fgCyan
+      add ":"
+      add $info.column + fgCyan
+      add " "
 
     case n.kind:
-      of nnkStrKinds:
-        result &= " \"" & toYellow(n.getStrVal(), colored) & "\""
+      of nnkStrLit .. nnkTripleStrLit:
+        add " \"" & toYellow(n.strVal(), colored) & "\""
 
-      of nnkIntKinds:
-        result &= " " & toCyan($n.intVal, colored)
+      of nnkCharLit .. nnkUInt64Lit :
+        add " " & toCyan($n.intVal, colored)
 
-      of nnkFloatKinds:
-        result &= " " & toMagenta($n.floatVal, colored)
+      of nnkFloatLit .. nnkFloat128Lit:
+        add " " & toMagenta($n.floatVal, colored)
 
       of nnkIdent:
-        result &= " " & toGreen(n.strVal(), colored)
+        add " " & toCyan(n.strVal(), colored)
 
       of nnkSym:
-        result &= [
-          " ", toBlue(($n.symKind())[3..^1], colored),
-          " ", toGreen(n.strVal(), colored),
-          " <", n.typeLispRepr(), ">"
-        ]
+        add " "
+        add toBlue(($n.symKind())[3..^1], colored)
+        add " "
+        add toGreen(n.strVal(), colored)
+        add " <"
+        add n.typeLispRepr()
+        add ">"
 
       of nnkCommentStmt:
         let lines = split(n.strVal(), '\n')
         if lines.len > 1:
-          result &= "\n"
+          add "\n"
           for idx, line in pairs(lines):
             if idx != 0:
-              result &= "\n"
+              add "\n"
 
-            result &= pref & toYellow(line)
+            add pref & toYellow(line)
 
         else:
-          result &= toYellow(n.strVal())
+          add toYellow(n.strVal())
 
       else:
         if n.len > 0:
-          result &= "\n"
+          add "\n"
 
         for newIdx, subn in n:
-          result &= aux(subn, level + 1, idx & newIdx)
+          aux(subn, level + 1, idx & newIdx)
           if level + 1 > maxDepth:
             break
 
           if newIdx < n.len - 1:
-            result &= "\n"
+            add "\n"
 
 
 
-  return aux(pnode, 0, @[])
+  aux(pnode, 0, @[])
+  endResult()
+
+
+
 
 func idxTreeRepr*(inputNode: NimNode): string =
   ## `treeRepr` with indices for subnodes
@@ -1216,7 +1287,7 @@ func valuesInRange*[N](
           inRange = true
 
       else:
-        raiseImplementKindError(lowVal)
+        raise newImplementKindError(lowVal)
 
 
 
@@ -1235,7 +1306,7 @@ func valuesInRange*[N](
           break
 
       else:
-        raiseImplementKindError(highVal)
+        raise newImplementKindError(highVal)
 
   return values
 
@@ -1283,7 +1354,7 @@ func flattenSet*[N](node: N, group: Option[EnumValueGroup[N]]): seq[N] =
         else:
           let str = `$`(node)
 
-        raiseArgumentError(
+        raise newArgumentError(
           "Cannot normalize set: " & str & " - unknown kind")
 
   if group.isSome() and group.get().wrapConvert.isSome():
@@ -1571,7 +1642,7 @@ proc isObject*(node: NimNode): bool =
       isObject(node[2])
 
     else:
-      raiseImplementKindError(node)
+      raise newImplementKindError(node)
 
 
 
