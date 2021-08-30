@@ -18,5 +18,4 @@ import
   pragmas,
   proc_decl,
   sempass_reexport,
-  store_decl,
-  submodule
+  store_decl

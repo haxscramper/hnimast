@@ -10,8 +10,31 @@ helper API for working with nimble packages.
 * Links
 
 - [[https://github.com/haxscramper/hnimast][github]]
-- [[https://haxscramper.github.io/hnimast-doc/src/hnimast.html][documentation]]
-- [[https://discord.gg/hjfYJCU][discord server]]
+- documentation
+  - [[https://haxscramper.github.io/hnimast/compiler_aux.html][compiler_aux]] :: Helper procs for interfacing with nim compiler. Common
+    module graph setup logic, stdlib search etc.
+  - [[https://haxscramper.github.io/hnimast/cst_lexer.html][cst_lexer]], [[https://haxscramper.github.io/hnimast/cst_parser.html][cst_parser]], [[https://haxscramper.github.io/hnimast/cst_types.html][cst_types]] :: Fork of the nim code parser to be
+    used for pretty-printing. Stores all positional and comment information.
+  - [[https://haxscramper.github.io/hnimast/enum_decl.html][enum_decl]] :: Handle enum declaration - parse and generate
+  - [[https://haxscramper.github.io/hnimast/hast_common.html][hast_common]] :: Basic AST construction logic. Provides shared generic
+    interface for operating on both ~std/macros.NimNode~ and
+    ~compiler/ast.PNode~. Implements huge number of convenience functions
+    for constructing different node kinds.
+  - [[https://haxscramper.github.io/hnimast/hast_quote.html][hast_quote]] :: Reimplementation of the ~quote do:~ that doesn't gensym
+    identifiers, but allows for more complex node interoplation. Provides
+    ~nquote do:~ (for ~NimNode~) and ~pquote do:~ (for ~PNode~). Latter one
+    can be used for codegen.
+  - [[https://haxscramper.github.io/hnimast/idents_types.html][idents_types]] :: Handle type declarations, identifiers
+  - [[https://haxscramper.github.io/hnimast/nimble_aux.html][nimble_aux]] :: Helper code for working with nimble. Parse manifest files
+    without having to execute external scripts.
+  - [[https://haxscramper.github.io/hnimast/nim_decl.html][nim_decl]] :: Wrap different toplevel entry declarations in a single
+    variant object.
+  - [[https://haxscramper.github.io/hnimast/object_decl.html][object_decl]] :: Type declarations for object parsing
+  - [[https://haxscramper.github.io/hnimast/obj_field_macros.html][obj_field_macros]] :: Object parsing implementation
+  - [[https://haxscramper.github.io/hnimast/pnode_parse.html][pnode_parse]] :: Wrapper around ~compiler~ 's parser
+  - [[https://haxscramper.github.io/hnimast/pragmas.html][pragmas]] :: Pragma processing
+  - [[https://haxscramper.github.io/hnimast/proc_decl.html][proc_decl]] :: Procedure declaration processing
+
 
 * Description
 
