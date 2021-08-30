@@ -14,9 +14,11 @@ jobs:
           path: '../nim'
           version: 'version-1-4'
       - run: "nimble -y test && nimble install -y"
+      - run: "nimble -y install nimble"
       - run: "nimble docgen"
       - uses: crazy-max/ghaction-github-pages@v1
         with:
           build_dir: docs
+          verbose: true
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
