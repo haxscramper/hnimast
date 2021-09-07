@@ -1,3 +1,5 @@
+import std/[parseutils, strutils]
+
 type
   IcppPartKind* = enum
     ipkArgSplice

@@ -1,3 +1,11 @@
+import
+  ./wrap_store
+
+import
+  hmisc/core/all,
+  hmisc/macros/argpass,
+  std/[macros, sequtils]
+
 proc toNNode(t: CxxType): NimNode =
   case t.kind:
     of ctkIdent:

@@ -2,7 +2,7 @@
 import hmisc/core/all
 
 importx:
-  hmisc[core/code_errors, other/oswrap]
+  hmisc/[core/code_errors, other/oswrap]
 
   std/[
     macros, options, strutils, strformat, sequtils, strtabs,
@@ -10,6 +10,7 @@ importx:
 
   ./wrap_store
   ./wrap_decl
+  ./wrap_convert
 
 func `%?`(str: string, table: StringTableRef): string =
   for (kind, value) in interpolatedFragments(str):
