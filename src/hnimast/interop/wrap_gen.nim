@@ -70,9 +70,6 @@ type
     headers: seq[string]
     class: Option[string]
 
-var
-  cgenState {.compiletime.}: CgenState
-
 proc isConstructor(cgen: CgenResult): bool =
   cgen.constructorArgs.isSome()
 
@@ -167,9 +164,6 @@ proc convert(cgen: CgenResult): string =
   var forward: seq[string]
   let impl = aux(cgen, false, forward)
   result = forward.join("\n") & "\n\n\n" & impl
-
-macro cgenHeaders*(headers: static[seq[string]]) =
-  cgenState.headers.add headers
 
 proc cgenWrite(state: CGenState, impls: seq[CgenResult]): AbsFile =
   var text = ""
@@ -326,7 +320,7 @@ macro cgen*(outfile: static[string], args: varargs[untyped]): untyped =
   let header = initCxxHeader state.cgenWrite(impls)
 
 
-  result = impls.mapIt(toCxx(it, header)).toNNode()
+  result = toNNode[NimNode](impls.mapIt(toCxx(it, header)))
   # for entry in impls:
   #   result.add toCxxEntry(entry, header).toNNode()
 

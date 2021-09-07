@@ -234,5 +234,5 @@ func stmtAux(entry: NimNode, ctx: WrapCtx): seq[CxxEntry] =
 
 
 macro wrapheader*(name: static[string], body: untyped): untyped =
-  result = headerAux(name, toSeq(body), WrapCtx()).toNNode()
+  result = toNNode[NimNode](headerAux(name, toSeq(body), WrapCtx()))
   echo result.repr()

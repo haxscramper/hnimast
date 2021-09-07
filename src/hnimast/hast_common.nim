@@ -312,6 +312,9 @@ func toNK*(kind: NimNodeKind): TNodeKind =
 func toNNK*(kind: TNodeKind): NimNodeKind = NimNodeKind(kind.int)
 func toNNK*(kind: NimNodeKind): NimNodeKind = kind
 
+func nnKind*(node: NimNode): NimNodeKind = node.kind
+func nnKind*(node: PNode): NimNodeKind = NimNodeKind(node.kind.int)
+
 func `==`*(k1: TNodeKind, k2: NimNodeKind): bool = k1.toNNK() == k2
 
 
