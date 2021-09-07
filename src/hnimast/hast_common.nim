@@ -587,7 +587,7 @@ proc addArgument*[N](n: N, name: string, expr: N) =
 
 proc addPragma*[N](decl: N, prag: N) =
   ## Add pragma to procedure, type or variable declarations. TODO implement
-  raise newImplementError() 
+  raise newImplementError()
 
 proc newAnd*[N](a, b: N): N =
   newNTree[N](nnkInfix, newNIdent[N]("and"), a, b)
@@ -675,6 +675,8 @@ proc newXCall*[N](
   #   else:
   #     (, true)
 
+  let useCommand = str in ["addr", "inc", "dec"]
+
   if generics.len > 0:
     var callparams: seq[N]
     let head =
@@ -717,7 +719,9 @@ proc newXCall*[N](
              "shr", "div", "mod", "in", "notin",
              "is", "isnot", "of", "as", "from"
            ]:
-        result = newNTree[N](nnkCall, newNIdent[N](head) & args)
+        result = newNTree[N](
+          tern(useCommand, nnkCommand, nnkCall),
+          newNIdent[N](head) & args)
 
       else:
         case args.len:
@@ -1602,8 +1606,11 @@ proc newPStmtList*(args: varargs[PNode]): PNode =
 proc newBlock*[N](args: varargs[N]): N =
   newNTree[N](nnkBlockStmt, newEmptyNNode[N](), newNTree[N](nnkStmtList, args))
 
-proc newPBreak*(): PNode =
-  newPTree(nnkBreakStmt, newEmptyPNode())
+proc newPBlock*(args: varargs[PNode]): PNode =
+  newNTree[PNode](
+    nnkBlockStmt, newEmptyPNode(), newNTree[PNode](nnkStmtList, args))
+
+proc newPBreak*(): PNode = newPTree(nnkBreakStmt, newEmptyPNode())
 
 proc newPDotExpr*(lhs, rhs: PNode | string): PNode =
   newPTree(nnkDotExpr, toPNode(lhs), toPNode(rhs))

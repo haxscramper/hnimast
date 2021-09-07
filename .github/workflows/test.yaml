@@ -18,7 +18,7 @@ jobs:
       - run: "nimble docgen"
       - uses: crazy-max/ghaction-github-pages@v1
         with:
-          build_dir: docs
+          build_dir: htmldocs
           verbose: true
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

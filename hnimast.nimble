@@ -17,7 +17,7 @@ import std/[os, strutils, strformat]
 
 task docgen, "Generate documentation":
   var args = @[
-    "nim", "doc2", "--project", "--warnings:off", "--errormax:1", "--outdir:docs"]
+    "nim", "doc2", "--project", "--warnings:off", "--errormax:1", "--outdir:htmldocs"]
 
   let
     cwd = getCurrentDir()

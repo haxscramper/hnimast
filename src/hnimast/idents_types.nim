@@ -486,6 +486,8 @@ func newPType*[N](name: string, gparams: openarray[NType[N]]):
 
   NType[N](kind: ntkIdent, head: name, genParams: toSeq(gparams))
 
+func newPType*(value: int): NType[PNode] =
+  NType[PNode](kind: ntkValue, value: newPLit(value))
 
 func newProcNType*[NNode](
   args: seq[(string, NType[NNode])],
