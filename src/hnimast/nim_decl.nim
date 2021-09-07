@@ -7,7 +7,7 @@ import
   ./pragmas
 
 import
-  std/[sequtils],
+  std/[sequtils, strutils],
   hmisc/core/all,
   compiler/[ast]
 

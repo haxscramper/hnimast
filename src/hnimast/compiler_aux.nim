@@ -2,7 +2,7 @@
 import hmisc/other/[oswrap, hshell, hjson]
 import hmisc/core/all
 import hmisc/types/[colortext, colorstring]
-import std/[parseutils, sequtils, with, hashes]
+import std/[parseutils, with, hashes]
 
 export colorstring
 

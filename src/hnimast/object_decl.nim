@@ -156,20 +156,25 @@ func newObjectField*[N](
     value: value
   )
 
-func addField*[N](
-    obj: var ObjectDecl[N],
-    name: string,
-    cxtype: NType[N],
-    docComment: string = "",
-    codeComment: string = "",
-    exported: bool = true
-  ) {.deprecated: "use .addField(newObjectField())".} =
-
-  obj.flds.add newObjectField(
-    name, cxtype, docComment, codeComment, exported)
-
-func addField*[N](obj: var ObjectDecl[N], field: ObjectField[N]) =
+func addField*[N](obj: var ObjectDecl[N], field: ObjectField[N]) 
+    {.deprecated: "Use .add for fields"} =
   obj.flds.add field
+
+func add*[N](obj: var ObjectDecl[N], field: ObjectField[N]) =
+  obj.flds.add field
+
+# func addField*[N](
+#     obj: var ObjectDecl[N],
+#     name: string,
+#     cxtype: NType[N],
+#     docComment: string = "",
+#     codeComment: string = "",
+#     exported: bool = true
+#   ) {.deprecated: "use .addField(newObjectField())".} =
+
+#   obj.flds.add newObjectField(
+#     name, cxtype, docComment, codeComment, exported)
+
 
 func newObjectCaseField*[N](
     name: string,
@@ -575,7 +580,7 @@ proc eachStaticPath*(
 proc eachPath*(
     fld: NObjectField, self: NimNode, parent: NObjectPath,
     cb: proc(path: NObjectPath, fields: seq[NObjectField]): NimNode
-  ): NimNode {.deprecated: "Use `mapPath` insetad".} =
+  ): NimNode =
 
   if fld.isKind:
     result = nnkCaseStmt.newTree(newDotExpr(self, ident fld.name))
@@ -614,7 +619,7 @@ proc eachPath*(
     self: NimNode,
     obj: NObjectDecl,
     cb: proc(path: NObjectPath, fields: seq[NObjectField]): NimNode
-  ): NimNode {.deprecated.} =
+  ): NimNode =
 
   result = newStmtList cb(@[], obj.flds)
   for fld in items(obj.flds):
@@ -625,7 +630,7 @@ proc eachPath*(
     self: NimNode,
     obj: NObjectDecl,
     cb: proc(fields: seq[NObjectField]): NimNode
-  ): NimNode {.deprecated.} =
+  ): NimNode =
 
   return eachPath(
     self, obj,

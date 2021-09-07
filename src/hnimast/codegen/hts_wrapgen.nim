@@ -1,17 +1,20 @@
-import std/[
-  macros, options, sequtils, strutils,
-  tables, sets, sha1, uri
-]
+import hmisc/core/all
 
-import compiler/ast
+importx:
+  std/[
+    macros, options, sequtils, strutils,
+    tables, sets, sha1, uri
+  ]
 
-import
-  hmisc/[hexceptions, hdebug_misc, helpers],
-  hmisc/other/[hjson, hshell, oswrap, hlogger, hargparse],
-  hmisc/algo/[clformat, halgorithm, hstring_algo, hseq_distance, namegen],
-  hmisc/wrappers/treesitter,
-  hpprint,
-  hnimast
+  compiler/ast
+
+  hmisc/[
+    other/[hjson, hshell, oswrap, hlogger, hargparse],
+    algo/[clformat, halgorithm, hstring_algo, hseq_distance, namegen],
+    wrappers/treesitter
+  ]
+
+  ../../hnimast
 
 
 template mapItSome*[T](opt: Option[T], expr: untyped): untyped =
@@ -395,7 +398,7 @@ proc compileGrammar(
           cpFile src, target
           l.debug src, "->\n", target
 
-    l.execShell(shCmd(
+    l.execShell(shellCmd(
       npm, --silent, link,
       "regexp-util", "tree-sitter-c", "readdir-enhanced", "nan"
     ))
@@ -406,7 +409,7 @@ proc compileGrammar(
     for file in walkDir(cwd(), yieldFilter = {}):
       l.debug file
 
-    l.execShell shCmd("tree-sitter", "generate")
+    l.execShell shellCmd("tree-sitter", "generate")
 
     # if true:
     #   execShell shCmd("tree-sitter", "build-wasm")
@@ -560,8 +563,7 @@ proc grammarFromFile*(
       echo res.stdout
       echo res.stderr
 
-    except ShellError:
-      let ex = getCEx(ShellError)
+    except ShellError as ex:
       echo ex.outstr
       # echo ex.msg
       for line in ex.errstr.split("\n"):

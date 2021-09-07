@@ -1,6 +1,6 @@
-import ../nimtraits
+import ./nimtraits
 
-import hnimast
+import ../../hnimast
 import std/[xmltree, sequtils]
 
 import hmisc/core/all
@@ -116,10 +116,10 @@ macro genXmlLoader*(
 
   var
     declareKind = newStmtList()
-    loadKind = newCaseStmt(stream.newCall("attrKey"))
+    loadKind = newCase(stream.newCall("attrKey"))
     newObject = impl.newCall()
-    loadAttr = newCaseStmt(stream.newCall("attrKey"))
-    loadFields = newCaseStmt(stream.newCall("elementName"))
+    loadAttr = newCase(stream.newCall("attrKey"))
+    loadFields = newCase(stream.newCall("elementName"))
 
   for field in iterateFields(impl):
     if not(field.isExported) or
@@ -165,7 +165,7 @@ macro genXmlLoader*(
     else:
       result.add newAsgn(target, newObject)
 
-  var main = newCaseStmt(stream.newDot("kind"))
+  var main = newCase(stream.newDot("kind"))
 
   if extraAttrLoad.kind != nnkNilLit:
     for attr in extraAttrLoad:

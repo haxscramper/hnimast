@@ -1,0 +1,1 @@
+import hnimast/docgen_target

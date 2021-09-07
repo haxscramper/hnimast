@@ -281,177 +281,177 @@ func newNProcDecl*(
   result.impl = impl
 
 
-func newProcDeclNNode*[NNode](
-  procHead: NNode,
-  rtype: Option[NType[NNode]],
-  args: seq[NIdentDefs[NNode]],
-  impl: NNode,
-  pragma: Pragma[NNode] = Pragma[NNode](),
-  exported: bool = true,
-  comment: string = ""): NNode {.deprecated.} =
-  ## Generate procedure declaration
-  ##
-  ## ## Parameters
-  ##
-  ## :procHead: head of the procedure
-  ## :rtype: Optional return type
-  ## :args: Proc arguments
-  ## :impl: Proc implementation body
-  ## :pragma: Pragma annotation for proc
-  ## :exported: Whether or not procedure is exported
+# func newProcDeclNNode*[NNode](
+#   procHead: NNode,
+#   rtype: Option[NType[NNode]],
+#   args: seq[NIdentDefs[NNode]],
+#   impl: NNode,
+#   pragma: Pragma[NNode] = Pragma[NNode](),
+#   exported: bool = true,
+#   comment: string = ""): NNode {.deprecated.} =
+#   ## Generate procedure declaration
+#   ##
+#   ## ## Parameters
+#   ##
+#   ## :procHead: head of the procedure
+#   ## :rtype: Optional return type
+#   ## :args: Proc arguments
+#   ## :impl: Proc implementation body
+#   ## :pragma: Pragma annotation for proc
+#   ## :exported: Whether or not procedure is exported
 
-  let procHead =
-    if exported:
-      newNTree[NNode](nnkPostfix, newNIdent[NNode]("*"), procHead)
-    else:
-      procHead
+#   let procHead =
+#     if exported:
+#       newNTree[NNode](nnkPostfix, newNIdent[NNode]("*"), procHead)
+#     else:
+#       procHead
 
-  let impl =
-    if comment.len > 0:
-      newNTree[NNode](
-        nnkStmtList,
-        newCommentStmtNNode[NNode](comment),
-        impl
-      )
-    else:
-      impl
-
-
-
-  result = newNTree[NNode](
-    nnkProcDef,
-    procHead,
-    newEmptyNNode[NNode](),
-    newEmptyNNode[NNode](),  # XXXX generic type parameters,
-    newNTree[NNode]( # arguments
-      nnkFormalParams,
-      @[
-        rtype.isSome().tern(
-          toNNode[NNode](rtype.get()),
-          newEmptyNNode[NNode]()
-        )
-      ] &
-      args.mapIt(toNFormalParam[NNode](it))
-    ),
-    toNNode[NNode](pragma),
-    newEmptyNNode[NNode](), # XXXX reserved slot,
-  )
-
-  # if impl.kind.toNNK() != nnkEmpty:
-  result.add impl
+#   let impl =
+#     if comment.len > 0:
+#       newNTree[NNode](
+#         nnkStmtList,
+#         newCommentStmtNNode[NNode](comment),
+#         impl
+#       )
+#     else:
+#       impl
 
 
 
-func newProcDeclNode*(
-  head: NimNode, rtype: Option[NType[NimNode]], args: seq[NIdentDefs[NimNode]],
-  impl: NimNode, pragma: NPragma = NPragma(), exported: bool = true,
-  comment: string = ""): NimNode {.deprecated.} =
+#   result = newNTree[NNode](
+#     nnkProcDef,
+#     procHead,
+#     newEmptyNNode[NNode](),
+#     newEmptyNNode[NNode](),  # XXXX generic type parameters,
+#     newNTree[NNode]( # arguments
+#       nnkFormalParams,
+#       @[
+#         rtype.isSome().tern(
+#           toNNode[NNode](rtype.get()),
+#           newEmptyNNode[NNode]()
+#         )
+#       ] &
+#       args.mapIt(toNFormalParam[NNode](it))
+#     ),
+#     toNNode[NNode](pragma),
+#     newEmptyNNode[NNode](), # XXXX reserved slot,
+#   )
 
-  newProcDeclNNode[NimNode](
-    head, rtype, args, impl, pragma, exported, comment)
-
-
-func newProcDeclNode*(
-  head: PNode, rtype: Option[NType[PNode]], args: seq[PIdentDefs],
-  impl: PNode, pragma: Pragma[PNode] = Pragma[PNode](),
-  exported: bool = true, comment: string = ""): PNode {.deprecated.} =
-
-  newProcDeclNNode[PNode](
-    head, rtype, args, impl, pragma, exported, comment)
-
-func newProcDeclNode*[NNode](
-  head: NNode,
-  args: openarray[tuple[name: string, atype: NType[NNode]]],
-  impl: NNode,
-  pragma: Pragma[NNode] = Pragma[NNode](),
-  exported: bool = true,
-  comment: string = ""): NNode {.deprecated.} =
-  newProcDeclNNode(
-    head,
-    none(NType[NNode]),
-    toNIdentDefs[NNode](args),
-    impl,
-    pragma,
-    exported,
-    comment
-  )
+#   # if impl.kind.toNNK() != nnkEmpty:
+#   result.add impl
 
 
-func newProcDeclNode*[NNode](
-  accq: openarray[NNode],
-  rtype: NType,
-  args: openarray[tuple[name: string, atype: NType[NNode]]],
-  impl: NNode,
-  pragma: Pragma[NNode] = Pragma[NNode](),
-  exported: bool = true,
-  comment: string = ""): NNode {.deprecated.} =
-  newProcDeclNNode(
-    newNTree[NNode](nnkAccQuoted, accq),
-    some(rtype),
-    toNIdentDefs[NNode](args),
-    impl,
-    pragma,
-    exported,
-    comment
-  )
+
+# func newProcDeclNode*(
+#   head: NimNode, rtype: Option[NType[NimNode]], args: seq[NIdentDefs[NimNode]],
+#   impl: NimNode, pragma: NPragma = NPragma(), exported: bool = true,
+#   comment: string = ""): NimNode {.deprecated.} =
+
+#   newProcDeclNNode[NimNode](
+#     head, rtype, args, impl, pragma, exported, comment)
 
 
-func newProcDeclNode*[NNode](
-  accq: openarray[NNode],
-  args: openarray[tuple[name: string, atype: NType[NNode]]],
-  impl: NNode,
-  pragma: Pragma[NNode] = Pragma[NNode](),
-  exported: bool = true,
-  comment: string = ""): NNode {.deprecated.} =
-  newProcDeclNNode(
-    newNTree[NNode](nnkAccQuoted, accq),
-    none(NType[NNode]),
-    toNIdentDefs[NNode](args),
-    impl,
-    pragma,
-    exported,
-    comment
-  )
+# func newProcDeclNode*(
+#   head: PNode, rtype: Option[NType[PNode]], args: seq[PIdentDefs],
+#   impl: PNode, pragma: Pragma[PNode] = Pragma[PNode](),
+#   exported: bool = true, comment: string = ""): PNode {.deprecated.} =
+
+#   newProcDeclNNode[PNode](
+#     head, rtype, args, impl, pragma, exported, comment)
+
+# func newProcDeclNode*[NNode](
+#   head: NNode,
+#   args: openarray[tuple[name: string, atype: NType[NNode]]],
+#   impl: NNode,
+#   pragma: Pragma[NNode] = Pragma[NNode](),
+#   exported: bool = true,
+#   comment: string = ""): NNode {.deprecated.} =
+#   newProcDeclNNode(
+#     head,
+#     none(NType[NNode]),
+#     toNIdentDefs[NNode](args),
+#     impl,
+#     pragma,
+#     exported,
+#     comment
+#   )
 
 
-func newProcDeclNode*[NNode](
-  head: NNode,
-  rtype: NType[NNode],
-  args: openarray[tuple[name: string, atype: NType[NNode]]],
-  impl: NNode,
-  pragma: Pragma[NNode] = Pragma[NNode](),
-  exported: bool = true,
-  comment: string = ""): NNode {.deprecated.} =
-  newProcDeclNNode(
-    head,
-    some(rtype),
-    toNIdentDefs[NNode](args),
-    impl,
-    pragma,
-    exported,
-    comment
-  )
+# func newProcDeclNode*[NNode](
+#   accq: openarray[NNode],
+#   rtype: NType,
+#   args: openarray[tuple[name: string, atype: NType[NNode]]],
+#   impl: NNode,
+#   pragma: Pragma[NNode] = Pragma[NNode](),
+#   exported: bool = true,
+#   comment: string = ""): NNode {.deprecated.} =
+#   newProcDeclNNode(
+#     newNTree[NNode](nnkAccQuoted, accq),
+#     some(rtype),
+#     toNIdentDefs[NNode](args),
+#     impl,
+#     pragma,
+#     exported,
+#     comment
+#   )
 
-func newProcDeclNode*[NNode](
-  head: NNode,
-  args: openarray[tuple[
-    name: string,
-    atype: NType[NNode],
-    nvd: NVarDeclKind]
-  ],
-  impl: NNode,
-  pragma: Pragma[NNode] = Pragma[NNode](),
-  exported: bool = true,
-  comment: string = ""): NNode {.deprecated.} =
-  newProcDeclNNode(
-    head,
-    none(NType[NNode]),
-    toNIdentDefs[NNode](args),
-    impl,
-    pragma,
-    exported,
-    comment
-  )
+
+# func newProcDeclNode*[NNode](
+#   accq: openarray[NNode],
+#   args: openarray[tuple[name: string, atype: NType[NNode]]],
+#   impl: NNode,
+#   pragma: Pragma[NNode] = Pragma[NNode](),
+#   exported: bool = true,
+#   comment: string = ""): NNode {.deprecated.} =
+#   newProcDeclNNode(
+#     newNTree[NNode](nnkAccQuoted, accq),
+#     none(NType[NNode]),
+#     toNIdentDefs[NNode](args),
+#     impl,
+#     pragma,
+#     exported,
+#     comment
+#   )
+
+
+# func newProcDeclNode*[NNode](
+#   head: NNode,
+#   rtype: NType[NNode],
+#   args: openarray[tuple[name: string, atype: NType[NNode]]],
+#   impl: NNode,
+#   pragma: Pragma[NNode] = Pragma[NNode](),
+#   exported: bool = true,
+#   comment: string = ""): NNode {.deprecated.} =
+#   newProcDeclNNode(
+#     head,
+#     some(rtype),
+#     toNIdentDefs[NNode](args),
+#     impl,
+#     pragma,
+#     exported,
+#     comment
+#   )
+
+# func newProcDeclNode*[NNode](
+#   head: NNode,
+#   args: openarray[tuple[
+#     name: string,
+#     atype: NType[NNode],
+#     nvd: NVarDeclKind]
+#   ],
+#   impl: NNode,
+#   pragma: Pragma[NNode] = Pragma[NNode](),
+#   exported: bool = true,
+#   comment: string = ""): NNode {.deprecated.} =
+#   newProcDeclNNode(
+#     head,
+#     none(NType[NNode]),
+#     toNIdentDefs[NNode](args),
+#     impl,
+#     pragma,
+#     exported,
+#     comment
+#   )
 
 
 proc parseProc*[N](node: N): ProcDecl[N] =

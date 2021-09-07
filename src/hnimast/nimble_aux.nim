@@ -443,7 +443,7 @@ proc parsePackageInfo*(
   var extra: ExtraPackageInfo
   return parsePackageInfo(configText, fails, extra, path)
 
-import nimblepkg/[packageparser, cli, version, packageinfo, common]
+import nimblepkg/[cli, version, packageinfo, common]
 import nimblepkg/options as nimble_options
 
 proc getPackageInfo*(path: AbsFile, absPath: bool = true): PackageInfo =

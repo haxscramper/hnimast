@@ -1,11 +1,9 @@
 import hmisc/hasts/[xml_ast, xsd_ast]
 import hmisc/other/[oswrap, hshell]
-import hmisc/algo/[halgorithm, hstring_algo, clformat,
-                   hseq_mapping, namegen]
+import hmisc/algo/[halgorithm, hstring_algo, clformat, namegen]
 import std/[strutils, strformat, sequtils, with]
-import hmisc/hdebug_misc
+import hmisc/core/all
 import hnimast
-import hpprint
 
 import fusion/matching
 
@@ -452,7 +450,7 @@ proc toXsdComplex(xsd, cache): XsdGen =
 
 
           else:
-            raiseImplementKindError(wrapper)
+            raise newImplementKindError(wrapper)
 
       else:
         raise newUnexpectedKindError(entry, entry.treeRepr())
@@ -473,7 +471,7 @@ proc toXsdGen(xsd, cache): seq[XsdGen] =
       discard
 
     else:
-      raiseImplementKindError(xsd)
+      raise newImplementKindError(xsd)
 
 proc parserForType(
     xsdType: XsdType, eventKinds: set[XmlEventKind],
@@ -522,7 +520,7 @@ proc newMixed(objName, enumName: string): seq[PNode] =
 
 
 proc generateForObject(gen, cache): seq[PNimDecl] =
-  var parser = newPProcDecl(gen.nimname.parserName(), iinfo = currIInfo())
+  var parser = newPProcDecl(gen.nimname.parserName(), iinfo = currLInfo())
   with parser:
     addArgument("parser", newPtype("var", ["HXmlParser"]))
     addArgument("target", gen.nimName.newPType().newParseTargetPType())
@@ -534,12 +532,12 @@ proc generateForObject(gen, cache): seq[PNimDecl] =
     next = newPDotFieldExpr("parser", newPCall("next"))
     genObject = newPObjectDecl(gen.nimName)
 
-    attrCase = newCaseStmt(newPDotFieldExpr("parser", "attrKey"))
-    mainCase = newCaseStmt(newPDotFieldExpr("parser", "kind"))
-    bodyCase = newCaseStmt(newPDotFieldExpr("parser", newPCall("elementName")))
+    attrCase = newCase(newPDotFieldExpr("parser", "attrKey"))
+    mainCase = newCase(newPDotFieldExpr("parser", "kind"))
+    bodyCase = newCase(newPDotFieldExpr("parser", newPCall("elementName")))
 
   for attr in gen.attrs:
-    genObject.addField(attr.nimName, attr.xsdType.ptype)
+    genObject.add newObjectField(attr.nimName, attr.xsdType.ptype)
     attrCase.addBranch(
       newPLit(attr.xmlName),
       newPCall(
@@ -569,7 +567,7 @@ proc generateForObject(gen, cache): seq[PNimDecl] =
     unused.excl xmlCharData
     let field = gen.baseExtField.get()
 
-    genObject.addField(field.nimName, field.xsdType.ptype)
+    genObject.add newObjectField(field.nimName, field.xsdType.ptype)
 
     mainCase.addBranch(xmlCharData):
       pquote do:
@@ -593,7 +591,7 @@ proc generateForObject(gen, cache): seq[PNimDecl] =
         group.elements.mapIt(newPIdent(it.enumName)),
         newObjectField(group.nimName, group.xsdType.ptype))
 
-      var nameMapCase = newCaseStmt(newPDotFieldExpr("parser", newPCall("elementName")))
+      var nameMapCase = newCase(newPDotFieldExpr("parser", newPCall("elementName")))
       var altCount = 0
       for alt in group.elements:
         inc altCount
@@ -679,9 +677,8 @@ proc generateForObject(gen, cache): seq[PNimDecl] =
           impl = pquote(item.xsdChoice[idx])
       ))
 
-    bodyObject.addField(selector)
-
-    genObject.addField("xsdChoice", newPType("seq", [bodyObject.name]))
+    bodyObject.add selector
+    genObject.add newObjectField("xsdChoice", newPType("seq", [bodyObject.name]))
 
     result.add toNimDecl(genEnum)
     result.add toNimDecl(bodyObject)
@@ -689,19 +686,17 @@ proc generateForObject(gen, cache): seq[PNimDecl] =
 
   else:
     for elem in gen.elements:
-      genObject.addField(elem.nimName, elem.xsdType.ptype)
+      genObject.add newObjectField(elem.nimName, elem.xsdType.ptype)
       var parseCall = newPCall(
         "loadXml",
         newPIdent("parser"),
         newPDotFieldExpr("target", elem.nimName),
-        newPLit(elem.xmlTag)
-      )
+        newPLit(elem.xmlTag))
 
       if gen.isMixed:
         parseCall.add newMixed(
           genObject.name.head,
-          gen.mixedStrField.enumName
-        )
+          gen.mixedStrField.enumName)
 
       bodyCase.addBranch(
         newPLit(elem.xmlTag), addPositionComment(parseCall))
@@ -750,9 +745,9 @@ proc generateForObject(gen, cache): seq[PNimDecl] =
 
 proc generateForEnum(gen, cache): tuple[decl: PEnumDecl, parser: PProcDecl] =
   result.decl = newPEnumDecl(gen.nimName)
-  result.parser = newPProcDecl(gen.nimName.parserName(), iinfo = currIInfo())
+  result.parser = newPProcDecl(gen.nimName.parserName(), iinfo = currLInfo())
 
-  var mainCase = newCaseStmt(newPDotFieldExpr("parser", "strVal"))
+  var mainCase = newCase(newPDotFieldExpr("parser", "strVal"))
 
   for field in gen.values:
     mainCase.addBranch(
@@ -783,7 +778,7 @@ proc generateForDistinct(gen, cache):
   tuple[decl: PAliasDecl, parser: PProcDecl] =
 
   result.decl = newAliasDecl(gen.nimName.newPType(), gen.xsdType.ptype)
-  result.parser = newPProcDecl(gen.nimName.parserName(), iinfo = currIInfo())
+  result.parser = newPProcDecl(gen.nimName.parserName(), iinfo = currLInfo())
 
   with result.parser:
     addArgument("parser", newPType("var", ["HXmlParser"]))

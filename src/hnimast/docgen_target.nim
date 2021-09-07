@@ -1,4 +1,5 @@
 {.define(ssl).}
+{.push warning[UnusedImport]:off.}
 
 import
   compiler_aux,
@@ -19,3 +20,9 @@ import
   proc_decl,
   sempass_reexport,
   store_decl
+
+import
+  codegen/[hts_wrapgen, xsd_to_nim]
+
+import
+  nimtraits/[nimtraits, trait_new, trait_xml]
