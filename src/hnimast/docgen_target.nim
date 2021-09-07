@@ -9,8 +9,12 @@ import
   enum_decl,
   hast_common,
   hast_quote,
-  idents_types,
-  nimble_aux,
+  idents_types
+
+when not defined(hnimastDocgenTargetTest):
+  import nimble_aux
+
+import
   nim_decl,
   object_decl,
   obj_field_macros,
