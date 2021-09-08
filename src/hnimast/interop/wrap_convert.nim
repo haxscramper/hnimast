@@ -30,12 +30,16 @@ proc toNNode*[N](header: CxxHeader): N =
 
 proc toNNode*[N](def: CxxProc, onConstructor: CxxTypeKind = ctkIdent): N =
   var pragmas: seq[N]
-  if def.header.isSome():
-    pragmas.add newEcE("header", toNNode[N](def.header.get()))
+  if def.isExportc:
+    pragmas.add newEcE("exportc", newLit(def.cxxName[0]))
 
-  pragmas.add newEcE("importcpp", newLit(def.getIcppStr(ctkPtr)))
+  else:
+    if def.header.isSome():
+      pragmas.add newEcE("header", toNNode[N](def.header.get()))
 
-  if def.isConstructor:
+    pragmas.add newEcE("importcpp", newLit(def.getIcppStr(ctkPtr)))
+
+  if def.isConstructor and onConstructor == ctkIdent:
     pragmas.add newNIdent[N]("constructor")
 
   let args = nnkFormalParams.newTree(

@@ -67,6 +67,7 @@ func procDeclAux(entry: NimNode, ctx: WrapCtx): CxxProc =
 
     elif pr.eqIdent("constructor"):
       result.nimName = "new" & ctx.cxxClassName
+      result.cxxName = ctx.namespace & ctx.cxxClassName
       result.constructorOf = some ctx.cxxClassName
 
     else:

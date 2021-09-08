@@ -1,6 +1,7 @@
 import
   hnimast/interop/wrap_macros,
-  hmisc/core/all
+  hmisc/core/all,
+  hmisc/other/oswrap
 
 static:
   startHaxComp()
@@ -25,6 +26,7 @@ wrapheader "<QMainWindow>":
   class QMainWindow of QWidget:
     proc newQMainWindow(): ptr QMainWindow {.constructor.}
     proc show()
+    proc setFixedSize(w: int, h: int)
     proc setCentralWidget(widget: ptr QWidget)
 
 wrapheader "<QApplication>":
@@ -40,23 +42,55 @@ cgen "${cacheDir}/${file}":
   include "<QTextEdit>"
 
   class DerivedEditor of QTextEdit:
-    proc textChanged() {.override, slot.} =
+    proc textChangedSlot() {.slot.} =
       echo "Signal derived changed"
 
     proc new(parent: ptr QWidget): ptr DerivedEditor
       {.constructor(QTextEdit(parent)).}
 
-var
-  argc: cint = 0
-  argv: cstringarray
-  app = newQApplication(argc, argv)
-  window = newQMainWindow()
-  edit: ptr DerivedEditor = newDerivedEditor(nil)
+template connect*[A, B](
+    a: ptr A, signal: untyped{nkIdent},
+    b: ptr B, slot: untyped{nkIdent}
+  ): untyped =
+
+  const
+    signalPtr = "&" & $typeof(a[]) & "::" & astToStr(signal)
+    slotPtr = "&" & $typeof(b[]) & "::" & astToStr(slot)
+
+  block:
+    let
+      inA {.inject.} = a
+      inB {.inject.} = b
+
+    // "Emit QObject connect start"
+    {.emit: "QObject::connect(`inA`, " & signalPtr & ", `inB`, " & slotPtr & ");".}
+    // "End connect"
 
 
-# cgenIni
 
-# if false:
-window[].show()
-window[].setCentralWidget(edit)
-app[].exec()
+import hmisc/shellexec/xephyr
+
+proc main() =
+  withXephyr():
+    var
+      argc: cint = 0
+      argv: cstringarray
+
+    // "QApplication"
+    var app: ptr QApplication = newQApplication(argc, argv)
+
+    // "QMainWindow"
+    var window: ptr QMainWindow = newQMainWindow()
+
+    // "Derived editor"
+    var edit: ptr DerivedEditor = newDerivedEditor(nil)
+
+    window[].setFixedSize(320, 320)
+    window[].show()
+    window[].setCentralWidget(edit)
+
+    connect(edit, textChanged, edit, textChangedSlot)
+
+    app[].exec()
+
+main()

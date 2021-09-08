@@ -49,6 +49,7 @@ type
         arguments: seq[NimNode]
         returnType: Option[NimNode]
         constructorArgs: Option[seq[NimNode]]
+        impl: NimNode
         constructorOf: Option[string]
         isMethodOf: bool
         isOverride: bool
@@ -191,7 +192,7 @@ proc cgenWrite(state: CGenState, impls: seq[CgenResult]): AbsFile =
 
 proc methodDeclAux(
     state: CGenState, impl: NimNode, class: CGenResult): CGenResult =
-  result = CgenResult(kind: crkProc)
+  result = CgenResult(kind: crkProc, impl: impl)
   result.nimName = impl.name.strVal()
 
   for arg in impl.params()[1..^1]:
@@ -200,6 +201,7 @@ proc methodDeclAux(
   if impl.params()[0].kind != nnkEmpty:
     result.returnType = some impl.params[0]
 
+  var filter: seq[NimNode]
   for value in impl.pragma:
     if value of nnkIdent:
       case value.strVal():
@@ -207,8 +209,7 @@ proc methodDeclAux(
         of "slot": result.isSlot = true
         of "signal": result.isSignal = true
         of "override": result.isOverride = true
-        else:
-          raise newImplementKindError(value.strVal())
+        else: filter.add value
 
     else:
       case value[0].strVal():
@@ -221,7 +222,13 @@ proc methodDeclAux(
           result.constructorOf = some class.cxxName
 
         else:
-          raise newImplementKindError(value[0].strVal())
+          filter.add value
+
+  if filter.len > 0:
+    result.impl.pragma = nnkPragmaExpr.newTree(filter)
+
+  else:
+    result.impl.pragma = newEmptyNode()
 
   if result.isConstructor:
     result.nimName = "new" & state.class.get()
@@ -280,7 +287,11 @@ proc toCxx*(res: CgenResult, header: CxxHeader): CxxEntry =
         pr.add initCxxArg(arg[0].strVal(), arg[1].cxxTypeAux())
 
 
+      pr.isSlot = res.isSlot
       pr.constructorOf = res.constructorOf
+      if not pr.isConstructor():
+        pr.isExportc = true
+
       if res.isMethodOf:
         pr.methodOf = some res.arguments[0][1].cxxTypeAux()
 
@@ -292,6 +303,25 @@ proc toCxx*(res: CgenResult, header: CxxHeader): CxxEntry =
       discard
 
   result.setHeaderRec(header)
+
+proc generateProcs(impls: seq[CGenResult]): NimNode =
+  proc aux(cgen: CGenResult): NimNode =
+    result = newStmtList()
+    case cgen.kind:
+      of crkProc:
+        if cgen.impl.body().kind != nnkEmpty:
+          result.add cgen.impl
+
+      of crkType:
+        for nested in cgen.nested:
+          result.add aux(nested)
+
+      else:
+        discard
+
+  result = newStmtList()
+  for impl in impls:
+    result.add aux(impl)
 
 macro cgen*(outfile: static[string], args: varargs[untyped]): untyped =
   result = newStmtList()
@@ -331,7 +361,8 @@ macro cgen*(outfile: static[string], args: varargs[untyped]): untyped =
   let header = initCxxHeader state.cgenWrite(impls)
 
 
-  result = toNNode[NimNode](impls.mapIt(toCxx(it, header)))
+  result = newStmtList(toNNode[NimNode](impls.mapIt(toCxx(it, header))))
+  result.add impls.generateProcs()
   # for entry in impls:
   #   result.add toCxxEntry(entry, header).toNNode()
 

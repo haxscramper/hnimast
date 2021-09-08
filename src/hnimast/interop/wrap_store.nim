@@ -89,6 +89,9 @@ type
     constructorOf*: Option[string]
     isConst*: bool
     isOperator*: bool
+    isOverride*: bool
+    isExportc*: bool
+    isSlot*: bool
     methodOf*: Option[CxxType]
 
   CxxArg* = object of CxxBase
