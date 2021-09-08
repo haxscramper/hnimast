@@ -29,21 +29,24 @@ proc toNNode*[N](header: CxxHeader): N =
 
 
 proc toNNode*[N](def: CxxProc, onConstructor: CxxTypeKind = ctkIdent): N =
-  let source =
-    if def.header.isSome():
-      newEcE("header", toNNode[N](def.header.get()))
+  var pragmas: seq[N]
+  if def.header.isSome():
+    pragmas.add newEcE("header", toNNode[N](def.header.get()))
 
-    else:
-      newEmptyNode()
+  pragmas.add newEcE("importcpp", newLit(def.getIcppStr(ctkPtr)))
+
+  if def.isConstructor:
+    pragmas.add newNIdent[N]("constructor")
+
+  let args = nnkFormalParams.newTree(
+    toNNode[N](def.getReturn(onConstructor)) & def.arguments.map(toNNode[N]))
 
   nnkProcDef.newTree(
     nnkPostfix.newTree(ident("*"), ident(def.nimName)),
     newEmptyNode(),
     newEmptyNode(),
-    nnkFormalParams.newTree(
-      toNNode[N](def.getReturn(onConstructor)) & def.arguments.map(toNNode[N])),
-    nnkPragma.newTree(
-      newEcE("importcpp", def.icpp.newLit()), source),
+    args,
+    nnkPragma.newTree(pragmas),
     newEmptyNode(),
     newEmptyNode())
 
@@ -54,6 +57,7 @@ proc toNNode*[N](entry: CxxEntry): N =
     of cekObject:
       var fieldList = nnkRecList.newTree()
       let obj = entry.cxxObject
+
       result.add nnkTypeDef.newTree(
         nnkPragmaExpr.newTree(
           ident(obj.nimName),
@@ -61,14 +65,14 @@ proc toNNode*[N](entry: CxxEntry): N =
               ident("inheritable"),
               ident("byref"),
               newEcE("header", toNNode[N](obj.header.get())),
-              newEcE("importcpp", obj.icpp.newLit()))),
+              newEcE("importcpp", newLit(obj.getIcppStr())))),
         newEmptyNode(),
         nnkObjectTy.newTree(
           newEmptyNode(),
           tern(
-            obj.parent.len == 0,
+            obj.super.len == 0,
             newEmptyNode(),
-            nnkOfInherit.newTree(toNNode[N](obj.parent[0]))),
+            nnkOfInherit.newTree(toNNode[N](obj.super[0]))),
           fieldList))
 
 
@@ -79,7 +83,7 @@ proc toNNode*[N](entry: CxxEntry): N =
         result.add toNNode[N](n)
 
     of cekProc:
-      result = toNNode[N](entry.cxxProc)
+      result = toNNode[N](entry.cxxProc, ctkPtr)
 
     else:
       raise newImplementKindError(entry)

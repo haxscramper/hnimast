@@ -15,6 +15,7 @@ nimcache/
 **/*.css
 
 tests/*
+!tests/cpp
 !tests/*.*
 
 /scripts/.circuit

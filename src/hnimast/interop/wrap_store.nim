@@ -3,6 +3,9 @@ import
   hmisc/core/all,
   std/[options, macros, json, strutils, strformat]
 
+import
+  ./wrap_icpp
+
 type
   CxxSpellingLocation* = object
     file*: AbsFile
@@ -36,7 +39,7 @@ type
     spellingLocation*: Option[CxxSpellingLocation]
     nimName*: string
     cxxName*: seq[string]
-    icpp*: string
+    icpp*: IcppPattern
     private*: bool
     header*: Option[CxxHeader]
     docComment*: seq[string]
@@ -85,6 +88,7 @@ type
 
     constructorOf*: Option[string]
     isConst*: bool
+    isOperator*: bool
     methodOf*: Option[CxxType]
 
   CxxArg* = object of CxxBase
@@ -118,7 +122,7 @@ type
 
   CxxObject* = object of CxxBase
     kind*: CxxObjectKind
-    parent*: seq[CxxType]
+    super*: seq[CxxType]
     genParams*: seq[CxxType]
     mfields*: seq[CxxField]
     methods*: seq[CxxProc]
@@ -141,6 +145,7 @@ type
     cekForward ## Forward declaration for struct/union/class/enum
     cekImport ## Import statement
     cekEmpty
+    cekTypeGroup
 
     cekMacro
     cekComment
@@ -152,6 +157,9 @@ type
 
       of cekProc:
         cxxProc*: CxxProc
+
+      of cekTypeGroup:
+        cxxTypes*: seq[CxxEntry]
 
       of cekObject:
         cxxObject*: CxxObject
@@ -223,21 +231,44 @@ func getReturn*(
     result = pr.returnType
 
 func getIcpp*(
-    pr: CxxProc, onConstructor: CxxTypeKind = ctkIdent): string =
+    pr: CxxProc, onConstructor: CxxTypeKind = ctkIdent): IcppPattern =
 
-  if pr.isConstructor:
-    case onConstructor:
-      of ctkIdent: result = &"{pr.getConstructed()}(@)"
-      of ctkPtr: result = &"new {pr.getConstructed()}(@)"
-      else: raise newUnexpectedKindError(onConstructor)
+  if pr.icpp.len > 0:
+    return pr.icpp
 
   else:
-    if pr.isMethod:
-      result = &"#.{pr.getIcppName(true)}(@)"
+    if pr.isConstructor:
+      case onConstructor:
+        of ctkIdent: result.standaloneProc(pr.getIcppName())
+        of ctkPtr: result.standaloneProc("new " & pr.getIcppName())
+        else: raise newUnexpectedKindError(onConstructor)
 
     else:
-      result = &"{pr.getIcppName()}()"
+      if pr.isMethod:
+        result.dotMethod(pr.getIcppName())
 
+      else:
+        result.standaloneProc(pr.getIcppName())
+
+func getIcppStr*(
+    pr: CxxProc, onConstructor: CxxTypeKind = ctkIdent): string =
+  $getIcpp(pr, onConstructor)
+
+
+func getIcpp*(pr: CxxObject): IcppPattern =
+  if pr.icpp.len > 0:
+    return pr.icpp
+
+  else:
+    result.ctype(pr.cxxName.join("::"))
+
+
+func getIcppStr*(pr: CxxObject): string = $getIcpp(pr)
+
+func initIcpp*(
+    pr: var CxxProc, onConstructor: CxxTypeKind = ctkIdent) =
+
+  pr.icpp = getIcpp(pr, onConstructor)
 
 
 func initCxxType*(arguments: seq[CxxArg], returnType: CxxType): CxxType =

@@ -2,6 +2,7 @@
 import
   ./wrap_store,
   ./wrap_convert,
+  ./wrap_icpp,
   std/[macros, strutils, sequtils],
   hmisc/core/[all, code_errors],
   hmisc/macros/argpass
@@ -60,9 +61,6 @@ func procDeclAux(entry: NimNode, ctx: WrapCtx): CxxProc =
   var filter: seq[NimNode]
   result.returnType = entry.params()[0].cxxTypeAux()
 
-  for arg in entry.params()[1 .. ^1]:
-    result.arguments.add cxxArgAux(arg)
-
   for pr in entry.pragma:
     if pr.eqIdent("const"):
       result.isConst = true
@@ -74,32 +72,15 @@ func procDeclAux(entry: NimNode, ctx: WrapCtx): CxxProc =
     else:
       filter.add pr
 
+  if ctx.inClass and not result.isConstructor():
+    result.arguments.add initCxxArg("this", initCxxType(ctx.cxxClassName))
+    result.methodOf = some initCxxType(ctx.cxxClassName)
+
+  for arg in entry.params()[1 .. ^1]:
+    result.arguments.add cxxArgAux(arg)
+
   entry.pragma = nnkPragma.newTree(filter)
-
-  if ctx.inClass and not result.isConstructor:
-    let thisTy =
-      if result.isConst:
-        ctx.nimClassName
-
-      else:
-        nnkVarTy.newTree(ctx.nimClassName)
-
-  if result.isConstructor:
-    if entry.params[0].kind == nnkPtrTy:
-      result.icpp = "new " & ctx.getIcpp(ctx.cxxClassName, true) & "(@)"
-
-    else:
-      result.icpp = ctx.getIcpp(ctx.cxxClassName, true) & "(@)"
-
-  else:
-    if allIt(name, it in IdentChars):
-      result.icpp = ctx.getIcpp(name & "(@)", false)
-
-    else:
-      result.icpp = ctx.getIcpp("operator" & name & "(@)", false)
-
-
-  # result.addPragma newEcE(ident("importcpp"), newLit(icpp))
+  result.isOperator = not allIt(name, it in IdentChars)
 
 
 func stmtAux(entry: NimNode, ctx: WrapCtx): seq[CxxEntry]
@@ -162,13 +143,13 @@ func classAux(name: NimNode, body: seq[NimNode], ctx: WrapCtx): CxxObject =
   ctx.inClass = true
   ctx.nimClassName = nim
   if super.isSome():
-    result.parent.add cxxTypeAux(super.get())
+    result.super.add cxxTypeAux(super.get())
 
   ctx.cxxClassName = cxx
 
   result.nimName = nim.repr()
   result.cxxName = ctx.namespace & cxx
-  result.icpp = ctx.getIcpp(ctx.cxxClassName, true)
+  result.icpp.ctype(ctx.namespace, ctx.cxxClassName)
   result.header = some initCxxHeader(ctx.header)
 
   for entry in body.flatStmtList():

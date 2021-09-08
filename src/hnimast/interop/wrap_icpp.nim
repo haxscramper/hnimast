@@ -1,4 +1,5 @@
 import std/[parseutils, strutils]
+import hmisc/core/all
 
 type
   IcppPartKind* = enum
@@ -25,6 +26,47 @@ type
 
   IcppPattern* = object
     parts*: seq[IcppPart]
+
+func add*(icpp: var IcppPattern, part: IcppPart) =
+  icpp.parts.add part
+
+func len*(icpp: IcppPattern): int = icpp.parts.len
+
+func icpp*(kind: IcppPartKind): IcppPart = IcppPart(kind: kind)
+func icpp*(text: string): IcppPart = IcppPart(kind: ipkTextPart, text: text)
+
+func dotMethod*(icpp: var IcppPattern, methodName: string) =
+  icpp.add icpp(ipkNextDotArg)
+  icpp.add icpp(methodName)
+  icpp.add icpp("(")
+  icpp.add icpp(ipkArgSplice)
+  icpp.add icpp(")")
+
+func standaloneProc*(icpp: var IcppPattern, name: string) =
+  icpp.add icpp(name)
+  icpp.add icpp("(")
+  icpp.add icpp(ipkArgSplice)
+  icpp.add icpp(")")
+
+func joinName*(
+  namespace: seq[string], name: string, prefix: string = ""): string =
+
+  result = prefix
+  result.add join(namespace & name, "::")
+
+func ctype*(icpp: var IcppPattern, typeName: string) =
+  icpp.add icpp(typeName)
+
+func ctype*(icpp: var IcppPattern, namespace: seq[string], typeName: string) =
+  icpp.add icpp(joinName(namespace, typeName))
+
+func `$`*(icpp: IcppPattern): string =
+  for part in icpp.parts:
+    case part.kind:
+      of ipkTextPart: result.add part.text
+      of ipkNextDotArg: result.add "#."
+      of ipkArgSplice: result.add "@"
+      else: raise newImplementKindError(part)
 
 proc parsePatternCall*(pat: string): IcppPattern =
   var i = 0

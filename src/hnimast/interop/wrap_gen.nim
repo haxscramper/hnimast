@@ -11,6 +11,7 @@ importx:
   ./wrap_store
   ./wrap_decl
   ./wrap_convert
+  ./wrap_icpp
 
 func `%?`(str: string, table: StringTableRef): string =
   for (kind, value) in interpolatedFragments(str):
@@ -41,8 +42,8 @@ type
     crkTypeAlias
 
   CgenResult = object
-    baseName: string
-    exportcName: string
+    nimName: string
+    cxxName: string
     case kind: CgenResultKind
       of crkProc:
         arguments: seq[NimNode]
@@ -55,7 +56,7 @@ type
         isSignal: bool
 
       of crkType:
-        parent: seq[NimNode]
+        super: seq[NimNode]
         nested: seq[CgenResult]
 
       else:
@@ -95,14 +96,14 @@ proc convert(cgen: CgenResult): string =
     case cgen.kind:
       of crkType:
         if cgen.nested.len > 0:
-          forward.add &"struct {cgen.baseName};"
+          forward.add &"struct {cgen.nimName};"
 
         var deriveFrom = ""
-        for idx, parent in cgen.parent:
+        for idx, super in cgen.super:
           deriveFrom.add tern(idx == 0, ": ", ", ")
-          deriveFrom.add "public " & parent.repr()
+          deriveFrom.add "public " & super.repr()
 
-        result.add &"struct {cgen.baseName}{deriveFrom} {{\n"
+        result.add &"struct {cgen.nimName}{deriveFrom} {{\n"
         for gen in cgen.nested:
           result.add aux(gen, true, forward).indent(4)
 
@@ -111,7 +112,7 @@ proc convert(cgen: CgenResult): string =
       of crkProc:
         var args: seq[string]
         var callArgs: seq[string]
-        var decl: string
+        var decl: string = "extern \"C\" "
         let ret =
           if cgen.returnType.isSome():
             cgen.returnType.get().convertType()
@@ -120,7 +121,7 @@ proc convert(cgen: CgenResult): string =
             "void"
 
         decl.add ret
-        decl.add &" {cgen.exportcName}("
+        decl.add &" {cgen.cxxName}("
 
 
         # if inType:
@@ -141,7 +142,7 @@ proc convert(cgen: CgenResult): string =
 
         decl.add ");"
         if cgen.isConstructor:
-          result.add &"{cgen.exportcName}({args.join(\", \")}) "
+          result.add &"{cgen.cxxName}({args.join(\", \")}) "
           let args = cgen.constructorArgs.get()
           if 0 < args.len:
             result.add ": "
@@ -154,8 +155,8 @@ proc convert(cgen: CgenResult): string =
           forward.add decl
           let doReturn = tern(cgen.returnType.isSome(), "return ", "")
 
-          result.add &"inline {ret} {cgen.baseName}({args.join(\",\")}) "
-          result.add &"{{ {doReturn}{cgen.exportcName}"
+          result.add &"inline {ret} {cgen.nimName}({args.join(\",\")}) "
+          result.add &"{{ {doReturn}{cgen.cxxName}"
           result.add &"({callArgs.join(\", \")}); }}\n"
 
       else:
@@ -166,7 +167,7 @@ proc convert(cgen: CgenResult): string =
   result = forward.join("\n") & "\n\n\n" & impl
 
 proc cgenWrite(state: CGenState, impls: seq[CgenResult]): AbsFile =
-  var text = ""
+  var text = "#pragma once\n"
 
   for header in state.headers:
     text.add &"#include {header}\n"
@@ -182,14 +183,16 @@ proc cgenWrite(state: CGenState, impls: seq[CgenResult]): AbsFile =
       final.add "\n"
 
   let path = state.target % state.vars
-  echo final
-  writeFile(path, final)
   result = AbsFile(path)
+  discard gorge(&"mkdir -p '{result.dir()}'")
+  # mkDir result.dir() # Error: cannot 'importc' variable at compile time; mkdir
+  writeFile(path, final)
 
 
-proc methodDeclAux(state: CGenState, impl: NimNode): CGenResult =
+proc methodDeclAux(
+    state: CGenState, impl: NimNode, class: CGenResult): CGenResult =
   result = CgenResult(kind: crkProc)
-  result.baseName = impl.name.strVal()
+  result.nimName = impl.name.strVal()
 
   for arg in impl.params()[1..^1]:
     result.arguments.add arg
@@ -215,15 +218,18 @@ proc methodDeclAux(state: CGenState, impl: NimNode): CGenResult =
             args.add arg
 
           result.constructorArgs = some args
+          result.constructorOf = some class.cxxName
 
         else:
           raise newImplementKindError(value[0].strVal())
 
   if result.isConstructor:
-    result.baseName = "new" & state.class.get()
+    result.nimName = "new" & state.class.get()
+    result.cxxName = class.cxxName
 
-  let e1 = state.mangle %? newStringTable({"nimName": result.baseName})
-  result.exportcName = e1 % state.vars
+  else:
+    let e1 = state.mangle %? newStringTable({"nimName": result.nimName})
+    result.cxxName = e1 % state.vars
 
 
 
@@ -235,10 +241,10 @@ proc methodDeclAux(state: CGenState, impl: NimNode): CGenResult =
 #   case impl.kind:
 #     of nnkTypeDef:
 #       # echo impl.treeRepr()
-#       var def = CGenResult(kind: crkType, baseName: impl[0][0].strVal())
+#       var def = CGenResult(kind: crkType, nimName: impl[0][0].strVal())
 #       let ofi = impl[^1][1]
 #       if ofi.kind == nnkOfInherit:
-#         def.parent.add ofi.toSeq()
+#         def.super.add ofi.toSeq()
 
 #       cgenState.impls.add def
 
@@ -257,21 +263,27 @@ proc splitClass(class: NimNode): tuple[name: NimNode, super: seq[NimNode]] =
 proc toCxx*(res: CgenResult, header: CxxHeader): CxxEntry =
   case res.kind:
     of crkType:
-      var obj = initCxxObject(res.baseName, res.exportcName)
-      obj.icpp = res.exportcName
+      var obj = initCxxObject(res.nimName, res.cxxName)
 
       for meth in res.nested:
         obj.nested.add toCxx(meth, header)
 
+      for class in res.super:
+        obj.super.add initCxxType(class.repr())
+
       result = box(obj)
 
     of crkProc:
-      var pr = initCxxProc(res.baseName, res.exportcName)
+      var pr = initCxxProc(res.nimName, res.cxxName)
 
       for arg in res.arguments:
         pr.add initCxxArg(arg[0].strVal(), arg[1].cxxTypeAux())
 
+
       pr.constructorOf = res.constructorOf
+      if res.isMethodOf:
+        pr.methodOf = some res.arguments[0][1].cxxTypeAux()
+
 
       result = box(pr)
 
@@ -304,19 +316,18 @@ macro cgen*(outfile: static[string], args: varargs[untyped]): untyped =
     elif entry of nnkCommand and entry[0].eqIdent("class"):
       let (name, super) = splitClass(entry[1])
       var class = CGenResult(
-        kind: crkType, parent: super,
-        baseName: name.strVal(), exportcName: name.strVal())
+        kind: crkType, super: super,
+        nimName: name.strVal(), cxxName: name.strVal())
 
-      state.class = some class.baseName
+      state.class = some class.nimName
       for meth in entry[^1]:
-        class.nested.add state.methodDeclAux(meth)
-        if class.nested.last().isConstructor:
-          class.nested.last().exportcName = class.exportcName
+        class.nested.add state.methodDeclAux(meth, class)
 
       state.class = none string
 
       impls.add class
 
+  echo "--- cgen C++ code ---"
   let header = initCxxHeader state.cgenWrite(impls)
 
 
@@ -324,4 +335,5 @@ macro cgen*(outfile: static[string], args: varargs[untyped]): untyped =
   # for entry in impls:
   #   result.add toCxxEntry(entry, header).toNNode()
 
+  echo "--- cgen ---"
   echo result.repr()
