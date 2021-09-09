@@ -15,6 +15,10 @@ requires "compiler >= 1.4.8"
 
 import std/[os, strutils, strformat]
 
+task testall, "Run all tests":
+  exec "nim r tests/noauto_testall.nim"
+  exec "nim r -d:haxTestall tests/cpp/tQWindow.nim"
+
 task docgen, "Generate documentation":
   var args = @[
     "nim", "doc2", "--project", "--warnings:off", "--errormax:1", "--outdir:htmldocs"]

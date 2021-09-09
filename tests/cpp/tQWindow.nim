@@ -90,7 +90,7 @@ proc main() =
     window[].setCentralWidget(edit)
 
     connect(edit, textChanged, edit, textChangedSlot)
-
     app[].exec()
 
-main()
+if not defined(haxTestall):
+  main()
