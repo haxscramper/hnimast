@@ -19,7 +19,7 @@ type
     chkAbsolute ## Absolute path to the base header file
     chkPNode ## Unconstrained PNode - can be anything
 
-  LibImport* = object
+  CxxLibImport* = object
     library*: string
     importPath*: seq[string]
 
@@ -37,8 +37,8 @@ type
   CxxBase* = object of RootObj
     iinfo*: LineInfo
     spellingLocation*: Option[CxxSpellingLocation]
-    nimName*: string
-    cxxName*: seq[string]
+    # nimName*: string
+    # cxxName*: seq[string]
     icpp*: IcppPattern
     private*: bool
     header*: Option[CxxHeader]
@@ -50,23 +50,56 @@ type
     ctkIdent ## Identifier with optional list of template parameters
     ctkProc ## Procedural (callback) type
     ctkPtr
+    ctkLVref
+    ctkRVref
+    ctkFixedArray
+    ctkDependentArray
+    ctkDynamicArray
+
+  CxxName* = object
+    scopes*: seq[string]
+
+  CxxIdent* = object
+    name*: CxxName
+    genParams*: seq[CxxType]
+
+  CxxTypeFlag* = enum
+    ctfConst
+    ctfMutable
+    ctfComplex
+    ctfParam
+
+  CxxTypeDecl* = object
+    cxxName*: CxxName
+    nimName*: string
+    typeImport*: CxxLibImport
+    genParams*: seq[tuple[name: string, default: Option[CxxType]]]
+
+  CxxTypeStore = ref object
+    table*: Table[CxxName, seq[CxxTypeDecl]]
 
 
-  CxxType* = ref object
+  CxxTypeRef = object
+    ## Reference to used C++ type
+    case isParam*: bool
+      of true:
+        paramName*: string
+
+      of false:
+        cxxName*: CxxName
+        typeLib*: Option[string]
+        typeStore*: CxxTypeStore
+
+  CxxTypeUse* = ref object
+    flags*: set[CxxTypeFlag]
     case kind*: CxxTypeKind
       of ctkPtr:
         wrapped*: CxxType
 
       of ctkIdent:
-        isConst*: bool
-        isMutable*: bool
-        isComplex*: bool
-
-        typeImport*: LibImport
         nimName*: string
-        cxxName*: seq[string]
+        cxxType*: CxxTypeRef
         genParams*: seq[CxxType]
-        default*: Option[CxxType]
 
       of ctkProc:
         arguments*: seq[CxxArg]
@@ -80,26 +113,50 @@ type
     cpkHook ## Destructor/sink (etc.) hook: `=destroy`
     cpkAssgn ## Assignment proc `field=`
 
+  CxxProcFlag = enum
+    cpfConst
+    cpfOperator
+    cpfOverride
+    cpfExportc
+    cpfSlot
+    cpfSignal
+    cpfVirtual
+
   CxxProc* = object of CxxBase
     arguments*: seq[CxxArg]
-    returnType*: CxxType
-    genParams*: seq[CxxType]
+    returnType*: CxxTypeUse
+    head*: CxxTypeDecl ## Reuse type declaration for procedure - it has
+    ## very similar structure (nim/cxx name, generic parameters with
+    ## optional defaults). Missing elements are added as regular fields.
+    # genParams*: seq[CxxTypeUse]
     kind*: CxxProcKind
+    flags*: set[CxxProcFlag]
 
     constructorOf*: Option[string]
-    isConst*: bool
-    isOperator*: bool
-    isOverride*: bool
-    isExportc*: bool
-    isSlot*: bool
     methodOf*: Option[CxxType]
 
+  CxxExprKind = enum
+    cekIntLit
+    cekStrLit
+    cekCall
+
+  CxxExpr = object
+    case kind*: CxxExprKind
+      of cekIntLit:
+        intVal*: int
+
+      of cekStrLit:
+        strVal*: string
+
+      of cekCall:
+        ident*: CxxName
+
   CxxArg* = object of CxxBase
-    nimType*: CxxType
-    default*: Option[string] # ???
+    nimType*: CxxTypeUse
+    default*: Option[CxxExpr]
 
   CxxField* = object of CxxBase
-    nimType*: CxxType
+    nimType*: CxxTypeUse
     isStatic*: bool
 
   CxxEnumValue* = object
@@ -111,8 +168,8 @@ type
 
   CxxAlias* = object of CxxBase
     isDistinct*: bool
-    newAlias*: CxxType
-    baseType*: CxxType
+    newAlias*: CxxTypeDecl
+    baseType*: CxxTypeUse
 
   CxxEnum* = object of CxxBase
     values*: seq[CxxEnumValue]
@@ -124,17 +181,23 @@ type
     gokClass
 
   CxxObject* = object of CxxBase
+    decl*: CxxTypeDecl
     kind*: CxxObjectKind
-    super*: seq[CxxType]
-    genParams*: seq[CxxType]
-    mfields*: seq[CxxField]
-    methods*: seq[CxxProc]
+
+    super*: seq[CxxTypeUse]
     nested*: seq[CxxEntry]
+
     isByref*: bool
 
+    mfields*: seq[CxxField]
+    methods*: seq[CxxProc]
+
   CxxForward* = object of CxxBase
+    decl*: CxxTypeDecl
 
   CxxMacro* = object of CxxBase
+    nimName*: string
+    cxxName*: CxxName
     arguments*: seq[string]
 
 
@@ -184,7 +247,7 @@ type
 
   CxxFile* = object
     entries*: seq[CxxEntry]
-    savePath*: LibImport
+    savePath*: CxxLibImport
 
 func isConstructor*(pr: CxxProc): bool =
   pr.constructorOf.isSome()
