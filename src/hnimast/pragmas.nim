@@ -29,7 +29,7 @@ func indexOf*[N](pragma: PRagma[N], name: string): int =
         if elem.eqIdent(name):
           return idx
 
-      of nnkCall:
+      of nnkCall, nnkExprColonExpr:
         if elem[0].eqIdent(name):
           return idx
 
@@ -37,7 +37,7 @@ func indexOf*[N](pragma: PRagma[N], name: string): int =
         raise newImplementKindError(elem)
 
 
-func getElem*(pragma: NPragma, name: string): Option[NimNode] =
+func getElem*[N](pragma: Pragma[N], name: string): Option[N] =
   ## Get element named `name` if it is present.
   ## `getElem({.call.}, "call") -> call`
   ## `getElem({.call(arg).}, "call") -> call(arg)`
@@ -53,7 +53,7 @@ func hasElem*[N](pragma: Pragma[N], names: seq[string]): bool =
     if pragma.indexOf(name) != -1:
       return true
 
-func getElem*(optPragma: Option[NPragma], name: string): Option[NimNode] =
+func getElem*[N](optPragma: Option[Pragma[N]], name: string): Option[N] =
   ## Get element from optional annotation
   if optPragma.isSome():
     return optPragma.get().getElem(name)

@@ -57,6 +57,8 @@ func `==`*[NNode](lhs, rhs: ProcDecl[NNode]): bool =
   lhs.exported == rhs.exported and
   lhs.signature == rhs.signature
 
+proc getName*[N](decl: ProcDecl[N]): string = decl.name
+
 proc `arguments=`*(
   procDecl: var PProcDecl, arguments: seq[NIdentDefs[PNode]]) =
   procDecl.signature.arguments = arguments
@@ -71,6 +73,9 @@ proc genTable*[N](procDecl: ProcDecl[N]): Table[string, int] =
   for idx, param in procDecl.genParams:
     result[param.head] = idx
 
+proc addArgument*[N](decl: var ProcDecl[N], arg: NidentDefs[N]) =
+  decl.signature.arguments.add arg
+
 proc addArgument*[N](
     procDecl: var ProcDecl[N],
     argName: string, argType: NType[N], kind: NVarDeclKind = nvdLet,
@@ -81,10 +86,22 @@ proc addArgument*[N](
     argName, argType, kind, value)
 
 proc addArgument*[N](
-  procDecl: var ProcDecl, args: openarray[(string, NType[N])]) =
+  procDecl: var ProcDecl[N], args: openarray[(string, NType[N])]) =
 
   for (argName, argType) in args:
     procDecl.addArgument(argName, argType)
+
+proc addPragma*[N](
+    decl: var ProcDecl[N], key, value: N) =
+  decl.signature.pragma.add newNTree[N](nnkExprColonExpr, key, value)
+
+proc addPragma*[N](decl: var ProcDecl[N], name: string) =
+  decl.signature.pragma.add newNIdent[N](name)
+
+proc addPragma*[N](
+    decl: var ProcDecl[N], key: string, value: N) =
+  decl.signature.pragma.add newNTree[N](
+    nnkExprColonExpr, newNIdent[N](key), value)
 
 # proc addArgument*[N](
 #   procDecl: var ProcDecl,
@@ -495,4 +512,3 @@ proc parseProc*[N](node: N): ProcDecl[N] =
 
     else:
       raise newImplementKindError(node, $node.getInfo())
-

@@ -178,6 +178,10 @@ func toNNode*[N](entry: NimDecl[N], standalone: bool = true): N =
           of ntdkAliasDecl:
             result.add toNNode[N](elem.aliasDecl, standalone = false)
 
+func toNNode*[N](entries: seq[NimDecl[N]]): N =
+  result = newNTree[N](nnkStmtList)
+  for entry in items(entries):
+    result.add toNNode[N](entry)
 
 
 func toNimTypeDecl*[N](odc: ObjectDecl[N]): NimTypeDecl[N] =
@@ -201,7 +205,8 @@ func toNimTypeDecl*[N](entry: NimDecl[N]): NimTypeDecl[N] =
       return toNimTypeDecl[N](entry.aliasDecl)
 
     else:
-     raiseAssert(&"Cannot convert to NimTypeDecl for kind {entry.kind}")
+      raise newUnexpectedKindError(
+        entry, "Cannot convert to NimTypeDecl for kind")
 
 
 func toNimDecl*[N](edc: ObjectField[N]): NimDecl[N] =
@@ -224,6 +229,54 @@ func toNimDecl*[N: NimNode | PNode](decl: N): NimDecl[N] =
 
 func toNimDecl*[N](decl: seq[NimTypeDecl[N]]): NimDecl[N] =
   NimDecl[N](kind: nekMultitype, typedecls: decl)
+
+func getProc*[N](decl: NimDecl[N]): ProcDecl[N] =
+  assertKind(decl, {nekProcDecl})
+  decl.procDecl
+
+func getEnum*[N](decl: NimTypeDecl[N]): EnumDecl[N] =
+  assertKind(decl, {ntdkEnumDecl})
+  decl.enumDecl
+
+func getEnum*[N](decl: NimDecl[N]): EnumDecl[N] =
+  assertKind(decl, {nekEnumDecl, nekMultitype})
+  if decl of nekEnumDecl:
+    decl.aliasDecl
+
+  else:
+    assert decl.typedecls.len == 1
+    decl.typedecls[0].getEnum()
+
+
+func getObject*[N](decl: NimTypeDecl[N]): ObjectDecl[N] =
+  assertKind(decl, {ntdkObjectDecl})
+  decl.objectDecl
+
+func getObject*[N](decl: NimDecl[N]): ObjectDecl[N] =
+  assertKind(decl, {nekObjectDecl, nekMultitype})
+  if decl of nekObjectDecl:
+    decl.objectDecl
+
+  else:
+    assert decl.typedecls.len == 1
+    decl.typedecls[0].getObject()
+
+func getAlias*[N](decl: NimTypeDecl[N]): AliasDecl[N] =
+  assertKind(decl, {ntdkAliasDecl})
+  decl.aliasDecl
+
+func getAlias*[N](decl: NimDecl[N]): AliasDecl[N] =
+  assertKind(decl, {nekAliasDecl, nekMultitype})
+  if decl of nekAliasDecl:
+    decl.aliasDecl
+
+  else:
+    assert decl.typedecls.len == 1
+    decl.typedecls[0].getAlias()
+
+func getTypes*[N](decl: NimDecl[N]): seq[NimTypeDecl[N]] =
+  assertKind(decl, {nekMultitype})
+  decl.typeDecls
 
 func add*[N](declSeq: var seq[NimDecl[N]], decl: AnyNimDecl[N]) =
   when decl is NimDecl:

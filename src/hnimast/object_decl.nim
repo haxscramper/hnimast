@@ -117,6 +117,15 @@ proc notOfValue*[N](element: ObjectPathElem[N]): seq[N] =
   element.branch.notOfValue
 
 
+proc newObjectDecl*[N](
+    name: string,
+    exported: bool = true
+  ): ObjectDecl[N] =
+
+  new(result)
+  result.name = newNNType[N](name)
+  result.exported = exported
+
 proc newPObjectDecl*(
     name: string,
     flds: seq[tuple[name: string, ftype: NType[PNode]]] = @[],
@@ -156,7 +165,7 @@ func newObjectField*[N](
     value: value
   )
 
-func addField*[N](obj: var ObjectDecl[N], field: ObjectField[N]) 
+func addField*[N](obj: var ObjectDecl[N], field: ObjectField[N])
     {.deprecated: "Use .add for fields"} =
   obj.flds.add field
 
@@ -202,6 +211,31 @@ func newObjectOfBranch*[N](ofValue: seq[N]): ObjectBranch[N] =
 
 func newObjectElseBranch*[N](): ObjectBranch[N] =
   ObjectBranch[N](isElse: true)
+
+func getName*[N](obj: ObjectDecl[N]): string = obj.name.head
+func getName*[N](field: ObjectField[N]): string = field.name
+
+proc addPragma*[N](field: var ObjectField[N], value: N) =
+  if field.pragma.isNone():
+    field.pragma = some Pragma[N]()
+
+  field.pragma.get().add value
+
+proc addPragma*[N](field: var ObjectField[N], key: string, value: N) =
+  field.addPragma newNTree[N](nnkExprColonExpr, newNIdent[N](key), value)
+
+
+proc addPragma*[N](decl: var ObjectDecl[N], value: N) =
+  if decl.pragma.isNone():
+    decl.pragma = some Pragma[N]()
+
+  decl.pragma.get().add value
+
+proc addPragma*[N](decl: var ObjectDecl[N], name: string) =
+  decl.addPragma newNIdent[N](name)
+
+proc addPragma*[N](decl: var ObjectDecl[N], key: string, value: N) =
+  decl.addPragma newNTree[N](nnkExprColonExpr, newNIdent[N](key), value)
 
 func addField*[N](
     branch: var ObjectBranch[N],
@@ -1049,6 +1083,14 @@ func hasPragma*[N](decl: ObjectDecl[N], name: string): bool =
 func getPragmaArgs*[N](decl: ObjectDecl[N], name: string): seq[N] =
   for arg in decl.pragma.getElem(name).get()[1 ..^ 1]:
     result.add arg
+
+func hasPragma*[N](decl: ObjectField[N], name: string): bool =
+  decl.pragma.isSome() and decl.pragma.get().hasElem(name)
+
+func getPragmaArgs*[N](decl: ObjectField[N], name: string): seq[N] =
+  for arg in decl.pragma.getElem(name).get()[1 ..^ 1]:
+    result.add arg
+
 
 func eachPragmaMut*[N](
     branch: var ObjectBranch[N],

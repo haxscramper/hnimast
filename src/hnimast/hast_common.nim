@@ -505,8 +505,11 @@ func newPIdentColonString*(key, value: string): PNode =
   nnkExprColonExpr.newPTree(newPIdent(key), newPLit(value))
 
 
-func newExprColonExpr*(key, value: PNode): PNode =
-  nnkExprColonExpr.newPTree(key, value)
+func newExprColonExpr*[N](key, value: N): N =
+  newNTree[N](nnkExprColonExpr, key, value)
+
+func newIdentColonExpr*[N](key: string, value: N): N =
+  newNTree[N](nnkExprColonExpr, newNIdent[N](key), value)
 
 template newNNLit*[NNode](val: untyped): untyped =
   when NNode is PNode:
