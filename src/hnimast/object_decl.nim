@@ -221,6 +221,10 @@ proc addPragma*[N](field: var ObjectField[N], value: N) =
 
   field.pragma.get().add value
 
+proc addPragma*[N](f: var ObjectField[N], values: seq[N]) =
+  for v in values:
+    f.addPragma(v)
+
 proc addPragma*[N](field: var ObjectField[N], key: string, value: N) =
   field.addPragma newNTree[N](nnkExprColonExpr, newNIdent[N](key), value)
 
@@ -230,6 +234,11 @@ proc addPragma*[N](decl: var ObjectDecl[N], value: N) =
     decl.pragma = some Pragma[N]()
 
   decl.pragma.get().add value
+
+
+proc addPragma*[N](f: var ObjectDecl[N], values: seq[N]) =
+  for v in values:
+    f.addPragma(v)
 
 proc addPragma*[N](decl: var ObjectDecl[N], name: string) =
   decl.addPragma newNIdent[N](name)
@@ -524,8 +533,7 @@ proc eachParallelCase*(
     for branch in fld.branches:
       if branch.isElse:
         result.add nnkElse.newTree(
-          branch.flds.mapIt(it.eachParallelCase(objId, cb))
-        )
+          branch.flds.mapIt(it.eachParallelCase(objId, cb)))
       else:
         result.add nnkOfBranch.newTree(
           nnkCurly.newTree(branch.ofValue),

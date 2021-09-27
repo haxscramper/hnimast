@@ -373,13 +373,31 @@ func newRaise*[N](expr: N): N = newNTree[N](nnkRaiseStmt, expr)
 func newStmtListExpr*[N](args: varargs[N]): N =
   newNTree[N](nnkStmtListExpr, args)
 
-func newNIdent*[NNode](str: string): NNode =
-  ## Create new `nnkIdent` node of type `NNode`
-  when NNode is NimNode:
-    newIdentNode(str)
+func newNIdent*[N](
+    str: string,
+    exported: bool = false,
+    pragmas: seq[N] = @[]
+  ): N =
+
+  ## Create new `nnkIdent` node of type `N`
+  when N is NimNode:
+    result = newIdentNode(str)
 
   else:
-    newPIdent(str)
+    result = newPIdent(str)
+
+  if exported:
+    result = newNTree[N](nnkPostfix, newNIdent[N]("*"), result)
+
+  if 0 < len(pragmas):
+    result = newNTree[N](nnkPragmaExpr, result)
+    for p in pragmas:
+      if p.kind == nnkPragma:
+        result.add p
+
+      else:
+        result.add newNTree[N](nnkPragma, p)
+
 
 func newNIdent*[N](n: N): N = n
 
@@ -1718,3 +1736,26 @@ proc getSomeBase*[N](node: N): Option[N] =
 func eqIdent*(node: PNode, str: string): bool =
   node.getStrVal(false)[0] == str[0] and
   node.getStrVal(false).normalize() == str.normalize()
+
+func newSection*[N](
+    kind: NimNodeKind,
+    name: string, ctype, expr: N,
+    exported: bool = false,
+    pragmas: seq[N] = @[]
+  ): N =
+
+  let def =
+    case kind:
+      of nnkConstSection: nnkConstDef
+      else: raise newImplementKindError(kind)
+
+  newNTree[N](kind,
+    newNtree[N](def,
+      newNIdent[N](name, exported, pragmas), ctype, expr))
+
+
+func newConst*[N](name: string, ctype, expr: N, exported: bool = false): N =
+  newSection(nnkConstSection, name, ctype, expr, exported)
+
+func newConst*[N](name: string, expr: N, exported: bool = false): N =
+  newConst(name, newEmptyNNode[N](), expr, exported)

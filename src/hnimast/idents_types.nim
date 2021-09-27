@@ -510,6 +510,17 @@ func newProcNType*[NNode](
     rType: some(newIt(rtype)))
 
 
+func newProcNType*[NNode](
+    args: seq[NIdentDefs[NNode]],
+    rtype: NType[NNode],
+    pragma: Pragma[NNode]
+  ): NType[NNode] =
+
+  NType[NNode](
+    kind: ntkProc,
+    arguments: args,
+    pragma: pragma,
+    rType: some(newIt(rtype)))
 
 
 func newProcNType*[NNode](args: seq[NType[NNode]]): NType[NNode] =

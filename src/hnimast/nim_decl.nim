@@ -318,19 +318,19 @@ func `$`*[N](nd: NimDecl[N]): string =
 func toNNode*[N](alias: AliasDecl[N], standalone: bool = true): N =
   let pr = (alias.isDistinct, alias.isExported)
   var
-    aType = toNNode[N](alias.newType, alias.isExported)
-    bType = toNNode[N](alias.oldType)
+    newType = toNNode[N](alias.newType, alias.isExported)
+    oldType = toNNode[N](alias.oldType)
 
   if alias.isDistinct:
     result = newNTree[N](
       nnkTypeDef,
-      aType,
+      newType,
       newEmptyNNode[N](),
-      newNTree[N](nnkDistinctTy, bType)
+      newNTree[N](nnkDistinctTy, oldType)
     )
 
   else:
-    result = newNTree[N](nnkTypeDef, aType, newEmptyNNode[N](), bType)
+    result = newNTree[N](nnkTypeDef, newType, newEmptyNNode[N](), oldType)
 
   if standalone:
     result = newNTree[N](nnkTypeSection, result)

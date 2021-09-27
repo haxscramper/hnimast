@@ -113,9 +113,9 @@ func newPPragma*(names: varargs[string]): PPragma =
   ## `{.<<name1>, <name2>, ...>.}`
   PPragma(elements: names.mapIt(newPIdent(it)))
 
-func newNPragma*(names: varargs[NimNode]): NPragma =
+func newNPragma*[N: NimNode | PNode](names: varargs[N]): Pragma[N] =
   ## Create pragma using each node in `name` as separate name
-  NPragma(elements: names.mapIt(it))
+  Pragma[N](elements: names.mapIt(it))
 
 
 func newPPragma*(names: varargs[PNode]): PPragma =

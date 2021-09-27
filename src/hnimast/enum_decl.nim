@@ -83,19 +83,21 @@ func isEnum*(en: NimNode): bool =
 #===============================  parsers  ===============================#
 
 func makeEnumField*[NNode](
-  name: string,
-  value: Option[NNode] = none(NNode),
-  comment: string = ""): EnumField[NNode] =
+    name: string,
+    value: Option[NNode] = none(NNode),
+    comment: string = ""
+  ): EnumField[NNode] =
+
   EnumField[NNode](name: name, value: value, docComment: comment)
 
-func newPEnumDecl*(
+func newEnumDecl*[N](
     name:        string,
-    docComment:  string        = "",
-    codeComment: string        = "",
-    exported:    bool          = true,
-    pragma:      Pragma[PNode] = Pragma[PNode](),
-    iinfo:       LineInfo      = defaultIInfo
-  ): EnumDecl[PNode] =
+    docComment:  string    = "",
+    codeComment: string    = "",
+    exported:    bool      = true,
+    pragma:      Pragma[N] = Pragma[N](),
+    iinfo:       LineInfo  = defaultIInfo
+  ): EnumDecl[N] =
 
   result.name = name
   result.docComment = docComment
@@ -103,6 +105,9 @@ func newPEnumDecl*(
   result.exported = exported
   result.pragma = pragma
   result.iinfo = iinfo
+
+func add*[N](en: var EnumDecl[N], field: EnumField[N]) =
+  en.values.add field
 
 func addField*[N](
     en: var EnumDecl[N],

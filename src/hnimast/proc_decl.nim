@@ -95,6 +95,10 @@ proc addPragma*[N](
     decl: var ProcDecl[N], key, value: N) =
   decl.signature.pragma.add newNTree[N](nnkExprColonExpr, key, value)
 
+proc addPragma*[N](f: var ProcDecl[N], values: seq[N]) =
+  for v in values:
+    f.signature.pragma.add v
+
 proc addPragma*[N](decl: var ProcDecl[N], name: string) =
   decl.signature.pragma.add newNIdent[N](name)
 
