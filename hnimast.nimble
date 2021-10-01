@@ -10,7 +10,6 @@ srcDir        = "src"
 
 requires "nim >= 1.4.8"
 requires "hmisc >= 0.12.0"
-requires "compiler >= 1.4.8"
 
 
 import std/[os, strutils, strformat]

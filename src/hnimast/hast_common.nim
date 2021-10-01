@@ -828,7 +828,7 @@ proc pprintCalls*(node: NimNode, level: int): void =
 
       if node[1..^1].noneOfIt(it.kind in pprintKinds):
         echo pref, "  ",
-          node[1..^1].mapIt($it.toStrLit()).join(", ").toYellow()
+          strutils.join(node[1..^1].mapIt($it.toStrLit()), ", ").toYellow()
 
       else:
         for arg in node[1..^1]:
@@ -1205,7 +1205,7 @@ func idxTreeRepr*(inputNode: NimNode): string =
   ##     [0][1]            Pragma
 
   func aux(node: NimNode, parent: seq[int]): seq[string] =
-    result.add parent.mapIt(&"[{it}]").join("") &
+    result.add strutils.join(parent.mapIt(&"[{it}]"), "") &
       "  ".repeat(6) &
       ($node.kind)[3..^1] &
       (node.len == 0).tern(" " & node.toStrLit().strVal(), "")
@@ -1213,7 +1213,7 @@ func idxTreeRepr*(inputNode: NimNode): string =
     for idx, subn in node:
       result &= aux(subn, parent & @[idx])
 
-  return aux(inputNode, @[]).join("\n")
+  return strutils.join(aux(inputNode, @[]), "\n")
 
 
 

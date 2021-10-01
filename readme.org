@@ -7,6 +7,16 @@ helper API for working with nimble packages.
 
 * Installation
 
+#+begin_src bash
+nimble install hnimast
+#+end_src
+
+*note*: hnimast relies on the compiler API. In order to avoid mismatches
+between nim compiler that you are compiling code with, and actual compiler
+API it is necessary to add ~--path:"$nim"~ to your ~nim.cfg~ file. This
+also prevents downloading of the whole compiler package, which is by far
+the largest dependency.
+
 * Links
 
 - [[https://github.com/haxscramper/hnimast][github]]

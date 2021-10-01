@@ -24,3 +24,4 @@ callgrind.out.*
 nimdoc.cfg
 cache/*
 docs/*
+nim.cfg
