@@ -11,7 +11,7 @@ import compiler/ast
 import
   hmisc/types/colorstring,
   hmisc/core/all,
-  hmisc/algo/[halgorithm, htree_mapping, namegen]
+  hmisc/algo/[halgorithm, htree_mapping, namegen, clformat]
 
 import
   ./object_decl,
@@ -507,6 +507,23 @@ proc getFlatFields*[N](
   ## - @arg{preorder} :: @pass{[[code:iterateFields().preorder]]}
   for field in iterateFields(objDecl, preorder):
     result.add field
+
+func getField*[N](decl: ObjectDecl[N], name: string): ObjectField[N] =
+  for field in iterateFields(decl, true):
+    if eqIdentStr(field.name, name):
+      return field
+
+  var missing: seq[string]
+  for field in iterateFields(decl, true):
+    missing.add field.name
+
+  raise newGetterError(
+    "Cannot get field name '", name, "' - object type ",
+    $decl.name, " has no such field. ",
+    joinAnyOf(
+      missing,
+      prefix = "Available fields - ",
+      empty = "Object has no fields."))
 
 
 

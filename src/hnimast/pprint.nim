@@ -19,6 +19,7 @@ proc str(n: PNode): string = `$`(n)
 initBlockFmtDsl()
 
 
+
 func `[]`(n: ast.PNode, sl: HSlice[int, BackwardsIndex]): seq[PNode] =
   var idx = sl.a
   let maxl = n.len - sl.b.int
@@ -28,337 +29,490 @@ func `[]`(n: ast.PNode, sl: HSlice[int, BackwardsIndex]): seq[PNode] =
 
 func high(n: PNode): int = n.len - 1
 
-proc toLytBlock(n: PNode, level: int): LytBlock =
-  let ind = level * 2
+type
+  NimFormatFlag* = enum
+    nffAllowMultilineProcHead
+    nffAddIInfo
+
+  NimFormatConf* = object
+    flags*: set[NimFormatFlag]
+    baseIndent*: int
+
+const
+  defaultNimFormatConf* = NimFormatConf(
+    flags: {
+      nffAllowMultilineProcHead,
+      nffAddIInfo
+    }
+  )
+
+func contains*(conf: NimFormatConf, flag: NimFormatFlag): bool =
+  flag in conf.flags
+
+func contains*(conf: NimFormatConf, flags: set[NimFormatFlag]): bool =
+  len(flags * conf.flags) == len(flags)
+
+
+proc toLytBlock(n: PNode, conf: NimFormatConf): LytBlock
+
+proc lytInfix(
+    n: PNode, conf: NimFormatConf, spacing: bool = true): LytBlock =
+
+  if n.kind == nnkInfix:
+    if spacing:
+      result = H[
+        lytInfix(n[1], conf),
+        T[" " & n[0].getStrVal() & " "],
+        lytInfix(n[2], conf)]
+
+    else:
+      result = H[
+        lytInfix(n[1], conf),
+        T[n[0].getStrVal()],
+        lytInfix(n[2], conf)]
+
+  else:
+    result = toLytBlock(n, conf)
+
+proc lytFormalParams(
+    n: PNode,
+    vertical: bool,
+    conf: NimFormatConf
+  ): LytBlock =
+
+  assertKind(n, {nkFormalParams})
+  result = tern(vertical, V[], H[])
+  let argPad = tern(vertical, n[1..^1].maxIt(len($it[0]) + 2), 0)
+  for idx, arg in n[1..^1]:
+    var hor = H[T[alignLeft($arg[0] & ": ", argPad)], T[$arg[1]]]
+    if idx < n.high - 1:
+      hor &= T[tern(vertical, ",", ", ")]
+
+    result.add hor
+
+proc lytFormalReturnClose(n: PNode, conf: NimFormatConf): LytBlock =
+  assertKind(n, {nkFormalParams})
+  if n[0] of nkEmpty:
+    T[")"]
+
+  else:
+    H[T["): "], toLytBlock(n[0], conf)]
+
+
+proc lytDocComment(n: PNode, prefix: string = ""): LytBlock =
+  if n.comment.len > 0:
+    result = V[]
+    for line in n.comment.split('\n'):
+      result.add T[prefix & "## " & line]
+
+  else:
+    result = E[]
+
+proc lytCsv(n: PNode | seq[PNode], vertical: bool, conf: NimFormatConf): LytBlock =
+  result = tern(vertical, V[], H[])
+  for idx, item in n:
+    if idx > 0:
+      result.add H[T[tern(vertical, ",", ", ")], toLytBlock(item, conf)]
+
+    else:
+      result.add toLytBlock(item, conf)
+
+proc toLytBlock(n: PNode, conf: NimFormatConf): LytBlock =
+  assertRef n
+  template `~`(node: PNode): untyped = toLytBlock(node, conf)
+
   case n.kind:
+    of nkProcTy:
+      result = V[
+        H[
+          T["proc("],
+          lytFormalParams(n[0], false, conf),
+          lytFormalReturnClose(n[0], conf),
+          ~n[1]
+        ]]
+
     of nkProcDef, nkLambda:
-
-      var vertArgsLyt: LytBlock
-
-      block:
-        var buf: seq[LytBlock]
-        let argPad = n[3][1..^1].maxIt(len($it[0]) + 2)
-        for idx, arg in n[3][1..^1]:
-          var hor = H[T[alignLeft($arg[0] & ": ", argPad)], T[$arg[1]]]
-          if idx < n[3].high - 1:
-            hor &= T[","]
-
-          buf.add I[4, hor]
-
-        vertArgsLyt = V[buf]
-
-      var horizArgsLyt: LytBlock
-      block:
-        var buf: seq[LytBlock]
-        for idx, arg in n[3][1..^1]:
-          var hor = H[T[$arg[0]], T[": "], T[$arg[1]]]
-          if idx < n[3].high - 1:
-            hor &= T[", "]
-
-          buf.add hor
-
-        horizArgsLyt = H[buf]
-
-      let (retLyt, hasRett) =
-        if n[3][0].kind == nkEmpty:
-          (T[""], false)
-        else:
-          (H[toLytBlock(n[3][0], 0)], true)
-
-      let pragmaLyt = toLytBlock(n[4], 0)
-
-      let comment =
-        if n.comment.len == 0:
-          ""
-        else:
-          n.comment.split('\n').mapIt("  ## " & it).join("\n")
-
-      # n.comment.split("\n").mapIt("")
-
-      let headLyt = H[T["proc"], S[], T[$n[0]], T[$n[2]], T["("]]
-      let implLyt = V[toLytBlock(n[6], level + 1), T[comment]]
-      let postArgs = if hasRett: T["): "] else: T[")"]
-      let eq = if n[6].kind == nkEmpty: T[""] else: T[" = "]
-
-
       result = makeChoiceBlock([])
-
-      # proc q*(a: B): C {.d.} = e
-      result.add I[ind,
-        H[headLyt, horizArgsLyt, postArgs, retLyt, pragmaLyt, eq, implLyt]]
 
       # proc q*(a: B): C {.d.} =
       #   e
       result.add V[
-        I[ind,
-          H[headLyt, horizArgsLyt, postArgs, retLyt, pragmaLyt, eq]],
-        implLyt]
+        H[
+          H[T["proc"], S[], ~n[0], ~n[2], T["("]],
+          lytFormalParams(n[3], false, conf),
+          lytFormalReturnClose(n[3], conf),
+          if n[4] of nkEmpty: T[""] else: H[T[" "], ~n[4]],
+          if n[6] of nkEmpty: T[""] else: T[" = "]
+        ],
+        V[lytDocComment(n), ~n[6]]]
 
-      # proc q*(a: B):
-      #     C {.d.} =
-      #   e
-      result.add V[I[ind, H[headLyt, horizArgsLyt, postArgs]],
-        I[ind + 2, H[retLyt, pragmaLyt, eq]], implLyt]
 
-
-      # proc q*(a: B):
-      #     C
-      #     {.d.} =
-      #   e
-      result.add V[I[ind, H[headLyt, horizArgsLyt, postArgs]],
-        I[ind + 2, retLyt],
-        I[ind + 2, H[pragmaLyt, eq]],
-        implLyt
-      ]
-
-      if vertArgsLyt.len > 0:
+      if n[3].len > 1:
         # proc q*(
         #     a: B
         #   ): C {.d.} =
         #     e
         result.add V[
-          I[ind, headLyt],
-          I[ind, vertArgsLyt],
-          I[ind, H[postArgs, retLyt, pragmaLyt, eq]],
-          I[ind, implLyt]
+          H[T["proc"], S[], ~n[0], ~n[2], T["("]],
+          I[4, lytFormalParams(n[3], true, conf)],
+          H[
+            I[2, lytFormalReturnClose(n[3], conf)],
+            if n[4] of nkEmpty: T[""] else: H[T[" "], ~n[4]],
+            if n[6] of nkEmpty: T[""] else: T[" = "]
+          ],
+          lytDocComment(n),
+          ~n[6]
         ]
 
-        # proc q*(
-        #     a: B
-        #   ):
-        #       C {.d.} =
-        #     e
-        result.add V[
-          I[ind, headLyt],
-          I[ind, vertArgsLyt],
-          I[ind, postArgs],
-          I[ind + 2, H[retLyt, pragmaLyt, eq]],
-          I[ind,implLyt]
-        ]
+      when false:
+        # proc q*(a: B):
+        #     C {.d.} =
+        #   e
+        result.add V[H[headLyt, horizArgsLyt, postArgs],
+          I[2, H[retLyt, pragmaLyt, eq]], implLyt]
 
-        # proc q*(
-        #       a: B
-        #   ):
+        # proc q*(a: B):
         #     C
         #     {.d.} =
         #   e
-        result.add V[
-          I[ind, headLyt],
-          tern(vertArgsLyt.len == 0, T[""], I[ind, vertArgsLyt]),
-          I[ind, postArgs],
-          I[ind + 2, retLyt],
-          I[ind + 2, H[pragmaLyt, eq]],
-          I[ind, implLyt]
+        result.add V[H[headLyt, horizArgsLyt, postArgs],
+          I[2, retLyt],
+          I[2, H[pragmaLyt, eq]],
+          implLyt
         ]
 
+        if vertArgsLyt.len > 0:
+          # proc q*(
+          #     a: B
+          #   ): C {.d.} =
+          #     e
+          result.add V[
+            headLyt,
+            I[4, vertArgsLyt],
+            I[2, H[postArgs, retLyt, pragmaLyt, eq]],
+            S[],
+            I[2, implLyt]
+          ]
+
+          # proc q*(
+          #       a: B
+          #   ):
+          #     C
+          #     {.d.} =
+          #   e
+          result.add V[
+            headLyt,
+            tern(vertArgsLyt.len == 0, E[], vertArgsLyt),
+            postArgs,
+            I[2, retLyt],
+            I[2, H[pragmaLyt, eq]],
+            implLyt
+          ]
+
     of nkStmtList:
-      result = V[n.mapIt(toLytBlock(it, level))]
+      result = V[n.mapIt(~it)]
 
     of nkForStmt:
       result = V[
-        I[ind, H[
-          T["for "], toLytBlock(n[0], 0),
-          T[" in "], toLytBlock(n[^2], 0),
+        H[
+          T["for "], ~n[0], # IMPLEMENT multiple identifiers
+          T[" in "], ~n[^2],
           T[":"]
-        ]],
-        toLytBlock(n[^1], level + 1)
+        ],
+        ~n[^1]
       ]
 
-    of nkIfStmt:
-      result = makeStackBlock([])
+    of nkCaseStmt:
+      var arms = V[]
+      for arm in n[1..^1]:
+        arms.add ~arm
+
+      result = V[H[T["case "], ~n[0], T[":"]], I[2, arms]]
+
+    of nkOfBranch:
+      result = V[H[T["of "], ~n[0], T[":"]], I[2, ~n[1]]]
+
+    of nkIfStmt, nkWhenStmt:
+      result = V[]
       for isFirst, branch in itemsIsFirst(n):
         if branch.kind == nkElse:
-          result.add V[
-            I[ind, T["else: "]],
-            toLytBlock(branch[0], level + 1),
-            T[""]
-          ]
+          result.add H[V[T["else: "]], I[2, ~branch[0]], T[""]]
 
         else:
           result.add V[
-            I[
-              ind,
-              H[
-                T[if isFirst: "if " else: "elif "],
-                toLytBlock(branch[0], 0),
-                T[":"]
-              ]
-            ],
-            toLytBlock(branch[1], level + 1),
+            H[T[tern(
+              isFirst,
+              tern(n of nkIfStmt, "if ", "when "),
+              "elif ")], ~branch[0], T[":"]],
+
+            I[2, ~branch[1]],
             T[""]
           ]
 
     of nkLetSection, nkConstSection, nkVarSection:
-      result = V[I[ind, T[
-        cond(n.kind,
-            (nkLetSection, "let"),
-            (nkVarSection, "var"),
-            (nkConstSection, "const"),
-            (_, $n.kind)
-        )
-      ]]]
+      var decls: seq[LytBlock]
 
       for le in n:
-        result.add toLytBlock(le, level + 1)
+        decls.add ~le
+
+
+      let name = mapEnum(n.kind, {
+        nkLetSection: "let",
+        nkVarSection: "var",
+        nkConstSection: "const"
+      })
+
+      if decls.len == 1:
+        result = H[T[name & " "], decls[0]]
+
+      else:
+        result = H[T[name], I[2, V[decls]]]
+
+
+    of nkBracketExpr:
+      result = H[~n[0], T["["], lytCsv(n[1..^1], false, conf), T["]"]]
+
+    of nkCommand:
+      result = H[~n[0], T[" "], lytCsv(n[1..^1], false, conf)]
+
+    of nkCall:
+      result = H[~n[0], T["("], lytCsv(n[1..^1], false, conf), T[")"]]
 
     of nkIdentDefs:
       if n[2].kind == nkLambda:
         result = V[
-          I[ind, tern(
+          tern(
             n[1].kind == nkEmpty,
             H[T[n[0].str], T[" = "]],
-            H[T[n[0].str], T[" : "], toLytBlock(n[1], 0), T[" = "]]
-          )],
-          toLytBlock(n[2], level + 1)
+            H[T[n[0].str], T[" : "], ~n[1], T[" = "]]
+          ),
+          ~n[2]
         ]
       else:
-        result = I[ind,
-                   H[T[n[0].str],
-                     tern(
-                       n[1].kind == nkEmpty, T[""], H[T[": "], toLytBlock(n[1], 0)]
-                     ),
-                     tern(
-                       n[2].kind == nkEmpty, T[""], H[T[" = "], toLytBlock(n[2], 0)]
-                     )
-                   ]
-                 ]
+        result = H[T[n[0].str],
+           tern(n[1] of nkEmpty, T[""], H[T[": "], ~n[1]]),
+           tern(n[2] of nkEmpty, T[""], H[T[" = "], ~n[2]]),
+           lytDocComment(n, " ")
+         ]
+
+    of nkEnumFieldDef:
+      result = H[~n[0], T[" = "], ~n[1]]
 
     of nkTypeSection:
-      result = V[I[ind, T["type"]]]
-      for def in n:
-        result.add toLytBlock(def, level + 1)
-        result.add T[""]
+      if len(n) == 0:
+        result = E[]
+
+      else:
+        result = V[]
+        for def in n:
+          result.add ~def
+          result.add S[]
+
+        result = V[T["type"], I[2, result]]
 
     of nkTypeDef:
-      result = V[I[ind, H[
-        T[n[0].str],
-        T[" = "],
-        T[cond(n[2].kind,
-              (nkObjectTy, "object"),
-              (nkEnumTy, "enum"),
-              ($n[2].kind))]
-      ]]]
+      var head = H[T[n[0].str], T[" = "]]
+      var isTypedef = false
+      case n[2].kind:
+        of nkObjectTy:
+          head.add T["object"]
 
-      for fld in n[2]:
-        if fld.kind != nkEmpty:
-          result.add toLytBlock(fld, level + 1)
+        of nkEnumTy:
+          head.add T["enum"]
+
+        of nkIdent, nkProcTy:
+          head.add ~n[2]
+          isTypedef = true
+
+        else:
+          raise newImplementKindError(n[2], $n.treeRepr())
+
+      if isTypedef:
+        result = head
+
+      else:
+        var body = V[]
+        for fld in n[2]:
+          if fld.kind != nkEmpty:
+            if fld of nkRecList:
+              body.add ~fld
+
+            else:
+              body.add H[~fld, lytDocComment(fld, prefix = " ")]
+
+        if n[2] of nkObjectTy:
+          result = V[head, body]
+
+        else:
+          result = V[head, I[2, body]]
 
     of nkRecList:
-      result = makeStackBlock([])
-
+      result = V[lytDocComment(n)]
       for fld in n:
-        result.add toLytBlock(fld, level)
+        result.add ~fld
+
+      result = I[2, result]
+
+    of nkPragma:
+      result = H[]
+      result.add T["{."]
+      for idx, item in n:
+        result.add tern(idx < n.len - 1, H[~item, T[", "]], ~item)
+
+      result.add T[".}"]
+
+    of nkImportStmt:
+      var imports = V[]
+      for idx, path in n:
+        if path of nnkInfix:
+          imports.add H[
+            lytInfix(path, conf, spacing = false),
+            tern(idx < n.len - 1, T[","], T[""])]
+
+        else:
+          imports.add ~path
+
+      result = V[T["import"], I[2, imports]]
+
+    of nkExportStmt:
+      result = H[T["export "]]
+      for idx, exp in n:
+        if idx > 0:
+          result.add H[T[", "], ~exp]
+
+        else:
+          result.add ~exp
+
+    of nkCommentStmt:
+      result = V[]
+      for line in split(n.comment, '\n'):
+        result.add H[T["## " & line]]
+
+    of nkExprColonExpr: result = H[~n[0], T[": "], ~n[1]]
+    of nkPrefix: result        = H[~n[0], ~n[1]]
+    of nkPostfix: result       = H[~n[1], ~n[0]]
+    of nkInfix: result         = lytInfix(n, conf)
+    of nkIdent: result         = T[n.getStrVal()]
+    of nkDotExpr: result       = H[~n[0], T["."], ~n[1]]
+    of nkEmpty: result         = T[""]
+    of nkIntLit: result        = T[$n.intVal]
+    of nkPtrTy: result         = H[T["ptr "], ~n[0]]
+    of nkStrLit: result = T["\"" & n.getStrVal() & "\""]
 
     else:
-      result = I[ind, T[n.str]]
+      raise newImplementKindError(
+        n, treeRepr(n, maxdepth = 3))
+
+  assertRef result, $n.kind
 
 
-proc lyt(bl: LytBlock): string = bl.toString()
+proc toPString*(n: PNode, conf: NimFormatConf = defaultNimFormatConf): string =
+  proc aux(node: PNode): string =
+    var blocks: LytBlock =
+      if node.isNil() or
+         (node of {nnkStmtList} and len(node) == 0):
+        T[""]
 
-proc layoutBlockRepr*(n: PNode, indent: int = 0): Layout =
-  var blocks = if n.isNil(): T[""] else: n.toLytBlock(indent)
+      else:
+        node.toLytBlock(conf)
 
-  let sln = none(LytSolution).withResIt do:
-    blocks.doOptLayout(it, defaultFormatOpts).get()
+    # echo node.treeRepr()
+    # echo blocks.treeRepr()
 
-  return sln.layouts[0]
+    return blocks.toString()
 
-proc pprintWrite*(s: Stream | File, n: PNode, indent: int = 0) =
-  raise newImplementError()
-  # s.write(layoutBlockRepr(n), indent = indent)
+  if n of nkStmtList:
+    for item in n:
+      result.add aux(item)
+      result.add "\n\n"
+
+  else:
+    result = aux(n)
 
 
-proc toPString*(n: PNode, indent: int = 0): string =
-  raise newImplementError()
-  # var blc = layoutBlockRepr(n, indent = indent)
-  # blc.toString()
-
-proc write*(
-  s: Stream | File, pd: AnyNimDecl[PNode],
+proc toPString*(
+    pd: AnyNimDecl[PNode],
     pprint: bool = true,
     standalone: bool = true,
-    indent: int = 0
-  ) =
+    conf: NimFormatConf = defaultNimFormatConf
+  ): string =
 
-  let pref = " ".repeat(indent)
-  s.writeLine(&"\n\n{pref}# Declaration created in: {pd.iinfo}")
+  if nffAddIINfo in conf:
+    result.add &"\n\n# Declaration created in: {pd.iinfo}"
+
   if pd.codeComment.len > 0:
     for line in split(pd.codeComment, "\n"):
-      s.writeLine(&"{pref}# {line}")
+      result.add &"# {line}"
 
   if pprint:
-    s.pprintWrite(pd.toNNode(standalone = standalone), indent = indent)
+    result.add toPstring(
+      pd.toNNode(standalone = standalone), conf = conf)
+
   else:
     for line in (str(pd.toNNode(standalone = standalone))).split('\n'):
-      s.write(pref)
-      s.writeLine(line)
+      result.add "\n"
 
-    # s.writeLine(pd.toNNode(standalone = standalone))
+  result.add("\n")
 
-  s.write("\n")
-
-proc write*(
-    s: Stream | File, nd: NimDecl[PNode],
+proc toPString*(
+    nd: NimDecl[PNode],
     standalone: bool = true,
-    pprint: bool = false
-  ) =
+    pprint: bool = false,
+    conf: NimFormatConf = defaultNimFormatConf
+  ): string =
 
   case nd.kind:
     of nekFieldDecl:
-      s.write(nd.fieldDecl, pprint = pprint)
+      result = toPString(nd.fieldDecl, pprint = pprint)
 
     of nekProcDecl:
-      s.write(nd.procdecl, pprint = pprint)
+      result = toPString(nd.procdecl, pprint = pprint)
 
     of nekEnumDecl:
-      s.write(nd.enumdecl, pprint = pprint, standalone = standalone)
+      result = toPString(nd.enumdecl, pprint = pprint, standalone = standalone)
 
     of nekObjectDecl:
-      s.write(nd.objectdecl, pprint = pprint, standalone = standalone)
+      result = toPString(nd.objectdecl, pprint = pprint, standalone = standalone)
 
     of nekAliasDecl:
-      s.write(nd.aliasdecl, pprint = pprint, standalone = standalone)
+      result = toPString(nd.aliasdecl, pprint = pprint, standalone = standalone)
 
     of nekPassthroughCode:
       if pprint:
-        s.pprintWrite(nd.passthrough)
+        result = toPString(nd.passthrough)
 
       else:
-        let nd = $nd
-        s.writeLine(nd)
+        result = $nd
+        result.add "\n"
 
-      s.write("\n\n")
+      result.add("\n\n")
 
     of nekMultitype:
       if nd.typedecls.len == 0:
         return
 
-      s.write("\ntype")
+      result.add("\ntype")
+      let conf = conf.withIt do:
+        it.baseIndent += 2
+
       for elem in nd.typedecls:
         case elem.kind:
           of ntdkEnumDecl:
-            s.write(
+            result.add toPString(
               elem.enumDecl, standalone = false,
-              pprint = pprint, indent = 2
+              pprint = pprint, conf = conf
             )
 
           of ntdkObjectDecl:
-            s.write(
+            result.add toPString(
               elem.objectDecl, standalone = false,
-              pprint = pprint, indent = 2
+              pprint = pprint, conf = conf
             )
 
           of ntdkAliasDecl:
-            s.write(
+            result.add toPString(
               elem.aliasDecl, standalone = false,
-              pprint = pprint, indent = 2
+              pprint = pprint, conf = conf
             )
 
-      s.write("\n\n")
-
-proc write*(s: Stream, ed: EnumDecl[PNode], pprint: bool = true) =
-  if pprint:
-    s.pprintWrite(ed.toNNode())
-
-  else:
-    s.write($ed.toNNode())
+      result.add("\n\n")

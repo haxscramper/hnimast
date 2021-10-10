@@ -3,7 +3,6 @@ import std/[
   tables, sets, options, math, os
 ]
 
-
 import
   compiler/[ast, idents, lineinfos, renderer]
 
@@ -13,6 +12,14 @@ import
   hmisc/core/all
 
 export macros, colorstring
+
+func eqIdentStr*(a, b: string): bool =
+  a.cmpIgnoreStyle(b) == 0
+
+func eqIdentStr*(str: string, ids: varargs[string]): bool =
+  for id in ids:
+    if str.eqIdent(id):
+      return true
 
 template `[]`*(node: PNode, slice: HSLice[int, BackwardsIndex]): untyped =
   ## Get range of subnodes from `PNode`
