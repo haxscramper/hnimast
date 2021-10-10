@@ -278,6 +278,29 @@ func getTypes*[N](decl: NimDecl[N]): seq[NimTypeDecl[N]] =
   assertKind(decl, {nekMultitype})
   decl.typeDecls
 
+func getFirst*[N](
+    decls: seq[NimTypeDecl[N]], name: string): NimTypeDecl[N] =
+
+  for decl in decls:
+    case decl.kind:
+      of ntdkEnumDecl:
+        if decl.enumDecl.name == name:
+          return decl
+
+      of ntdkObjectDecl:
+        if decl.objectDecl.name.head == name:
+          return decl
+
+      of ntdkAliasDecl:
+        if decl.aliasDecl.newType.head == name:
+          return decl
+
+
+  raise newGetterError(
+    "Could not find type named '" & name & "'")
+
+
+
 func add*[N](declSeq: var seq[NimDecl[N]], decl: AnyNimDecl[N]) =
   when decl is NimDecl:
     system.add(declSeq, decl)

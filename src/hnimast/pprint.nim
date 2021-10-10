@@ -407,27 +407,22 @@ proc toLytBlock(n: PNode, conf: NimFormatConf): LytBlock =
 
 
 proc toPString*(n: PNode, conf: NimFormatConf = defaultNimFormatConf): string =
-  proc aux(node: PNode): string =
-    var blocks: LytBlock =
-      if node.isNil() or
-         (node of {nnkStmtList} and len(node) == 0):
-        T[""]
+  proc aux(node: PNode): LytBlock =
+    if node.isNil() or (node of {nnkStmtList} and len(node) == 0):
+      return E[]
 
-      else:
-        node.toLytBlock(conf)
-
-    # echo node.treeRepr()
-    # echo blocks.treeRepr()
-
-    return blocks.toString()
+    else:
+      return node.toLytBlock(conf)
 
   if n of nkStmtList:
     for item in n:
-      result.add aux(item)
-      result.add "\n\n"
+      let bl = aux(item)
+      if not(bl of bkEmpty):
+        result.add toString(bl)
+        result.add "\n\n"
 
   else:
-    result = aux(n)
+    result = aux(n).toString()
 
 
 proc toPString*(
