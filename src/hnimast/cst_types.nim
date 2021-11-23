@@ -460,7 +460,6 @@ proc toFmtBlock*(node: CstNode): LytBlock =
         if n.has(1):
           result = V[]
           for imp in n:
-            echov imp.treeRepr()
             if imp =~ nkInfix and imp[^1] =~ nkBracket:
               let (start, middle, final) = lytSplitExpression(imp[^1])
               result.add V[
@@ -730,4 +729,4 @@ proc toFmtBlock*(node: CstNode): LytBlock =
 
 proc `$`*(node: CstNode): string =
   let blc = toFmtBlock(node)
-  return blc.toString()
+  return blc.toString().toString(color = false)

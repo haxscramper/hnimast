@@ -1,6 +1,6 @@
 import std/[
   macros, sequtils, strformat, strutils,
-  tables, sets, options, math, os
+  tables, sets, options, math, os, enumerate
 ]
 
 import
@@ -428,7 +428,7 @@ func newPTree*(kind: NimNodeKind, subnodes: varargs[PNode]): PNode =
   else:
     newTree(kind.toNK(), subnodes)
 
-func newCommentStmtNNode*[NNode](comment: string): NNode =
+proc newCommentStmtNNode*[NNode](comment: string): NNode =
   ## Create new `nnkCommentStmt` node
   when NNode is NimNode:
     return newCommentStmtNode(comment)
@@ -633,9 +633,13 @@ proc newNot*[N](a: N): N =
 proc newBreak*(target: NimNode = newEmptyNode()): NimNode =
   newTree(nnkBreakStmt, target)
 
-proc wrapStmtList*[N](nodes: varargs[N]): NimNode =
+proc wrapStmtList*[N](nodes: varargs[N]): N =
   newNTree[N](nnkStmtList, nodes)
 
+proc newOf*[N](expr: N, extra: varargs[N]): N =
+  result = newNTree[N](nnkOfBranch, expr)
+  for arg in extra:
+    result.add arg
 
 proc newIf*[N](cond, body: N, orElse: N = nil): N =
   result = newNTree[N](nnkIfStmt, newNTree[N](nnkElifBranch, cond, body))
@@ -866,13 +870,14 @@ proc lispRepr*(
     if '\n' notin t:
       result &= " " & toRed(t, colored)
 
-func treeRepr*(
-    pnode: PNode, colored: bool = true,
-    pathIndexed: bool = false,
+proc treeRepr*(
+    pnode: PNode,
+    colored: bool         = true,
+    pathIndexed: bool     = false,
     positionIndexed: bool = true,
-    maxdepth: int = 120,
-    maxlen: int = 30,
-    lineInfo: bool = false
+    maxdepth: int         = 120,
+    maxlen: int           = 30,
+    lineInfo: bool        = false
   ): ColoredText =
 
   coloredResult()
@@ -903,15 +908,27 @@ func treeRepr*(
       return
 
     add hshow(n.kind)
-    if n.comment.len > 0:
-      add "\n"
-      for line in split(n.comment, '\n'):
-        add pref & "  # " & toCyan(line) & "\n"
 
-      add pref
+    template addComment(): untyped =
+      if n.comment.len > 0:
+        add "\n"
+        for idx, line in enumerate(
+          split(n.comment.strip(leading = false), '\n')
+        ):
+          if idx > 0: add "\n"
+          add pref & "  # " & toCyan(line)
 
-    else:
-      add " "
+      else:
+        add " "
+
+    template addFlags(): untyped =
+      if not isNil(n.typ):
+        add " "
+        add n.typ.lispRepr(colored)
+
+      if n.flags.len > 0:
+        add " nflags:" & to8Bit($n.flags, 2, 0, 3)
+
 
     if lineInfo:
       add "@"
@@ -924,16 +941,28 @@ func treeRepr*(
 
     case n.kind:
       of nkStrKinds:
+        add " "
         add "\"" & toYellow(n.getStrVal(), colored) & "\""
+        addFlags()
+        addComment()
 
       of nkIntKinds:
+        add " "
         add toBlue($n.intVal, colored)
+        addFlags()
+        addComment()
 
       of nkFloatKinds:
+        add " "
         add toMagenta($n.floatVal, colored)
+        addFlags()
+        addComment()
 
       of nkIdent:
+        add " "
         add toGreen(n.getStrVal(), colored)
+        addFlags()
+        addComment()
 
       of nkSym:
         add toGreen(n.getStrVal(), colored)
@@ -952,22 +981,23 @@ func treeRepr*(
         if n.sym.magic != mNone:
           add " magic:" & to8Bit($n.sym.magic, 2, 0, 5)
 
+        addFlags()
+        addComment()
+
       of nkCommentStmt:
-        discard
+        addFlags()
+        addComment()
 
       else:
         discard
 
-    if not isNil(n.typ):
-      add " "
-      add n.typ.lispRepr(colored)
-
-    if n.flags.len > 0:
-      add " nflags:" & to8Bit($n.flags, 2, 0, 3)
 
     if n.kind notin nkTokenKinds:
+      addFlags()
       if n.len > 0:
         add "\n"
+
+      addComment()
 
       for newIdx, subn in n:
         aux(subn, level + 1, idx & newIdx)
@@ -1625,11 +1655,6 @@ proc compactCase*[N](caseNode: N): N =
         result.add newNTree[N](nnkOfBranch, emptyCond)
 
       result.add elseBranch
-
-  echo result.repr
-
-
-
 
 proc newPStmtList*(args: varargs[PNode]): PNode =
   newNTree[PNode](nnkStmtList, args)

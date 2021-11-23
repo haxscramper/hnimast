@@ -64,7 +64,7 @@ proc headSym*(node: PNode): PSym =
   case node.kind:
     of nkProcDeclKinds, nkDistinctTy, nkVarTy, nkAccQuoted,
        nkBracketExpr, nkTypeDef, nkPragmaExpr, nkPar, nkEnumFieldDef,
-       nkIdentDefs, nkRecCase:
+       nkIdentDefs, nkRecCase, nkCallStrLit:
       result = headSym(node[0])
 
     of nkCommand, nkCall, nkPrefix, nkPostfix,
@@ -97,7 +97,10 @@ proc headSym*(node: PNode): PSym =
 
     of nkIdent, nkEnumTy, nkProcTy, nkObjectTy, nkTupleTy,
        nkTupleClassTy, nkIteratorTy, nkOpenSymChoice,
-       nkClosedSymChoice, nkCast, nkLambda, nkCurly:
+       nkClosedSymChoice, nkCast, nkLambda, nkCurly,
+       nkReturnStmt, nkRaiseStmt, nkBracket, nkEmpty,
+       nkIfExpr
+         :
       result = nil
 
     of nkCheckedFieldExpr:
@@ -118,6 +121,7 @@ proc headSym*(node: PNode): PSym =
 
     of nkType, nkObjConstr:
       result = node.typ.skipTypes({tyRef}).sym
+
 
     else:
       raise newImplementKindError(node, $node.treeRepr())
@@ -270,7 +274,7 @@ proc newModuleGraph*(
     structuredErrorHook: proc(
       config: ConfigRef; info: TLineInfo; msg: string; level: Severity
     ) {.closure, gcsafe.} = nil,
-    useNimblePath: bool = false,
+    nimblePaths: seq[AbsDir] = @[],
     symDefines: seq[string] = @[],
     optionsConfig: proc(config: var ConfigRef) = nil
   ): ModuleGraph =
@@ -305,6 +309,8 @@ proc newModuleGraph*(
   ]
 
   config.projectFull = file
+  config.projectPath = AbsoluteDir(file.dir().getStr())
+  config.projectName = file.name()
 
 
   config.structuredErrorHook = structuredErrorHook
@@ -318,8 +324,9 @@ proc newModuleGraph*(
   for sym in symDefines:
     defineSymbol(config.symbols, sym)
 
-  if useNimblePath:
-    nimblePath(config, ~".nimble/pkgs", TLineInfo())
+  if ?nimblePaths:
+    for path in nimblePaths:
+      nimblePath(config, path, TLineInfo())
 
   else:
     config.disableNimblePath()
@@ -356,17 +363,17 @@ proc compileString*(
   registerPass(graph, semPass)
   registerPass(
     graph, makePass(
-      (
-        proc(graph: ModuleGraph, module: PSym): PPassContext {.nimcall.} =
+      TPassOpen(
+        proc(graph: ModuleGraph, module: PSym, idgen: IdGenerator): PPassContext {.nimcall.} =
           return PPassContext()
       ),
-      (
+      TPassProcess(
         proc(c: PPassContext, n: PNode): PNode {.nimcall.} =
           if n.info.fileIndex.int32 == 1:
             res.add n
           result = n
       ),
-      (
+      TPassClose(
         proc(graph: ModuleGraph; p: PPassContext,
              n: PNode): PNode {.nimcall.} =
           discard
@@ -375,9 +382,9 @@ proc compileString*(
   )
 
   var m = graph.makeModule(moduleName)
-  graph.vm = setupVM(m, graph.cache, moduleName, graph)
+  graph.vm = setupVM(m, graph.cache, moduleName, graph, graph.idgen)
   graph.compileSystemModule()
-  discard graph.processModule(m, llStreamOpen(text))
+  discard graph.processModule(m, graph.idgen, llStreamOpen(text))
 
   return res
 

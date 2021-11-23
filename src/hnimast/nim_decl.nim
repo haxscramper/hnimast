@@ -21,6 +21,9 @@ type
     nekAliasDecl
     nekMultitype
 
+const nekTypeKinds* = {nekObjectdecl, nekAliasDecl, nekEnumDecl}
+
+type
   AliasDecl*[N] = object
     iinfo*: LineInfo
     docComment*: string
@@ -145,7 +148,7 @@ func `==`*[N](a, b: NimDecl[N]): bool =
   )
 
 
-func toNNode*[N](entry: NimDecl[N], standalone: bool = true): N =
+proc toNNode*[N](entry: NimDecl[N], standalone: bool = true): N =
   case entry.kind:
     of nekProcDecl:
       return toNNode[N](entry.procdecl)
@@ -178,13 +181,13 @@ func toNNode*[N](entry: NimDecl[N], standalone: bool = true): N =
           of ntdkAliasDecl:
             result.add toNNode[N](elem.aliasDecl, standalone = false)
 
-func toNNode*[N](entries: seq[NimDecl[N]]): N =
+proc toNNode*[N](entries: seq[NimDecl[N]]): N =
   result = newNTree[N](nnkStmtList)
   for entry in items(entries):
     result.add toNNode[N](entry)
 
 
-func toNimTypeDecl*[N](odc: ObjectDecl[N]): NimTypeDecl[N] =
+proc toNimTypeDecl*[N](odc: ObjectDecl[N]): NimTypeDecl[N] =
   NimTypeDecl[N](kind: ntdkObjectDecl, objectdecl: odc)
 
 func toNimTypeDecl*[N](adc: AliasDecl[N]): NimTypeDecl[N] =
@@ -278,28 +281,26 @@ func getTypes*[N](decl: NimDecl[N]): seq[NimTypeDecl[N]] =
   assertKind(decl, {nekMultitype})
   decl.typeDecls
 
+func getName*[N](decl: NimTypeDecl[N]): string =
+  case decl.kind:
+    of ntdkEnumDecl: decl.enumDecl.name
+    of ntdkObjectDecl: decl.objectDecl.name.head
+    of ntdkAliasDecl: decl.aliasDecl.newType.head
+
 func getFirst*[N](
     decls: seq[NimTypeDecl[N]], name: string): NimTypeDecl[N] =
 
   for decl in decls:
-    case decl.kind:
-      of ntdkEnumDecl:
-        if decl.enumDecl.name == name:
-          return decl
-
-      of ntdkObjectDecl:
-        if decl.objectDecl.name.head == name:
-          return decl
-
-      of ntdkAliasDecl:
-        if decl.aliasDecl.newType.head == name:
-          return decl
-
+    if decl.getName() == name:
+      return decl
 
   raise newGetterError(
     "Could not find type named '" & name & "'")
 
-
+func getFirst*[N](decls: seq[NimDecl[N]], kind: NimDeclKind): NimDecl[N] =
+  for d in decls:
+    if d of kind:
+      return d
 
 func add*[N](declSeq: var seq[NimDecl[N]], decl: AnyNimDecl[N]) =
   when decl is NimDecl:
@@ -310,6 +311,12 @@ func add*[N](declSeq: var seq[NimDecl[N]], decl: AnyNimDecl[N]) =
 
 # func add*[N](declSeq: var seq[NimDecl[N]], decl: N) =
 #   declSeq.add NimDecl(kind: nekPassthroughCode, passthrough: decl)
+
+func newPassCode*[N](code: N): NimDecl[N] =
+  NimDecl[N](kind: nekPassthroughCode, passthrough: code)
+
+func add*[N](decls: var seq[NimDecl[N]], code: N) =
+  decls.add newPassCode[N](code)
 
 func newAliasDecl*[N](
     t1, t2: NType[N],

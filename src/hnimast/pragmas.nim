@@ -76,7 +76,7 @@ func clear*[N](pragma: var PRagma[N]) =
 func newNNPragma*[N](): Pragma[N] = discard
 
 
-func parseSomePragma*[N](node: N): Option[Pragma[N]] =
+proc parseSomePragma*[N](node: N): Option[Pragma[N]] =
   case node.kind.toNNK():
     of nnkIdent, nnkSym, nnkEmpty:
       discard
@@ -88,6 +88,9 @@ func parseSomePragma*[N](node: N): Option[Pragma[N]] =
 
       return some res
 
+    of nnkAccQuoted:
+      discard
+
     of nnkPostfix, nnkPragmaExpr:
       return parseSomePragma(node[1])
 
@@ -98,7 +101,7 @@ func parseSomePragma*[N](node: N): Option[Pragma[N]] =
       raise newImplementKindError(node, node.treeRepr())
       # raiseImplementKindError(node, node.treeRepr())
 
-func parsePragma*[N](node: N): Pragma[N] =
+proc parsePragma*[N](node: N): Pragma[N] =
   let res = parseSomePragma(node)
   if res.isSome():
     return res.get()

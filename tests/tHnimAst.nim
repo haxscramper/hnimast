@@ -4,10 +4,16 @@ import
   hmisc/preludes/unittest
 
 import
+  hmisc/algo/clformat
+
+import
   hnimast,
   hnimast/[obj_field_macros, pprint, hast_common]
 
 import compiler/ast
+
+macro showTyped*(body: typed) =
+  echo body.treeRepr1(positionIndexed = false)
 
 suite "HNimAst":
   test "{enumPref} :macro:":
@@ -337,7 +343,7 @@ type Type = object
 
     var decls: seq[NimTypeDecl[PNode]]
 
-    decls.add toNimTypeDecl(newPEnumDecl(
+    decls.add toNimTypeDecl(newEnumDecl[PNode](
       "Test", iinfo = currLInfo()))
 
     write(stdout, decls.toNimDecl())

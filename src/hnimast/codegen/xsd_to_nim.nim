@@ -4,6 +4,7 @@ import hmisc/algo/[halgorithm, hstring_algo, clformat, namegen]
 import std/[strutils, strformat, sequtils, with]
 import hmisc/core/all
 import hnimast
+import ../pprint
 
 import fusion/matching
 
@@ -83,7 +84,7 @@ proc kindFieldName*(name: string; parent: XsdEntry, cache): string =
   "f" & kindEnumName(name, "F" & parent.typeName(), cache.enumNames, false)
 
 proc fieldName*(name: string, cache): string =
-  fixIdentName(name, "f", cache.enumNames)
+  cache.enumNames.fixIdentName(name, "f")
 
 # proc fieldName*(name: string, parent: XsdEntry, cache)
 
@@ -582,7 +583,7 @@ proc generateForObject(gen, cache): seq[PNimDecl] =
       unused.excl xmlCharData
 
     var
-      genEnum = newPEnumDecl(gen.kindTypeName())
+      genEnum = newEnumDecl[PNode](gen.kindTypeName())
       selector = newObjectCaseField("kind", newPType(gen.kindTypeName))
       bodyObject = newPObjectDecl(gen.bodyTypeName())
 
@@ -744,7 +745,7 @@ proc generateForObject(gen, cache): seq[PNimDecl] =
   result.add toNimDecl parser
 
 proc generateForEnum(gen, cache): tuple[decl: PEnumDecl, parser: PProcDecl] =
-  result.decl = newPEnumDecl(gen.nimName)
+  result.decl = newEnumDecl[PNode](gen.nimName)
   result.parser = newPProcDecl(gen.nimName.parserName(), iinfo = currLInfo())
 
   var mainCase = newCase(newPDotFieldExpr("parser", "strVal"))
@@ -848,13 +849,13 @@ proc generateForXsd*(xsd: AbsFile): seq[PNimDecl] =
 proc writeXsdGenerator*(decls: seq[PNimDecl], target: AbsFile) =
   target.writeFile(
     """
-import std/[options]
+import std/[options, times]
 import hmisc/hasts/[xml_ast]
 export options, xml_ast
 
 import hmisc/algo/halgorithm
 
-""" & $decls
+""" & decls.toNNode().toPString(nformatConf(flags -= nffAllowMultilineProcHead))
   )
 
 when isMainModule:

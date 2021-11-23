@@ -8,7 +8,7 @@ srcDir        = "src"
 
 # Dependencies
 
-requires "nim >= 1.4.8"
+requires "nim >= 1.6.0"
 requires "hmisc >= 0.12.0"
 
 

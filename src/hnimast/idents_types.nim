@@ -533,7 +533,7 @@ func newProcNType*[NNode](args: seq[NType[NNode]]): NType[NNode] =
     pragma: newNNPragma[NNode]()
   )
 
-func parseNidentDefs*[N](node: N): NIdentDefs[N]
+proc parseNidentDefs*[N](node: N): NIdentDefs[N]
 
 func splitIdent*[N](node: N): tuple[module: Option[N], head: string] =
   if node.kind == nnkDotExpr:
@@ -543,7 +543,7 @@ func splitIdent*[N](node: N): tuple[module: Option[N], head: string] =
   else:
     result.head = node.getStrVal()
 
-func newNTypeNNode*[NNode](node: NNode): NType[NNode] =
+proc newNTypeNNode*[NNode](node: NNode): NType[NNode] =
   # REFACTOR rename to `parseNType`
   ## Convert type described in `NimNode` into `NType`
   case node.kind.toNNK():
@@ -650,9 +650,13 @@ func newNTypeNNode*[NNode](node: NNode): NType[NNode] =
       elif node[0].getStrVal() in ["type", "typeof"]:
         result = NType[NNode](kind: ntkTypeofExpr, value: node)
 
+      elif node[0].getStrVal() in ["{}"]:
+        # NOTE current implementation drops TRM patterns for arguments
+        result = newNTypeNNode(node[1])
+
       else:
         raise newArgumentError(
-          "Unexpected call node for type: " & toShow(node[0]))
+          "Unexpected call node for type: " & node.treeRepr1())
 
     of nnkPrefix:
       if node[0].getStrVal() in ["not"]:
@@ -713,22 +717,22 @@ func newNTypeNNode*[NNode](node: NNode): NType[NNode] =
 
   result.declNode = some(node)
 
-func newNType*(impl: NimNode): NType[NimNode] =
+proc newNType*(impl: NimNode): NType[NimNode] =
   ## Convert type described in `NimNode` into `NType`
   newNTypeNNode(impl)
 
-func parseNType*(impl: PNode): NType[PNode] =
+proc parseNType*(impl: PNode): NType[PNode] =
   ## Convert type described in `NimNode` into `NType`
   newNTypeNNode(impl)
 
-func parseNType*(impl: NimNode): NType[NimNode] =
+proc parseNType*(impl: NimNode): NType[NimNode] =
   ## Convert type described in `NimNode` into `NType`
   newNTypeNNode(impl)
 
 # proc newNType*(typ: PType): NType[PNode] =
 
 
-func newNType*(impl: PNode): NType[PNode] {.deprecated: "Use parseNType".} =
+proc newNType*(impl: PNode): NType[PNode] {.deprecated: "Use parseNType".} =
   ## Convert type described in `NimNode` into `NType`
   newNTypeNNode(impl)
 
@@ -766,7 +770,7 @@ func toNTypeAst*[T](): NType =
   let expr = parseExpr(str)
 
 
-func parseNidentDefs*[N](node: N): NIdentDefs[N] =
+proc parseNidentDefs*[N](node: N): NIdentDefs[N] =
   if node.kind.toNNK() in {nnkSym, nnkIdent}:
     result.idents.add node
     return

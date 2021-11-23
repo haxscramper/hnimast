@@ -30,6 +30,3 @@ import
 
 import
   nimtraits/[nimtraits, trait_new, trait_xml]
-
-import
-  interop/[wrap_gen, wrap_decl, wrap_icpp, wrap_store, wrap_convert]

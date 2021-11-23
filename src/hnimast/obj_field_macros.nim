@@ -280,7 +280,6 @@ proc getFields*[N](
               kind, "Unknown parameter kind: ")
 
     of nnkObjectTy:
-      # echov node[2].treeRepr1()
       return node[2].getFields(none(N), sym, level + 1)
 
     of nnkRefTy, nnkPtrTy:
@@ -302,7 +301,6 @@ proc getFields*[N](
     of nnkRecList:
       mixin items
       for elem in items(node):
-        # echov elem.treeRepr1()
         if elem.kind.toNNK() == nnkRecWhen:
           # TODO 'when' branches must be tracked somehow for `haxdoc`
           # parsing, but they are largely unnecessary when it comes to
@@ -350,7 +348,7 @@ proc getFields*[N](
           declNode: some(sym),
           isTuple: true,
           isChecked: isCheckedOn.isSome(),
-          tupleIdx: idx# , value: initObjTree[NimNode]()
+          tupleIdx: idx
         )
 
     of nnkIdentDefs:

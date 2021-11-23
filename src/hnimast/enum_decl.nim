@@ -118,9 +118,21 @@ func addField*[N](
 
   en.values.add makeEnumField(name, value, docComment)
 
+proc addPragma*[N](decl: var EnumDecl[N], value: N) =
+  decl.pragma.add value
+
+proc addPragma*[N](f: var EnumDecl[N], values: seq[N]) =
+  for v in values:
+    f.addPragma(v)
+
+proc addPragma*[N](decl: var EnumDecl[N], name: string) =
+  decl.addPragma newNIdent[N](name)
+
+proc addPragma*[N](decl: var EnumDecl[N], key: string, value: N) =
+  decl.addPragma newNTree[N](nnkExprColonExpr, newNIdent[N](key), value)
 
 
-func parseEnumField*[NNode](fld: NNode): EnumField[NNode] =
+proc parseEnumField*[NNode](fld: NNode): EnumField[NNode] =
   case fld.kind.toNNK():
     of nnkEnumFieldDef:
       let val = fld[1]
@@ -224,7 +236,7 @@ func toNNode*[NNode](ro: RTimeOrdinal): NNode =
         newNident[NNode]("false")
 
 
-func toNNode*[NNode](fld: EnumField[NNode]): NNode =
+proc toNNode*[NNode](fld: EnumField[NNode]): NNode =
   var fldVal: Option[NNode] = case fld.kind:
     of efvNone:
       none(NNode)
@@ -266,7 +278,7 @@ func toNNode*[NNode](fld: EnumField[NNode]): NNode =
       ident(fld.name)
 
 
-func toNNode*[NNode](en: EnumDecl[NNode], standalone: bool = false): NNode =
+proc toNNode*[NNode](en: EnumDecl[NNode], standalone: bool = false): NNode =
   ## Convert enum definition to `NNode`. If `standalone` is true wrap
   ## result in `nnkTypeSection`, otherwise generate `nnkTypeDef` only.
   let flds = collect(newSeq):
@@ -301,7 +313,7 @@ func toNNode*[NNode](en: EnumDecl[NNode], standalone: bool = false): NNode =
     newNTree[NNode](nnkEnumTy, @[ newEmptyNNode[NNode]() ] & flds))
 
   when NNode is PNode:
-    result[2].comment = en.docComment.strip()
+    result[2].comment = strutils.strip(en.docComment)
 
   if standalone:
     result = newNTree[NNode](
@@ -310,7 +322,7 @@ func toNNode*[NNode](en: EnumDecl[NNode], standalone: bool = false): NNode =
     )
 
 
-func parseEnumImpl*[NNode](en: NNode): EnumDecl[NNode] =
+proc parseEnumImpl*[NNode](en: NNode): EnumDecl[NNode] =
   case en.kind.toNNK():
     of nnkSym:
       when NNode is PNode:
@@ -359,7 +371,7 @@ func parseEnumImpl*[NNode](en: NNode): EnumDecl[NNode] =
     else:
       raise newImplementKindError(en)
 
-func parseEnum*[NNode: not enum](node: NNode): EnumDecl[NNode] =
+proc parseEnum*[NNode: not enum](node: NNode): EnumDecl[NNode] =
   result = parseEnumImpl(node)
   result.docComment = getDocComment(node)
 

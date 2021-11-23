@@ -37,13 +37,11 @@ proc warnFake*(node: PNode, ctx: var Context) =
   case node.kind:
     of nkProcDeclKinds:
       let sym = node[0].headSym()
-      echo sym
       echo sym.typ.n.treeRepr()
 
     else:
       for sub in node:
         warnFake(sub, ctx)
-  # echo node.treeRepr()
 
 when isMainModule:
   let compiled = compileString("""

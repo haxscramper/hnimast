@@ -175,7 +175,7 @@ func isSameCategory(kind1, kind2: NimNodeKind): bool =
   (kind1 in nnkFloatKinds and kind2 in nnkFloatKinds) or
   (kind1 in {nnkIdent, nnkSym} and kind2 in {nnkIdent, nnkSym})
 
-func newPQuoteTree*(
+proc newPQuoteTree*(
     kind: NimNodeKind, subnodes: varargs[PNode, toPnodeAux]): PNode =
 
   if kind in nnkTokenKinds:

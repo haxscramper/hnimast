@@ -205,7 +205,12 @@ macro genXmlWriter*(
     addEndIndent: untyped = true,
     hasFieldsExpr: untyped = true
   ): untyped =
-  let obj = if hasObjectStructure(obj): obj else: baseImplSym(obj)
+  let obj =
+    if hasObjectStructure(obj):
+      obj
+
+    else:
+      baseImplSym(obj)
 
   var ignored: seq[string]
   for item in skipFieldWrite:
@@ -286,9 +291,14 @@ macro genXmlWriter*(
 
 proc writeXml*[T: not enum](writer: var XmlWriter, obj: T, tag: string) =
   mixin writeXml
-  genXmlWriter(T, obj, writer, tag)
+  when T is tuple:
+    {.warning: "FIXME implement tuple writing for XML - " & $T.}
+
+  else:
+    genXmlWriter(T, obj, writer, tag)
 
 
 proc loadXml*[T: not enum](reader: var HXmlParser, obj: var T, tag: string) =
   mixin loadXml
-  genXmlLoader(T, obj, reader, tag)
+  raise newImplementError()
+  # genXmlLoader(T, obj, reader, tag)

@@ -130,7 +130,7 @@ macro fromVmImpl*(obj: typedesc, vmNode: PNode): untyped =
       `unpackCase`
       `res`
 
-  echo result.repr
+  # echo result.repr
 
 proc fromVm*[T: object or ref object](t: var T, node: PNode) =
   t = fromVmImpl(T, node)

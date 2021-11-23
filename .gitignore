@@ -25,3 +25,6 @@ nimdoc.cfg
 cache/*
 docs/*
 nim.cfg
+
+
+testresults/*

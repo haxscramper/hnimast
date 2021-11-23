@@ -19,6 +19,7 @@ proc getEnumStructure*(obj: NimNode): NEnumDecl =
 
 
 proc baseImplSym*(t: NimNode, passSym: bool = false): NimNode =
+  # echo t.treeRepr1()
   case t.kind:
     of nnkTypeofExpr:
       # echov t[0].getType().treeRepr1()

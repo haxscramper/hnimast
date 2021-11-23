@@ -145,7 +145,7 @@ proc newPObjectDecl*(
   result.pragma = some pragma
   result.exported = exported
 
-func newObjectField*[N](
+proc newObjectField*[N](
     name: string,
     cxtype: NType[N],
     docComment: string = "",
@@ -171,19 +171,6 @@ func addField*[N](obj: var ObjectDecl[N], field: ObjectField[N])
 
 func add*[N](obj: var ObjectDecl[N], field: ObjectField[N]) =
   obj.flds.add field
-
-# func addField*[N](
-#     obj: var ObjectDecl[N],
-#     name: string,
-#     cxtype: NType[N],
-#     docComment: string = "",
-#     codeComment: string = "",
-#     exported: bool = true
-#   ) {.deprecated: "use .addField(newObjectField())".} =
-
-#   obj.flds.add newObjectField(
-#     name, cxtype, docComment, codeComment, exported)
-
 
 func newObjectCaseField*[N](
     name: string,
@@ -726,7 +713,7 @@ func fieldPath*(impl: NObjectDecl, name: string): NObjectPath =
 
 
 #========================  Other implementation  =========================#
-func toNNode*[N](fld: ObjectField[N], standalone: bool = false): N
+proc toNNode*[N](fld: ObjectField[N], standalone: bool = false): N
 
 func toNNode*[N](branch: ObjectBranch[N]): N =
   if branch.isElse:
@@ -742,7 +729,7 @@ func toNNode*[N](branch: ObjectBranch[N]): N =
 
 
 
-func toNNode*[N](fld: ObjectField[N], standalone: bool = false): N =
+proc toNNode*[N](fld: ObjectField[N], standalone: bool = false): N =
   let head =
     if fld.isExported:
       newNTree[N](nnkPostfix,
@@ -800,7 +787,7 @@ func toExported*[N](ntype: NType[N], exported: bool): tuple[
 
 
 
-func toNNode*[N](obj: ObjectDecl[N], standalone: bool = false): N =
+proc toNNode*[N](obj: ObjectDecl[N], standalone: bool = false): N =
   let (head, genparams) = obj.name.toExported(obj.exported)
   let header =
     if obj.pragma.isSome():

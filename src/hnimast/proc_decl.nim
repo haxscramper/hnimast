@@ -5,13 +5,13 @@ import
   hmisc/core/all
 
 import
-  std/[sequtils, strutils, macros, options, strformat, tables]
+  std/[sequtils, macros, options, strformat, tables]
 
 import
   compiler/[ast, lineinfos]
 
 when defined(nimdoc):
-  static: quit 0
+  discard
 
 type
   # TODO different keyword types: `method`, `iterator`, `proc`,
@@ -107,6 +107,9 @@ proc addPragma*[N](
   decl.signature.pragma.add newNTree[N](
     nnkExprColonExpr, newNIdent[N](key), value)
 
+func hasPragma*[N](decl: ProcDecl[N], name: string): bool =
+  decl.signature.pragma.hasElem(name)
+
 # proc addArgument*[N](
 #   procDecl: var ProcDecl,
 #   args: openarray[(string, NType[N], NVarDeclKind)]) =
@@ -142,7 +145,7 @@ proc `returnType=`*[N](procDecl: var ProcDecl[N], retType: NType[N]) =
 proc `pragma=`*[N](procDecl: var ProcDecl[N], pragma: Pragma[N]) =
   procDecl.signature.pragma = pragma
 
-func toNNode*[NNode](
+proc toNNode*[NNode](
   pr: ProcDecl[NNode], standalone: bool = true): NNode =
   if pr.signature.kind != ntkProc:
     raise newArgumentError(
@@ -226,6 +229,7 @@ func toNNode*[NNode](
   when NNode is PNode:
     result.comment = pr.docComment
     # debugecho result.comment
+
 
 func newProcDecl*[N](name: string): ProcDecl[N] =
   result.name = name
