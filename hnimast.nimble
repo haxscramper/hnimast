@@ -14,21 +14,14 @@ requires "hmisc >= 0.12.0"
 
 import std/[os, strutils, strformat]
 
-task testall, "Run all tests":
-  exec "nim r tests/noauto_testall.nim"
-  exec "nim r -d:haxTestall tests/cpp/tQWindow.nim"
+task test, "Run tests":
+  exec "nim r tests/runall.nim test " & currentSourcePath()
 
 task docgen, "Generate documentation":
-  var args = @[
-    "nim", "doc2", "--project", "--warnings:off", "--errormax:1", "--outdir:htmldocs"]
+  exec "nim c -r tests/runall.nim doc " & currentSourcePath()
 
-  let
-    cwd = getCurrentDir()
-    res = &"{cwd}/docs"
+task push, "Execute checks and push ":
+  exec "nim r tests/runall.nim push " & currentSourcePath()
 
-  args.add "--git.url:\"" & getEnv("GITHUB_REPOSITORY", &"file://{res}") & "\""
-  args.add "src/hnimast/docgen_target.nim"
-
-  let cmd = join(args, " ")
-  echo cmd
-  exec cmd
+task newversion, "Tag new version and push it to git":
+   exec "nim r tests/runall.nim newversion " & currentSourcePath()
