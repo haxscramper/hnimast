@@ -155,7 +155,7 @@ proc main() =
       stdlib,
       stdlib / "pure",
       stdlib / "core",
-      currentSourceDir()
+      oswrap.currentSourceDir()
   ]))
 
   intr.implementRoutine("*", "scriptname", "readVmVariant",
@@ -190,7 +190,7 @@ proc main() =
   )
 
   intr.evalScript(llStreamOpen(
-    readFile(currentSourceDir() /. "vm_common.nim") & """
+    readFile(oswrap.currentSourceDir() /. "vm_common.nim") & """
 import std/tables
 
 proc dump[T](arg: T): T = discard
