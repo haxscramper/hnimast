@@ -12,9 +12,13 @@ jobs:
       - uses: alaviss/setup-nim@master
         with:
           path: '../nim'
-          version: 'version-1-4'
-      - run: "nimble -y test && nimble install -y"
-      - run: "nimble -y install nimble@0.13.0"
+          version: 'version-1-6'
+      - run: "nimble -y develop"
+      - run: |
+          echo '--path="$nim"' > nim.cfg
+          cat nim.cfg
+
+      - run: "nimble test"
       - run: "nimble docgen"
       - uses: crazy-max/ghaction-github-pages@v1
         with:
