@@ -1,0 +1,85 @@
+ntkNone	hnimast/idents_types.html#ntkNone	NTypeKind.ntkNone	
+ntkIdent	hnimast/idents_types.html#ntkIdent	NTypeKind.ntkIdent	
+ntkProc	hnimast/idents_types.html#ntkProc	NTypeKind.ntkProc	
+ntkRange	hnimast/idents_types.html#ntkRange	NTypeKind.ntkRange	
+ntkGenericSpec	hnimast/idents_types.html#ntkGenericSpec	NTypeKind.ntkGenericSpec	
+ntkAnonTuple	hnimast/idents_types.html#ntkAnonTuple	NTypeKind.ntkAnonTuple	
+ntkNamedTuple	hnimast/idents_types.html#ntkNamedTuple	NTypeKind.ntkNamedTuple	
+ntkVarargs	hnimast/idents_types.html#ntkVarargs	NTypeKind.ntkVarargs	
+ntkValue	hnimast/idents_types.html#ntkValue	NTypeKind.ntkValue	
+ntkCurly	hnimast/idents_types.html#ntkCurly	NTypeKind.ntkCurly	
+ntkTypeofExpr	hnimast/idents_types.html#ntkTypeofExpr	NTypeKind.ntkTypeofExpr	
+NTypeKind	hnimast/idents_types.html#NTypeKind	idents_types: NTypeKind	
+PNType	hnimast/idents_types.html#PNType	idents_types: PNType	
+NType	hnimast/idents_types.html#NType	idents_types: NType	
+nvdLet	hnimast/idents_types.html#nvdLet	NVarDeclKind.nvdLet	
+nvdVar	hnimast/idents_types.html#nvdVar	NVarDeclKind.nvdVar	
+nvdConst	hnimast/idents_types.html#nvdConst	NVarDeclKind.nvdConst	
+NVarDeclKind	hnimast/idents_types.html#NVarDeclKind	idents_types: NVarDeclKind	
+NIdentDefs	hnimast/idents_types.html#NIdentDefs	idents_types: NIdentDefs	
+PIdentDefs	hnimast/idents_types.html#PIdentDefs	idents_types: PIdentDefs	
+arg	hnimast/idents_types.html#arg,NType[NNode],int	idents_types: arg[NNode](t: NType[NNode]; idx: int): NIdentDefs[NNode]	
+vaType=	hnimast/idents_types.html#vaType=,NType[N],NType[N]	idents_types: vaType=[N](t: var NType[N]; vat: NType[N])	
+vaType	hnimast/idents_types.html#vaType,NType[N]	idents_types: vaType[N](t: NType[N]): NType[N]	
+curlyHead	hnimast/idents_types.html#curlyHead,NType[N]	idents_types: curlyHead[N](t: NType[N]): NType[N]	
+curlyHead=	hnimast/idents_types.html#curlyHead=,NType[N],NType[N]	idents_types: curlyHead=[N](t: var NType[N]; head: NType[N])	
+returnType=	hnimast/idents_types.html#returnType=,NType[N],NType[N]	idents_types: returnType=[N](t: var NType[N]; val: NType[N])	
+returnType	hnimast/idents_types.html#returnType,NType[N]	idents_types: returnType[N](t: NType[N]): Option[NType[N]]	
+argumentType	hnimast/idents_types.html#argumentType,NType[N],int	idents_types: argumentType[N](t: NType[N]; idx: int): NType[N]	
+argumentTypes	hnimast/idents_types.html#argumentTypes,NType[N]	idents_types: argumentTypes[N](t: NType[N]): seq[NType[N]]	
+directUsedTypes	hnimast/idents_types.html#directUsedTypes,NType[N]	idents_types: directUsedTypes[N](ntype: NType[N]): seq[NType[N]]	
+allUsedTypes	hnimast/idents_types.html#allUsedTypes,NType[N]	idents_types: allUsedTypes[N](ntype: NType[N]): seq[NType[N]]	
+isPrimitiveHead	hnimast/idents_types.html#isPrimitiveHead,NType[N]	idents_types: isPrimitiveHead[N](ntype: NType[N]): bool	
+isPrimitive	hnimast/idents_types.html#isPrimitive,NType[N]	idents_types: isPrimitive[N](ntype: NType[N]): bool	
+`==`	hnimast/idents_types.html#==,NType,NType	idents_types: `==`(l, r: NType): bool	
+sameNoTy	hnimast/idents_types.html#sameNoTy,NType,NType,bool	idents_types: sameNoTy(l, r: NType; noParams: bool = false): bool	
+rType=	hnimast/idents_types.html#rType=,NType[NNode],NType[NNode]	idents_types: rType=[NNode](t: var NType[NNode]; val: NType[NNode]): void	
+setRType	hnimast/idents_types.html#setRType,NType[NNode],NType[NNode]	idents_types: setRType[NNode](t: var NType[NNode]; val: NType[NNode]): void	
+toNIdentDefs	hnimast/idents_types.html#toNIdentDefs,openArray[tuple[string,NType[NNode]]]	idents_types: toNIdentDefs[NNode](args: openArray[tuple[name: string, atype: NType[NNode]]]): seq[\n    NIdentDefs[NNode]]	
+toNIdentDefs	hnimast/idents_types.html#toNIdentDefs,openArray[tuple[string,NType[NNode],NVarDeclKind]]	idents_types: toNIdentDefs[NNode](args: openArray[tuple[name: string, atype: NType[NNode],\n    nvd: NVarDeclKind]]): seq[NIdentDefs[NNode]]	
+toNNode	hnimast/idents_types.html#toNNode,NIdentDefs[NNode]	idents_types: toNNode[NNode](nident: NIdentDefs[NNode]): NNode	
+add	hnimast/idents_types.html#add,NType[NNode],NType[NNode]	idents_types: add[NNode](ntype: var NType[NNode]; nt: NType[NNode])	
+add	hnimast/idents_types.html#add,NType[NNode],varargs[NType[NNode]]	idents_types: add[NNode](ntype: var NType[NNode]; nt: varargs[NType[NNode]])	
+contains	hnimast/idents_types.html#contains,set[NimNodeKind],TNodeKind	idents_types: contains(arg: set[NimNodeKind]; pkind: TNodeKind): bool	
+toNNode	hnimast/idents_types.html#toNNode,NType[NNode],bool,bool	idents_types: toNNode[NNode](ntype: NType[NNode]; exported: bool = false;\n               inParam: bool = false): NNode	
+toNNode	hnimast/idents_types.html#toNNode,Option[NType[N]]	idents_types: toNNode[N](ntype: Option[NType[N]]): N	
+newNIdentDefs	hnimast/idents_types.html#newNIdentDefs,string,NType[N],NVarDeclKind,Option[N]	idents_types: newNIdentDefs[N](vname: string; vtype: NType[N]; kind: NVarDeclKind = nvdLet;\n                 value: Option[N] = none(N)): NIdentDefs[N]	
+add	hnimast/idents_types.html#add,NType[N],string,NType[N]	idents_types: add[N](ntype: var NType[N]; argname: string; argtype: NType[N])	
+toNimNode	hnimast/idents_types.html#toNimNode,NType	idents_types: toNimNode(ntype: NType): NimNode	
+toPNode	hnimast/idents_types.html#toPNode,NType	idents_types: toPNode(ntype: NType): PNode	
+toNFormalParam	hnimast/idents_types.html#toNFormalParam,NIdentDefs[NNode]	idents_types: toNFormalParam[NNode](nident: NIdentDefs[NNode]): NNode	
+toFormalParam	hnimast/idents_types.html#toFormalParam,NIdentDefs[NimNode]	idents_types: toFormalParam(nident: NIdentDefs[NimNode]): NimNode	
+skip	hnimast/idents_types.html#skip,NType[N],seq[string]	idents_types: skip[N](ntype: NType[N]; head: seq[string] = @[&quot;ref&quot;, &quot;var&quot;, &quot;sink&quot;, &quot;ptr&quot;]): NType[\n    N]	
+newNType	hnimast/idents_types.html#newNType,string,seq[string]	idents_types: newNType(name: string; gparams: seq[string] = @[]): NType[NimNode]	
+newPType	hnimast/idents_types.html#newPType,string,openArray[string]	idents_types: newPType(name: string; gparams: openArray[string] = @[]): NType[PNode]	
+newNNType	hnimast/idents_types.html#newNNType,string,seq[string]	idents_types: newNNType[NNode](name: string; gparams: seq[string] = @[]): NType[NNode]	
+newNType	hnimast/idents_types.html#newNType,string,openArray[NType[NNode]]	idents_types: newNType[NNode](name: string; gparams: openArray[NType[NNode]]): NType[NNode]	
+newPType	hnimast/idents_types.html#newPType,NTypeKind	idents_types: newPType(kind: NTypeKind): NType[PNode]	
+newPType	hnimast/idents_types.html#newPType,string,openArray[NType[N]]	idents_types: newPType[N](name: string; gparams: openArray[NType[N]]): NType[N]	
+newPType	hnimast/idents_types.html#newPType,int	idents_types: newPType(value: int): NType[PNode]	
+newProcNType	hnimast/idents_types.html#newProcNType,seq[],NType[NNode],Pragma[NNode]	idents_types: newProcNType[NNode](args: seq[(string, NType[NNode])]; rtype: NType[NNode];\n                    pragma: Pragma[NNode]): NType[NNode]	
+newProcNType	hnimast/idents_types.html#newProcNType,seq[NType[NNode]],NType[NNode],Pragma[NNode]	idents_types: newProcNType[NNode](args: seq[NType[NNode]]; rtype: NType[NNode];\n                    pragma: Pragma[NNode]): NType[NNode]	
+newProcNType	hnimast/idents_types.html#newProcNType,seq[NIdentDefs[NNode]],NType[NNode],Pragma[NNode]	idents_types: newProcNType[NNode](args: seq[NIdentDefs[NNode]]; rtype: NType[NNode];\n                    pragma: Pragma[NNode]): NType[NNode]	
+newProcNType	hnimast/idents_types.html#newProcNType,seq[NType[NNode]]	idents_types: newProcNType[NNode](args: seq[NType[NNode]]): NType[NNode]	
+splitIdent	hnimast/idents_types.html#splitIdent,N	idents_types: splitIdent[N](node: N): tuple[module: Option[N], head: string]	
+newNTypeNNode	hnimast/idents_types.html#newNTypeNNode,NNode	idents_types: newNTypeNNode[NNode](node: NNode): NType[NNode]	
+newNType	hnimast/idents_types.html#newNType,NimNode	idents_types: newNType(impl: NimNode): NType[NimNode]	
+parseNType	hnimast/idents_types.html#parseNType,PNode	idents_types: parseNType(impl: PNode): NType[PNode]	
+parseNType	hnimast/idents_types.html#parseNType,NimNode	idents_types: parseNType(impl: NimNode): NType[NimNode]	
+newNType	hnimast/idents_types.html#newNType,PNode	idents_types: newNType(impl: PNode): NType[PNode]	
+newVarDecl	hnimast/idents_types.html#newVarDecl,string,NType,NVarDeclKind	idents_types: newVarDecl(name: string; vtype: NType; kind: NVarDeclKind = nvdLet): NIdentDefs[\n    NimNode]	
+newVarStmt	hnimast/idents_types.html#newVarStmt,string,NType,NimNode	idents_types: newVarStmt(varname: string; vtype: NType; val: NimNode): NimNode	
+newVarDeclNode	hnimast/idents_types.html#newVarDeclNode,string,NType,NVarDeclKind	idents_types: newVarDeclNode(name: string; vtype: NType; kind: NVarDeclKind = nvdLet): NimNode	
+newNTypeNode	hnimast/idents_types.html#newNTypeNode,string,seq[string]	idents_types: newNTypeNode(name: string; gparams: seq[string]): NimNode	
+newNTypeNode	hnimast/idents_types.html#newNTypeNode,string,varargs[NType[NNode]]	idents_types: newNTypeNode[NNode](name: string; gparams: varargs[NType[NNode]]): NNode	
+toNTypeAst	hnimast/idents_types.html#toNTypeAst	idents_types: toNTypeAst[T](): NType	
+parseNidentDefs	hnimast/idents_types.html#parseNidentDefs,N	idents_types: parseNidentDefs[N](node: N): NIdentDefs[N]	
+`$`	hnimast/idents_types.html#$,NIdentDefs[N]	idents_types: `$`[N](i: NIdentDefs[N]): string	
+`$`	hnimast/idents_types.html#$,NType[NNode]	idents_types: `$`[NNode](nt: NType[NNode]): string	
+newCallNode	hnimast/idents_types.html#newCallNode,NimNode,string,seq[NimNode],seq[NType[NimNode]]	idents_types: newCallNode(dotHead: NimNode; name: string; args: seq[NimNode];\n            genParams: seq[NType[NimNode]] = @[]): NimNode	
+newCallNode	hnimast/idents_types.html#newCallNode,string,seq[NimNode],seq[NType[NimNode]]	idents_types: newCallNode(name: string; args: seq[NimNode];\n            genParams: seq[NType[NimNode]] = @[]): NimNode	
+newCallNode	hnimast/idents_types.html#newCallNode,string,openArray[NType],varargs[NimNode]	idents_types: newCallNode(name: string; gentypes: openArray[NType]; args: varargs[NimNode]): NimNode	
+newCallNode	hnimast/idents_types.html#newCallNode,NimNode,string,openArray[NType[NimNode]]	idents_types: newCallNode(arg: NimNode; name: string;\n            gentypes: openArray[NType[NimNode]] = @[]): NimNode	
+newCallNode	hnimast/idents_types.html#newCallNode,NimNode,string,openArray[NType],seq[NimNode]	idents_types: newCallNode(dotHead: NimNode; name: string; gentypes: openArray[NType];\n            args: seq[NimNode]): NimNode	
+newVar	hnimast/idents_types.html#newVar,,,N	idents_types: newVar[N: NimNode | PNode](name: string | N; varType: NType[N] | N;\n                           default: N = nil): N	
+unify	hnimast/idents_types.html#unify,NType[N],NType[N],Table[string,int],Table[string,int]	idents_types: unify[N](t1, t2: NType[N]; gen1, gen2: Table[string, int]): bool	

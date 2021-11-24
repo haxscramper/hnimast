@@ -1,0 +1,8 @@
+hasObjectStructure	hnimast/store_decl.html#hasObjectStructure,NimNode	store_decl: hasObjectStructure(obj: NimNode): bool	
+getEnumStructure	hnimast/store_decl.html#getEnumStructure,NimNode	store_decl: getEnumStructure(obj: NimNode): NEnumDecl	
+baseImplSym	hnimast/store_decl.html#baseImplSym,NimNode,bool	store_decl: baseImplSym(t: NimNode; passSym: bool = false): NimNode	
+genericParams	hnimast/store_decl.html#genericParams,NimNode	store_decl: genericParams(T: NimNode): seq[NimNode]	
+setObjectStructure	hnimast/store_decl.html#setObjectStructure,NimNode,seq[NimNode],bool	store_decl: setObjectStructure(obj: NimNode; consts: seq[NimNode]; passSym: bool = false)	
+getObjectStructure	hnimast/store_decl.html#getObjectStructure,NimNode	store_decl: getObjectStructure(obj: NimNode): NObjectDecl	
+storeTraitsImpl	hnimast/store_decl.html#storeTraitsImpl.m,typed,varargs[typed]	store_decl: storeTraitsImpl(obj: typed; consts: varargs[typed])	
+storeTraits	hnimast/store_decl.html#storeTraits.m,untyped,varargs[untyped]	store_decl: storeTraits(obj: untyped; consts: varargs[untyped])	

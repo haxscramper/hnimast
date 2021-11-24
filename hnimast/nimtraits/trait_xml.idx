@@ -1,0 +1,14 @@
+XsdWriter	hnimast/nimtraits/trait_xml.html#XsdWriter	trait_xml: XsdWriter	
+newXsdComplexType	hnimast/nimtraits/trait_xml.html#newXsdComplexType	trait_xml: newXsdComplexType(): XsdEntry	
+newXsdAttr	hnimast/nimtraits/trait_xml.html#newXsdAttr,XsdEntry,string	trait_xml: newXsdAttr(useInfo: XsdEntry; name: string): XsdEntry	
+newXsdElement	hnimast/nimtraits/trait_xml.html#newXsdElement,XsdEntry,string	trait_xml: newXsdElement(useInfo: XsdEntry; name: string): XsdEntry	
+getXsdEntryUse	hnimast/nimtraits/trait_xml.html#getXsdEntryUse,XsdWriter,typedesc[string]	trait_xml: getXsdEntryUse(xw: var XsdWriter; s: typedesc[string]): XsdEntry	
+getXsdEntryUse	hnimast/nimtraits/trait_xml.html#getXsdEntryUse,XsdWriter,typedesc[E]	trait_xml: getXsdEntryUse[E: enum](xw: var XsdWriter; s: typedesc[E]): XsdEntry	
+getXsdEntryUse	hnimast/nimtraits/trait_xml.html#getXsdEntryUse,XsdWriter,typedesc[seq[T]]	trait_xml: getXsdEntryUse[T](xw: var XsdWriter; s: typedesc[seq[T]]): XsdEntry	
+getXsdEntryUse	hnimast/nimtraits/trait_xml.html#getXsdEntryUse,XsdWriter,typedesc[Option[T]]	trait_xml: getXsdEntryUse[T](xw: var XsdWriter; s: typedesc[Option[T]]): XsdEntry	
+getXsdEntryUse	hnimast/nimtraits/trait_xml.html#getXsdEntryUse,XsdWriter,typedesc[Table[A,B]]	trait_xml: getXsdEntryUse[A, B](xw: var XsdWriter; t: typedesc[Table[A, B]]): XsdEntry	
+genXsdWriterUse	hnimast/nimtraits/trait_xml.html#genXsdWriterUse.m,typedesc,untyped	trait_xml: genXsdWriterUse(obj: typedesc; writer: untyped): untyped	
+genXmlLoader	hnimast/nimtraits/trait_xml.html#genXmlLoader.m,typedesc,untyped,untyped,untyped,untyped,static[bool],untyped,untyped,untyped	trait_xml: genXmlLoader(obj: typedesc; target, stream, tag: untyped;\n             newObjExpr: untyped = nil; loadHeader: static[bool] = true;\n             extraFieldLoad: untyped = nil; skipFieldLoad: untyped = [&quot;&quot;];\n             extraAttrLoad: untyped = nil): untyped	
+genXmlWriter	hnimast/nimtraits/trait_xml.html#genXmlWriter.m,typedesc,untyped,untyped,untyped,openArray[string],static[bool],untyped,untyped,untyped,untyped	trait_xml: genXmlWriter(obj: typedesc; input, stream, tag: untyped;\n             skipFieldWrite: openArray[string] = [&quot;&quot;];\n             addClose: static[bool] = true; extraAttrWrite: untyped = false;\n             addStartIndent: untyped = true; addEndIndent: untyped = true;\n             hasFieldsExpr: untyped = true): untyped	
+writeXml	hnimast/nimtraits/trait_xml.html#writeXml,XmlWriter,T,string	trait_xml: writeXml[T: not enum](writer: var XmlWriter; obj: T; tag: string)	
+loadXml	hnimast/nimtraits/trait_xml.html#loadXml,HXmlParser,T,string	trait_xml: loadXml[T: not enum](reader: var HXmlParser; obj: var T; tag: string)	

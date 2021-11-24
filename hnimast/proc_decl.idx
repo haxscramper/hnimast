@@ -1,0 +1,44 @@
+pkRegular	hnimast/proc_decl.html#pkRegular	ProcKind.pkRegular	
+pkOperator	hnimast/proc_decl.html#pkOperator	ProcKind.pkOperator	
+pkHook	hnimast/proc_decl.html#pkHook	ProcKind.pkHook	
+pkAssgn	hnimast/proc_decl.html#pkAssgn	ProcKind.pkAssgn	
+pkLambda	hnimast/proc_decl.html#pkLambda	ProcKind.pkLambda	
+ProcKind	hnimast/proc_decl.html#ProcKind	proc_decl: ProcKind	
+ptkProc	hnimast/proc_decl.html#ptkProc	ProcDeclType.ptkProc	
+ptkFunc	hnimast/proc_decl.html#ptkFunc	ProcDeclType.ptkFunc	
+ptkIterator	hnimast/proc_decl.html#ptkIterator	ProcDeclType.ptkIterator	
+ptkConverter	hnimast/proc_decl.html#ptkConverter	ProcDeclType.ptkConverter	
+ptkMethod	hnimast/proc_decl.html#ptkMethod	ProcDeclType.ptkMethod	
+ptkTemplate	hnimast/proc_decl.html#ptkTemplate	ProcDeclType.ptkTemplate	
+ptkMacro	hnimast/proc_decl.html#ptkMacro	ProcDeclType.ptkMacro	
+ProcDeclType	hnimast/proc_decl.html#ProcDeclType	proc_decl: ProcDeclType	
+ProcDecl	hnimast/proc_decl.html#ProcDecl	proc_decl: ProcDecl	
+PProcDecl	hnimast/proc_decl.html#PProcDecl	proc_decl: PProcDecl	
+NProcDecl	hnimast/proc_decl.html#NProcDecl	proc_decl: NProcDecl	
+`==`	hnimast/proc_decl.html#==,ProcDecl[NNode],ProcDecl[NNode]	proc_decl: `==`[NNode](lhs, rhs: ProcDecl[NNode]): bool	
+getName	hnimast/proc_decl.html#getName,ProcDecl[N]	proc_decl: getName[N](decl: ProcDecl[N]): string	
+arguments=	hnimast/proc_decl.html#arguments=,PProcDecl,seq[NIdentDefs[PNode]]	proc_decl: arguments=(procDecl: var PProcDecl; arguments: seq[NIdentDefs[PNode]])	
+arguments	hnimast/proc_decl.html#arguments,PProcDecl	proc_decl: arguments(procDecl: var PProcDecl): var seq[NIdentDefs[PNode]]	
+arguments	hnimast/proc_decl.html#arguments,ProcDecl[N]	proc_decl: arguments[N](procDecl: ProcDecl[N]): seq[NIdentDefs[N]]	
+genTable	hnimast/proc_decl.html#genTable,ProcDecl[N]	proc_decl: genTable[N](procDecl: ProcDecl[N]): Table[string, int]	
+addArgument	hnimast/proc_decl.html#addArgument,ProcDecl[N],NIdentDefs[N]	proc_decl: addArgument[N](decl: var ProcDecl[N]; arg: NIdentDefs[N])	
+addArgument	hnimast/proc_decl.html#addArgument,ProcDecl[N],string,NType[N],NVarDeclKind,Option[N]	proc_decl: addArgument[N](procDecl: var ProcDecl[N]; argName: string; argType: NType[N];\n               kind: NVarDeclKind = nvdLet; value: Option[N] = none(N))	
+addArgument	hnimast/proc_decl.html#addArgument,ProcDecl[N],openArray[]	proc_decl: addArgument[N](procDecl: var ProcDecl[N]; args: openArray[(string, NType[N])])	
+addPragma	hnimast/proc_decl.html#addPragma,ProcDecl[N],N,N	proc_decl: addPragma[N](decl: var ProcDecl[N]; key, value: N)	
+addPragma	hnimast/proc_decl.html#addPragma,ProcDecl[N],seq[N]	proc_decl: addPragma[N](f: var ProcDecl[N]; values: seq[N])	
+addPragma	hnimast/proc_decl.html#addPragma,ProcDecl[N],string	proc_decl: addPragma[N](decl: var ProcDecl[N]; name: string)	
+addPragma	hnimast/proc_decl.html#addPragma,ProcDecl[N],string,N	proc_decl: addPragma[N](decl: var ProcDecl[N]; key: string; value: N)	
+hasPragma	hnimast/proc_decl.html#hasPragma,ProcDecl[N],string	proc_decl: hasPragma[N](decl: ProcDecl[N]; name: string): bool	
+argumentIdents	hnimast/proc_decl.html#argumentIdents.i,ProcDecl[N]	proc_decl: argumentIdents[N](procDecl: ProcDecl[N]): N	
+argumentNames	hnimast/proc_decl.html#argumentNames,ProcDecl[N]	proc_decl: argumentNames[N](procDecl: ProcDecl[N]): seq[string]	
+argumentTypes	hnimast/proc_decl.html#argumentTypes,ProcDecl[N]	proc_decl: argumentTypes[N](procDecl: ProcDecl[N]): seq[NType[N]]	
+returnType	hnimast/proc_decl.html#returnType,ProcDecl[N]	proc_decl: returnType[N](procDecl: ProcDecl[N]): Option[NType[N]]	
+argumentType	hnimast/proc_decl.html#argumentType,ProcDecl[N],int	proc_decl: argumentType[N](procDecl: ProcDecl[N]; idx: int): NType[N]	
+returnType=	hnimast/proc_decl.html#returnType=,ProcDecl[N],NType[N]	proc_decl: returnType=[N](procDecl: var ProcDecl[N]; retType: NType[N])	
+pragma=	hnimast/proc_decl.html#pragma=,ProcDecl[N],Pragma[N]	proc_decl: pragma=[N](procDecl: var ProcDecl[N]; pragma: Pragma[N])	
+toNNode	hnimast/proc_decl.html#toNNode,ProcDecl[NNode],bool	proc_decl: toNNode[NNode](pr: ProcDecl[NNode]; standalone: bool = true): NNode	
+newProcDecl	hnimast/proc_decl.html#newProcDecl,string	proc_decl: newProcDecl[N](name: string): ProcDecl[N]	
+copyForward	hnimast/proc_decl.html#copyForward,ProcDecl[N]	proc_decl: copyForward[N](decl: ProcDecl[N]): ProcDecl[N]	
+newPProcDecl	hnimast/proc_decl.html#newPProcDecl,string,openArray[],Option[NType[PNode]],PNode,bool,Pragma[PNode],seq[NType[PNode]],LineInfo,ProcDeclType,string,string,ProcKind	proc_decl: newPProcDecl(name: string; args: openArray[(string, NType[PNode])] = @[];\n             returnTYpe: Option[NType[PNode]] = none(NType[PNode]);\n             impl: PNode = nil; exported: bool = true;\n             pragma: Pragma[PNode] = Pragma[PNode]();\n             genParams: seq[NType[PNode]] = @[]; iinfo: LineInfo = defaultIInfo;\n             declType: ProcDeclType = ptkProc; docComment: string = &quot;&quot;;\n             codeComment: string = &quot;&quot;; kind: ProcKind = pkRegular): ProcDecl[\n    PNode]	
+newNProcDecl	hnimast/proc_decl.html#newNProcDecl,string,openArray[],Option[NType[NimNode]],NimNode,bool,Pragma[NimNode],LineInfo,ProcDeclType,string,string	proc_decl: newNProcDecl(name: string; args: openArray[(string, NType[NimNode])] = @[];\n             returnType: Option[NType[NimNode]] = none(NType[NimNode]);\n             impl: NimNode = nil; exported: bool = true;\n             pragma: Pragma[NimNode] = Pragma[NimNode]();\n             iinfo: LineInfo = defaultIInfo; declType: ProcDeclType = ptkProc;\n             docComment: string = &quot;&quot;; codeComment: string = &quot;&quot;): ProcDecl[\n    NimNode]	
+parseProc	hnimast/proc_decl.html#parseProc,N	proc_decl: parseProc[N](node: N): ProcDecl[N]	

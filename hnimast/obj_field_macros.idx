@@ -1,0 +1,23 @@
+addConst	hnimast/obj_field_macros.html#addConst,SymTable[N],N	obj_field_macros: addConst[N](sym: var SymTable[N]; c: N)	
+fieldTypeNode	hnimast/obj_field_macros.html#fieldTypeNode,N	obj_field_macros: fieldTypeNode[N](field: N): N	
+enumValueGroup	hnimast/obj_field_macros.html#enumValueGroup,SymTable[N],N	obj_field_macros: enumValueGroup[N](sym: SymTable[N]; field: N): Option[EnumValueGroup[N]]	
+getBranches	hnimast/obj_field_macros.html#getBranches,N,Option[N],SymTable[N]	obj_field_macros: getBranches[N](node: N; isCheckedOn: Option[N]; sym: SymTable[N]): seq[\n    ObjectBranch[N]]	
+getFields	hnimast/obj_field_macros.html#getFields,N,Option[N],SymTable[N],int	obj_field_macros: getFields[N](node: N; isCheckedOn: Option[N]; sym: SymTable[N]; level: int = 0): seq[\n    ObjectField[N]]	
+getKindFields	hnimast/obj_field_macros.html#getKindFields,seq[ObjectField[Node]]	obj_field_macros: getKindFields[Node](flds: seq[ObjectField[Node]]): seq[ObjectField[Node]]	
+getKindFields	hnimast/obj_field_macros.html#getKindFields,ObjectDecl[N]	obj_field_macros: getKindFields[N](obj: ObjectDecl[N]): seq[ObjectField[N]]	
+isTaggedWith	hnimast/obj_field_macros.html#isTaggedWith,ObjectField[NimNode],string	obj_field_macros: isTaggedWith(obj: ObjectField[NimNode]; name: string): bool	
+getSubfields	hnimast/obj_field_macros.html#getSubfields,ObjectField[N]	obj_field_macros: getSubfields[N](field: ObjectField[N]): seq[ObjectField[N]]	
+iterateFields	hnimast/obj_field_macros.html#iterateFields.i,ObjectDecl[N],bool	obj_field_macros: iterateFields[N](objDecl: ObjectDecl[N]; preorder: bool = true): ObjectField[N]	
+getBranchFields	hnimast/obj_field_macros.html#getBranchFields,ObjectDecl[N],bool	obj_field_macros: getBranchFields[N](objDecl: ObjectDecl[N]; preorder: bool = true): seq[\n    ObjectField[N]]	
+getFlatFields	hnimast/obj_field_macros.html#getFlatFields,ObjectDecl[N],bool	obj_field_macros: getFlatFields[N](objDecl: ObjectDecl[N]; preorder: bool = true): seq[\n    ObjectField[N]]	
+getField	hnimast/obj_field_macros.html#getField,ObjectDecl[N],string	obj_field_macros: getField[N](decl: ObjectDecl[N]; name: string): ObjectField[N]	
+discardNimNode	hnimast/obj_field_macros.html#discardNimNode,NType[NimNode]	obj_field_macros: discardNimNode(ntype: NType[NimNode]): NType[ObjTree]	
+parsePragma	hnimast/obj_field_macros.html#parsePragma,N,ObjectAnnotKind	obj_field_macros: parsePragma[N](node: N; position: ObjectAnnotKind): Pragma[N]	
+parseNimPragma	hnimast/obj_field_macros.html#parseNimPragma,NimNode,ObjectAnnotKind	obj_field_macros: parseNimPragma(node: NimNode; position: ObjectAnnotKind): NPragma	
+parsePPragma	hnimast/obj_field_macros.html#parsePPragma,PNode,ObjectAnnotKind	obj_field_macros: parsePPragma(node: PNode; position: ObjectAnnotKind): Pragma[PNode]	
+getTypeImplBody	hnimast/obj_field_macros.html#getTypeImplBody,NimNode,bool,bool	obj_field_macros: getTypeImplBody(node: NimNode; getImpl: bool; passSym: bool = false): NimNode	
+bodySymTable	hnimast/obj_field_macros.html#bodySymTable,NimNode	obj_field_macros: bodySymTable(inNode: NimNode): SymTable[NimNode]	
+parseObject	hnimast/obj_field_macros.html#parseObject,N,bool,seq[N]	obj_field_macros: parseObject[N](inNode: N; parseImpl: bool = true; constList: seq[N] = @[]): ObjectDecl[\n    N]	
+makeFieldsLiteral	hnimast/obj_field_macros.html#makeFieldsLiteral.m,typed	obj_field_macros: makeFieldsLiteral(node: typed): untyped	
+parallelFieldPairs	hnimast/obj_field_macros.html#parallelFieldPairs.m,typed,typed,untyped	obj_field_macros: parallelFieldPairs(lhsObj, rhsObj: typed; body: untyped): untyped	
+hackPrivateParallelFieldPairs	hnimast/obj_field_macros.html#hackPrivateParallelFieldPairs.m,typed,typed,untyped	obj_field_macros: hackPrivateParallelFieldPairs(lhsObj, rhsObj: typed; body: untyped): untyped	

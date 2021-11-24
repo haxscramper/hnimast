@@ -1,0 +1,23 @@
+Pragma	hnimast/pragmas.html#Pragma	pragmas: Pragma	
+NPragma	hnimast/pragmas.html#NPragma	pragmas: NPragma	
+PPragma	hnimast/pragmas.html#PPragma	pragmas: PPragma	
+indexOf	hnimast/pragmas.html#indexOf,Pragma[N],string	pragmas: indexOf[N](pragma: Pragma[N]; name: string): int	
+getElem	hnimast/pragmas.html#getElem,Pragma[N],string	pragmas: getElem[N](pragma: Pragma[N]; name: string): Option[N]	
+hasElem	hnimast/pragmas.html#hasElem,Pragma[N],string	pragmas: hasElem[N](pragma: Pragma[N]; name: string): bool	
+hasElem	hnimast/pragmas.html#hasElem,Pragma[N],seq[string]	pragmas: hasElem[N](pragma: Pragma[N]; names: seq[string]): bool	
+getElem	hnimast/pragmas.html#getElem,Option[Pragma[N]],string	pragmas: getElem[N](optPragma: Option[Pragma[N]]; name: string): Option[N]	
+removeElement	hnimast/pragmas.html#removeElement,Pragma[N],string	pragmas: removeElement[N](pragma: var Pragma[N]; name: string)	
+len	hnimast/pragmas.html#len,Pragma[N]	pragmas: len[N](pragma: Pragma[N]): int	
+add	hnimast/pragmas.html#add,Pragma[N],N	pragmas: add[N](pragma: var Pragma[N]; node: N)	
+clear	hnimast/pragmas.html#clear,Pragma[N]	pragmas: clear[N](pragma: var Pragma[N])	
+newNNPragma	hnimast/pragmas.html#newNNPragma	pragmas: newNNPragma[N](): Pragma[N]	
+parseSomePragma	hnimast/pragmas.html#parseSomePragma,N	pragmas: parseSomePragma[N](node: N): Option[Pragma[N]]	
+parsePragma	hnimast/pragmas.html#parsePragma,N	pragmas: parsePragma[N](node: N): Pragma[N]	
+newNPragma	hnimast/pragmas.html#newNPragma,varargs[string]	pragmas: newNPragma(names: varargs[string]): NPragma	
+newPPragma	hnimast/pragmas.html#newPPragma,varargs[string]	pragmas: newPPragma(names: varargs[string]): PPragma	
+newNPragma	hnimast/pragmas.html#newNPragma,varargs[N]	pragmas: newNPragma[N: NimNode | PNode](names: varargs[N]): Pragma[N]	
+newPPragma	hnimast/pragmas.html#newPPragma,varargs[PNode]	pragmas: newPPragma(names: varargs[PNode]): PPragma	
+toNNode	hnimast/pragmas.html#toNNode,Pragma[N]	pragmas: toNNode[N](pragma: Pragma[N]): N	
+toNimNode	hnimast/pragmas.html#toNimNode,NPragma	pragmas: toNimNode(pragma: NPragma): NimNode	
+createProcType	hnimast/pragmas.html#createProcType,NimNode,NimNode,NPragma	pragmas: createProcType(p, b: NimNode; annots: NPragma): NimNode	
+`~&gt;`	hnimast/pragmas.html#~>.m,untyped,untyped	pragmas: `~&gt;`(a, b: untyped): untyped	

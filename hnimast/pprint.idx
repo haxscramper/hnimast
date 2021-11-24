@@ -1,0 +1,13 @@
+nffAllowMultilineProcHead	hnimast/pprint.html#nffAllowMultilineProcHead	NimFormatFlag.nffAllowMultilineProcHead	
+nffHorizontalPackedOf	hnimast/pprint.html#nffHorizontalPackedOf	NimFormatFlag.nffHorizontalPackedOf	
+nffVerticalPackedOf	hnimast/pprint.html#nffVerticalPackedOf	NimFormatFlag.nffVerticalPackedOf	
+nffAddIInfo	hnimast/pprint.html#nffAddIInfo	NimFormatFlag.nffAddIInfo	
+NimFormatFlag	hnimast/pprint.html#NimFormatFlag	pprint: NimFormatFlag	
+NimFormatConf	hnimast/pprint.html#NimFormatConf	pprint: NimFormatConf	
+defaultNimFormatConf	hnimast/pprint.html#defaultNimFormatConf	pprint: defaultNimFormatConf	
+nformatConf	hnimast/pprint.html#nformatConf.m,varargs[untyped]	pprint: nformatConf(body: varargs[untyped]): untyped	
+contains	hnimast/pprint.html#contains,NimFormatConf,NimFormatFlag	pprint: contains(conf: NimFormatConf; flag: NimFormatFlag): bool	
+contains	hnimast/pprint.html#contains,NimFormatConf,set[NimFormatFlag]	pprint: contains(conf: NimFormatConf; flags: set[NimFormatFlag]): bool	
+toPString	hnimast/pprint.html#toPString,PNode,NimFormatConf	pprint: toPString(n: PNode; conf: NimFormatConf = defaultNimFormatConf): string	
+toPString	hnimast/pprint.html#toPString,AnyNimDecl[PNode],bool,bool,NimFormatConf	pprint: toPString(pd: AnyNimDecl[PNode]; pprint: bool = true; standalone: bool = true;\n          conf: NimFormatConf = defaultNimFormatConf): string	
+toPString	hnimast/pprint.html#toPString,NimDecl[PNode],bool,bool,NimFormatConf	pprint: toPString(nd: NimDecl[PNode]; standalone: bool = true; pprint: bool = false;\n          conf: NimFormatConf = defaultNimFormatConf): string	

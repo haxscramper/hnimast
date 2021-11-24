@@ -1,0 +1,8 @@
+toPNodeAux	hnimast/hast_quote.html#toPNodeAux	hast_quote: toPNodeAux(value: PNode | NodeAuxTypes): PNode	
+newPQuoteTree	hnimast/hast_quote.html#newPQuoteTree,NimNodeKind,varargs[PNode,toPnodeAux]	hast_quote: newPQuoteTree(kind: NimNodeKind; subnodes: varargs[PNode, toPnodeAux]): PNode	
+toNimNodeAux	hnimast/hast_quote.html#toNimNodeAux,NodeAuxTypes	hast_quote: toNimNodeAux(value: NodeAuxTypes): NimNode	
+toNimNodeAux	hnimast/hast_quote.html#toNimNodeAux,NimNode	hast_quote: toNimNodeAux(value: NimNode): NimNode	
+newNQuoteTree	hnimast/hast_quote.html#newNQuoteTree,NimNodeKind,seq[NimNode]	hast_quote: newNQuoteTree(kind: NimNodeKind; subnodes: seq[NimNode]): NimNode	
+newNQuoteTree	hnimast/hast_quote.html#newNQuoteTree,NimNodeKind,varargs[NimNode,]	hast_quote: newNQuoteTree(kind: NimNodeKind; subnodes: varargs[NimNode, `toNimNodeAux`]): NimNode	
+pquote	hnimast/hast_quote.html#pquote.m,untyped	hast_quote: pquote(mainBody: untyped): untyped	
+nquote	hnimast/hast_quote.html#nquote.m,untyped	hast_quote: nquote(mainBody: untyped): untyped	

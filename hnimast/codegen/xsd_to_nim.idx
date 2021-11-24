@@ -1,0 +1,16 @@
+assertKind	hnimast/codegen/xsd_to_nim.html#assertKind,T,openArray[]	xsd_to_nim: assertKind[T, E: enum](node: T; kindPath: openArray[(int, E)])	
+enumerationFields	hnimast/codegen/xsd_to_nim.html#enumerationFields,XsdEntry	xsd_to_nim: enumerationFields(xsd: XsdEntry): seq[XsdEntry]	
+getParserName	hnimast/codegen/xsd_to_nim.html#getParserName,XsdTokenKind	xsd_to_nim: getParserName(kind: XsdTokenKind): string	
+identName	hnimast/codegen/xsd_to_nim.html#identName	xsd_to_nim: identName(xsd): string	
+typeName	hnimast/codegen/xsd_to_nim.html#typeName	xsd_to_nim: typeName(xsd): string	
+kindTypeName	hnimast/codegen/xsd_to_nim.html#kindTypeName	xsd_to_nim: kindTypeName(xsd): string	
+bodyTypeName	hnimast/codegen/xsd_to_nim.html#bodyTypeName	xsd_to_nim: bodyTypeName(xsd): string	
+parserName	hnimast/codegen/xsd_to_nim.html#parserName,string	xsd_to_nim: parserName(typeName: string): string	
+kindEnumName	hnimast/codegen/xsd_to_nim.html#kindEnumName,string,XsdEntry,	xsd_to_nim: kindEnumName(name: string; parent: XsdEntry; cache): string	
+kindFieldName	hnimast/codegen/xsd_to_nim.html#kindFieldName,string,XsdEntry,	xsd_to_nim: kindFieldName(name: string; parent: XsdEntry; cache): string	
+fieldName	hnimast/codegen/xsd_to_nim.html#fieldName,string,	xsd_to_nim: fieldName(name: string; cache): string	
+kindTypeName	hnimast/codegen/xsd_to_nim.html#kindTypeName_2	xsd_to_nim: kindTypeName(gen): string	
+bodyTypeName	hnimast/codegen/xsd_to_nim.html#bodyTypeName_2	xsd_to_nim: bodyTypeName(gen): string	
+withoutImpl	hnimast/codegen/xsd_to_nim.html#withoutImpl,ProcDecl[N]	xsd_to_nim: withoutImpl[N](decl: ProcDecl[N]): ProcDecl[N]	
+generateForXsd	hnimast/codegen/xsd_to_nim.html#generateForXsd,AbsFile	xsd_to_nim: generateForXsd(xsd: AbsFile): seq[PNimDecl]	
+writeXsdGenerator	hnimast/codegen/xsd_to_nim.html#writeXsdGenerator,seq[PNimDecl],AbsFile,string	xsd_to_nim: writeXsdGenerator(decls: seq[PNimDecl]; target: AbsFile; post: string = &quot;&quot;)	

@@ -1,0 +1,2 @@
+NimParseError	hnimast/pnode_parse.html#NimParseError	pnode_parse: NimParseError	
+parsePNodeStr	hnimast/pnode_parse.html#parsePNodeStr,string,bool	pnode_parse: parsePNodeStr(str: string; doRaise: bool = false): PNode	

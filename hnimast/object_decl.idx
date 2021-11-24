@@ -1,0 +1,122 @@
+ObjectBranch	hnimast/object_decl.html#ObjectBranch	object_decl: ObjectBranch	
+ObjectField	hnimast/object_decl.html#ObjectField	object_decl: ObjectField	
+ObjectDecl	hnimast/object_decl.html#ObjectDecl	object_decl: ObjectDecl	
+ObjectPathElem	hnimast/object_decl.html#ObjectPathElem	object_decl: ObjectPathElem	
+ObjectPath	hnimast/object_decl.html#ObjectPath	object_decl: ObjectPath	
+NObjectBranch	hnimast/object_decl.html#NObjectBranch	object_decl: NObjectBranch	
+NObjectPathElem	hnimast/object_decl.html#NObjectPathElem	object_decl: NObjectPathElem	
+NObjectField	hnimast/object_decl.html#NObjectField	object_decl: NObjectField	
+NObjectDecl	hnimast/object_decl.html#NObjectDecl	object_decl: NObjectDecl	
+NObjectPath	hnimast/object_decl.html#NObjectPath	object_decl: NObjectPath	
+PObjectDecl	hnimast/object_decl.html#PObjectDecl	object_decl: PObjectDecl	
+PObjectField	hnimast/object_decl.html#PObjectField	object_decl: PObjectField	
+PObjectBranch	hnimast/object_decl.html#PObjectBranch	object_decl: PObjectBranch	
+fieldType	hnimast/object_decl.html#fieldType,ObjectField[N]	object_decl: fieldType[N](field: ObjectField[N]): NType[N]	
+ofValue	hnimast/object_decl.html#ofValue,ObjectPathElem[N]	object_decl: ofValue[N](element: ObjectPathElem[N]): seq[N]	
+isElse	hnimast/object_decl.html#isElse,ObjectPathElem[N]	object_decl: isElse[N](element: ObjectPathElem[N]): bool	
+notOfValue	hnimast/object_decl.html#notOfValue,ObjectPathElem[N]	object_decl: notOfValue[N](element: ObjectPathElem[N]): seq[N]	
+newObjectDecl	hnimast/object_decl.html#newObjectDecl,string,bool	object_decl: newObjectDecl[N](name: string; exported: bool = true): ObjectDecl[N]	
+newPObjectDecl	hnimast/object_decl.html#newPObjectDecl,string,seq[tuple[string,NType[PNode]]],bool,PPragma,string,string,seq[NType[PNode]],LineInfo	object_decl: newPObjectDecl(name: string;\n               flds: seq[tuple[name: string, ftype: NType[PNode]]] = @[];\n               exported: bool = true; pragma: PPragma = PPragma();\n               docComment: string = &quot;&quot;; codeComment: string = &quot;&quot;;\n               genParams: seq[NType[PNode]] = @[];\n               iinfo: LineInfo = defaultIInfo): PObjectDecl	
+newObjectField	hnimast/object_decl.html#newObjectField,string,NType[N],string,string,bool,Option[N]	object_decl: newObjectField[N](name: string; cxtype: NType[N]; docComment: string = &quot;&quot;;\n                  codeComment: string = &quot;&quot;; exported: bool = true;\n                  value: Option[N] = none(N)): ObjectField[N]	
+addField	hnimast/object_decl.html#addField,ObjectDecl[N],ObjectField[N]	object_decl: addField[N](obj: var ObjectDecl[N]; field: ObjectField[N])	
+add	hnimast/object_decl.html#add,ObjectDecl[N],ObjectField[N]	object_decl: add[N](obj: var ObjectDecl[N]; field: ObjectField[N])	
+newObjectCaseField	hnimast/object_decl.html#newObjectCaseField,string,NType[N],string,string,bool	object_decl: newObjectCaseField[N](name: string; fieldType: NType[N];\n                      docComment: string = &quot;&quot;; codeComment: string = &quot;&quot;;\n                      exported: bool = true): ObjectField[N]	
+newObjectOfBranch	hnimast/object_decl.html#newObjectOfBranch,N	object_decl: newObjectOfBranch[N](ofValue: N): ObjectBranch[N]	
+newObjectOfBranch	hnimast/object_decl.html#newObjectOfBranch,seq[N]	object_decl: newObjectOfBranch[N](ofValue: seq[N]): ObjectBranch[N]	
+newObjectElseBranch	hnimast/object_decl.html#newObjectElseBranch	object_decl: newObjectElseBranch[N](): ObjectBranch[N]	
+getName	hnimast/object_decl.html#getName,ObjectDecl[N]	object_decl: getName[N](obj: ObjectDecl[N]): string	
+getName	hnimast/object_decl.html#getName,ObjectField[N]	object_decl: getName[N](field: ObjectField[N]): string	
+addPragma	hnimast/object_decl.html#addPragma,ObjectField[N],N	object_decl: addPragma[N](field: var ObjectField[N]; value: N)	
+addPragma	hnimast/object_decl.html#addPragma,ObjectField[N],seq[N]	object_decl: addPragma[N](f: var ObjectField[N]; values: seq[N])	
+addPragma	hnimast/object_decl.html#addPragma,ObjectField[N],string,N	object_decl: addPragma[N](field: var ObjectField[N]; key: string; value: N)	
+addPragma	hnimast/object_decl.html#addPragma,ObjectDecl[N],N	object_decl: addPragma[N](decl: var ObjectDecl[N]; value: N)	
+addPragma	hnimast/object_decl.html#addPragma,ObjectDecl[N],seq[N]	object_decl: addPragma[N](f: var ObjectDecl[N]; values: seq[N])	
+addPragma	hnimast/object_decl.html#addPragma,ObjectDecl[N],string	object_decl: addPragma[N](decl: var ObjectDecl[N]; name: string)	
+addPragma	hnimast/object_decl.html#addPragma,ObjectDecl[N],string,N	object_decl: addPragma[N](decl: var ObjectDecl[N]; key: string; value: N)	
+addField	hnimast/object_decl.html#addField,ObjectBranch[N],ObjectField[N]	object_decl: addField[N](branch: var ObjectBranch[N]; field: ObjectField[N])	
+addBranch	hnimast/object_decl.html#addBranch,ObjectField[N],ObjectBranch[N]	object_decl: addBranch[N](field: var ObjectField[N]; branch: ObjectBranch[N])	
+addBranch	hnimast/object_decl.html#addBranch,ObjectField[N],,varargs[ObjectField[N]]	object_decl: addBranch[N](field: var ObjectField[N]; ofValue: N | seq[N];\n             fields: varargs[ObjectField[N]])	
+isMarkedWith	hnimast/object_decl.html#isMarkedWith,NObjectField,string	object_decl: isMarkedWith(fld: NObjectField; str: string): bool	
+isMarkedWith	hnimast/object_decl.html#isMarkedWith,NObjectField,string,string	object_decl: isMarkedWith(fld: NObjectField; pragma, arg: string): bool	
+isSkipField	hnimast/object_decl.html#isSkipField,NObjectField,string	object_decl: isSkipField(fld: NObjectField; arg: string): bool	
+isReqInit	hnimast/object_decl.html#isReqInit,NObjectField	object_decl: isReqInit(fld: NObjectField): bool	
+getNewProcName	hnimast/object_decl.html#getNewProcName,ObjectDecl[N]	object_decl: getNewProcName[N](obj: ObjectDecl[N]): string	
+newCall	hnimast/object_decl.html#newCall,NObjectDecl,seq[NimNode]	object_decl: newCall(obj: NObjectDecl; genParams: seq[NimNode] = @[]): NimNode	
+isFinalBranch	hnimast/object_decl.html#isFinalBranch,ObjectField[N]	object_decl: isFinalBranch[N](field: ObjectField[N]): bool	
+isFinalBranch	hnimast/object_decl.html#isFinalBranch,ObjectBranch[N]	object_decl: isFinalBranch[N](branch: ObjectBranch[N]): bool	
+isFinalBranch	hnimast/object_decl.html#isFinalBranch,ObjectPathElem[N]	object_decl: isFinalBranch[N](element: ObjectPathElem[N]): bool	
+`$`	hnimast/object_decl.html#$,ObjectPath[N]	object_decl: `$`[N](path: ObjectPath[N]): string	
+addBranchBody	hnimast/object_decl.html#addBranchBody,N,ObjectBranch[N],N	object_decl: addBranchBody[N](main: var N; branch: ObjectBranch[N]; body: N)	
+mapItKindFields	hnimast/object_decl.html#mapItKindFields.t,NObjectBranch,untyped	object_decl: mapItKindFields(branch: NObjectBranch; body: untyped): untyped	
+newObjectPathElem	hnimast/object_decl.html#newObjectPathElem,ObjectField[N],ObjectBranch[N]	object_decl: newObjectPathElem[N](field: ObjectField[N]; branch: ObjectBranch[N]): ObjectPathElem[\n    N]	
+getFlatFieldsPath	hnimast/object_decl.html#getFlatFieldsPath,ObjectDecl[N]	object_decl: getFlatFieldsPath[N](decl: ObjectDecl[N]): seq[\n    tuple[field: ObjectField[N], path: ObjectPath[N]]]	
+newDot	hnimast/object_decl.html#newDot,N,ObjectField[N]	object_decl: newDot[N](self: N; field: ObjectField[N]): N	
+newDot	hnimast/object_decl.html#newDot,string,ObjectField[N]	object_decl: newDot[N](self: string; field: ObjectField[N]): N	
+newDot	hnimast/object_decl.html#newDot,N,seq[ObjectField[N]],bool	object_decl: newDot[N](self: N; path: seq[ObjectField[N]]; useLast: bool = true): N	
+eachFieldMut	hnimast/object_decl.html#eachFieldMut,ObjectBranch[N],proc(ObjectField[N])	object_decl: eachFieldMut[N](branch: var ObjectBranch[N];\n                cb: proc (field: var ObjectField[N])): void	
+eachFieldMut	hnimast/object_decl.html#eachFieldMut,ObjectDecl[N],proc(ObjectField[N])	object_decl: eachFieldMut[N](obj: var ObjectDecl[N]; cb: proc (field: var ObjectField[N])): void	
+eachField	hnimast/object_decl.html#eachField,ObjectBranch[N],proc(ObjectField[N])	object_decl: eachField[N](branch: ObjectBranch[N]; cb: proc (field: ObjectField[N])): void	
+eachField	hnimast/object_decl.html#eachField,ObjectDecl[N],proc(ObjectField[N])	object_decl: eachField[N](obj: ObjectDecl[N]; cb: proc (field: ObjectField[N])): void	
+eachCase	hnimast/object_decl.html#eachCase,NObjectField,NimNode,proc(NObjectField)	object_decl: eachCase(fld: NObjectField; objId: NimNode;\n         cb: proc (field: NObjectField): NimNode): NimNode	
+eachCase	hnimast/object_decl.html#eachCase,NimNode,NObjectDecl,proc(NObjectField)	object_decl: eachCase(objId: NimNode; obj: NObjectDecl;\n         cb: proc (field: NObjectField): NimNode): NimNode	
+eachParallelCase	hnimast/object_decl.html#eachParallelCase,NObjectField,,proc(NObjectField)	object_decl: eachParallelCase(fld: NObjectField; objId: (NimNode, NimNode);\n                 cb: proc (field: NObjectField): NimNode): NimNode	
+eachParallelCase	hnimast/object_decl.html#eachParallelCase,,NObjectDecl,proc(NObjectField)	object_decl: eachParallelCase(objid: (NimNode, NimNode); obj: NObjectDecl;\n                 cb: proc (field: NObjectField): NimNode): NimNode	
+eachStaticPath	hnimast/object_decl.html#eachStaticPath,NimNode,NObjectDecl,proc(seq[NObjectField])	object_decl: eachStaticPath(kind: NimNode; obj: NObjectDecl;\n               cb: proc (fields: seq[NObjectField]): NimNode): NimNode	
+eachPath	hnimast/object_decl.html#eachPath,NObjectField,NimNode,NObjectPath,proc(NObjectPath,seq[NObjectField])	object_decl: eachPath(fld: NObjectField; self: NimNode; parent: NObjectPath;\n         cb: proc (path: NObjectPath; fields: seq[NObjectField]): NimNode): NimNode	
+eachPath	hnimast/object_decl.html#eachPath,NimNode,NObjectDecl,proc(NObjectPath,seq[NObjectField])	object_decl: eachPath(self: NimNode; obj: NObjectDecl;\n         cb: proc (path: NObjectPath; fields: seq[NObjectField]): NimNode): NimNode	
+eachPath	hnimast/object_decl.html#eachPath,NimNode,NObjectDecl,proc(seq[NObjectField])	object_decl: eachPath(self: NimNode; obj: NObjectDecl;\n         cb: proc (fields: seq[NObjectField]): NimNode): NimNode	
+onPath	hnimast/object_decl.html#onPath,NimNode,NObjectPath	object_decl: onPath(self: NimNode; path: NObjectPath): NimNode	
+fieldPath	hnimast/object_decl.html#fieldPath,NObjectDecl,string	object_decl: fieldPath(impl: NObjectDecl; name: string): NObjectPath	
+toNNode	hnimast/object_decl.html#toNNode,ObjectBranch[N]	object_decl: toNNode[N](branch: ObjectBranch[N]): N	
+toNNode	hnimast/object_decl.html#toNNode,ObjectField[N],bool	object_decl: toNNode[N](fld: ObjectField[N]; standalone: bool = false): N	
+toExported	hnimast/object_decl.html#toExported,NType[N],bool	object_decl: toExported[N](ntype: NType[N]; exported: bool): tuple[head, genparams: N]	
+toNNode	hnimast/object_decl.html#toNNode,ObjectDecl[N],bool	object_decl: toNNode[N](obj: ObjectDecl[N]; standalone: bool = false): N	
+toNimNode	hnimast/object_decl.html#toNimNode,NObjectDecl	object_decl: toNimNode(obj: NObjectDecl): NimNode	
+okConstant	hnimast/object_decl.html#okConstant	ObjKind.okConstant	
+okSequence	hnimast/object_decl.html#okSequence	ObjKind.okSequence	
+okTable	hnimast/object_decl.html#okTable	ObjKind.okTable	
+okComposed	hnimast/object_decl.html#okComposed	ObjKind.okComposed	
+ObjKind	hnimast/object_decl.html#ObjKind	object_decl: ObjKind	
+ObjAccessor	hnimast/object_decl.html#ObjAccessor	object_decl: ObjAccessor	
+ObjPath	hnimast/object_decl.html#ObjPath	object_decl: ObjPath	
+ObjTree	hnimast/object_decl.html#ObjTree	object_decl: ObjTree	Field…
+ObjElem	hnimast/object_decl.html#ObjElem	object_decl: ObjElem	
+ValField	hnimast/object_decl.html#ValField	object_decl: ValField	
+ValFieldBranch	hnimast/object_decl.html#ValFieldBranch	object_decl: ValFieldBranch	
+fields	hnimast/object_decl.html#fields,ObjectDecl[N]	object_decl: fields[N](objectDecl: ObjectDecl[N]): seq[ObjectField[N]]	
+newOType	hnimast/object_decl.html#newOType,string,seq[string]	object_decl: newOType(name: string; gparams: seq[string] = @[]): NType[ObjTree]	
+prettyPrintConverter	hnimast/object_decl.html#prettyPrintConverter,PNode,seq[int]	object_decl: prettyPrintConverter(val: PNode; path: seq[int] = @[0]): ObjTree	
+`==`	hnimast/object_decl.html#==,ObjTree,ObjTree	object_decl: `==`(lhs, rhs: ObjTree): bool	
+`==`	hnimast/object_decl.html#==,ObjectField[Node],ObjectField[Node]	object_decl: `==`[Node](lhs, rhs: ObjectField[Node]): bool	
+makeObjElem	hnimast/object_decl.html#makeObjElem,string,Conf	object_decl: makeObjElem[Conf](text: string; conf: Conf): ObjElem[Conf]	
+initObjTree	hnimast/object_decl.html#initObjTree	object_decl: initObjTree(): ObjTree	
+annotate	hnimast/object_decl.html#annotate,ObjTree,string	object_decl: annotate(tree: var ObjTree; annotation: string): void	
+stylize	hnimast/object_decl.html#stylize,ObjTree,PrintStyling	object_decl: stylize(tree: var ObjTree; conf: PrintStyling): void	
+styleTerm	hnimast/object_decl.html#styleTerm,string,PrintStyling	object_decl: styleTerm(str: string; conf: PrintStyling): string	
+seqAccs	hnimast/object_decl.html#seqAccs,int	object_decl: seqAccs(idx: int): ObjAccessor	
+objAccs	hnimast/object_decl.html#objAccs,string	object_decl: objAccs(name: string): ObjAccessor	
+tableAccs	hnimast/object_decl.html#tableAccs,string	object_decl: tableAccs(name: string): ObjAccessor	
+getAtPath	hnimast/object_decl.html#getAtPath,ObjTree,ObjPath	object_decl: getAtPath(obj: var ObjTree; path: ObjPath): var ObjTree	
+hasPragma	hnimast/object_decl.html#hasPragma,ObjectDecl[N],string	object_decl: hasPragma[N](decl: ObjectDecl[N]; name: string): bool	
+getPragmaArgs	hnimast/object_decl.html#getPragmaArgs,ObjectDecl[N],string	object_decl: getPragmaArgs[N](decl: ObjectDecl[N]; name: string): seq[N]	
+hasPragma	hnimast/object_decl.html#hasPragma,ObjectField[N],string	object_decl: hasPragma[N](decl: ObjectField[N]; name: string): bool	
+getPragmaArgs	hnimast/object_decl.html#getPragmaArgs,ObjectField[N],string	object_decl: getPragmaArgs[N](decl: ObjectField[N]; name: string): seq[N]	
+eachPragmaMut	hnimast/object_decl.html#eachPragmaMut,ObjectBranch[N],proc(Option[Pragma[N]])	object_decl: eachPragmaMut[N](branch: var ObjectBranch[N];\n                 cb: proc (opt: var Option[Pragma[N]]))	
+eachPragmaMut	hnimast/object_decl.html#eachPragmaMut,ObjectDecl[N],proc(Option[Pragma[N]])	object_decl: eachPragmaMut[N](obj: var ObjectDecl[N];\n                 cb: proc (pragma: var Option[Pragma[N]]))	
+eachPragma	hnimast/object_decl.html#eachPragma,ObjectBranch[N],proc(Option[Pragma[N]])	object_decl: eachPragma[N](branch: ObjectBranch[N]; cb: proc (pragma: Option[Pragma[N]]))	
+eachPragma	hnimast/object_decl.html#eachPragma,ObjectDecl[N],proc(Option[Pragma[N]])	object_decl: eachPragma[N](obj: ObjectDecl[N]; cb: proc (opt: Option[Pragma[N]]))	
+mapBranches	hnimast/object_decl.html#mapBranches,NObjectField,seq[ObjectField[NimNode]],proc(seq[ObjectField[NimNode]]),proc(seq[ObjectField[NimNode]],NObjectBranch)	object_decl: mapBranches(field: NObjectField; parent: seq[ObjectField[NimNode]];\n            caseExpr: proc (path: seq[ObjectField[NimNode]]): NimNode; mapBranch: proc (\n    path: seq[ObjectField[NimNode]]; branch: NObjectBranch): NimNode): NimNode	
+mapBranches	hnimast/object_decl.html#mapBranches,NObjectDecl,proc(seq[ObjectField[NimNode]]),proc(seq[ObjectField[NimNode]],NObjectBranch)	object_decl: mapBranches(obj: NObjectDecl;\n            caseExpr: proc (path: seq[ObjectField[NimNode]]): NimNode; mapBranch: proc (\n    path: seq[ObjectField[NimNode]]; branch: NObjectBranch): NimNode): NimNode	
+mapItBranches	hnimast/object_decl.html#mapItBranches.t,NObjectDecl,untyped,untyped	object_decl: mapItBranches(obj: NObjectDecl; expr, body: untyped): untyped	
+mapCase	hnimast/object_decl.html#mapCase,NObjectField,seq[NObjectField],proc(NObjectField,seq[NObjectField]),proc(NObjectField,seq[NObjectField])	object_decl: mapCase(field: NObjectField; parent: seq[NObjectField];\n        caseExpr: proc (field: NObjectField; path: seq[NObjectField]): NimNode;\n        cb: proc (field: NObjectField; path: seq[NObjectField]): NimNode): NimNode	
+mapCase	hnimast/object_decl.html#mapCase,NObjectDecl,proc(NObjectField,seq[NObjectField]),proc(NObjectField,seq[NObjectField])	object_decl: mapCase(objectDecl: NObjectDecl;\n        caseExpr: proc (field: NObjectField; path: seq[NObjectField]): NimNode;\n        cb: proc (field: NObjectField; path: seq[NObjectField]): NimNode): NimNode	
+mapItCase	hnimast/object_decl.html#mapItCase.t,NObjectDecl,untyped,untyped	object_decl: mapItCase(objectDecl: NObjectDecl; expr, body: untyped): untyped	
+mapGroups	hnimast/object_decl.html#mapGroups,NObjectField,seq[ObjectField[NimNode]],proc(seq[ObjectField[NimNode]]),proc(seq[ObjectField[NimNode]],seq[NObjectField])	object_decl: mapGroups(field: NObjectField; parent: seq[ObjectField[NimNode]];\n          caseExpr: proc (path: seq[ObjectField[NimNode]]): NimNode; mapGroup: proc (\n    path: seq[ObjectField[NimNode]]; group: seq[NObjectField]): NimNode): NimNode	
+mapGroups	hnimast/object_decl.html#mapGroups,NObjectDecl,proc(seq[ObjectField[NimNode]]),proc(seq[ObjectField[NimNode]],seq[NObjectField])	object_decl: mapGroups(obj: NObjectDecl;\n          caseExpr: proc (path: seq[ObjectField[NimNode]]): NimNode; mapGroup: proc (\n    path: seq[ObjectField[NimNode]]; group: seq[NObjectField]): NimNode): NimNode	
+mapItGroups	hnimast/object_decl.html#mapItGroups.t,NObjectDecl,untyped,untyped	object_decl: mapItGroups(objectDecl: NObjectDecl; expr, body: untyped): untyped	
+mapItKindFields	hnimast/object_decl.html#mapItKindFields.t,NObjectDecl,,	object_decl: mapItKindFields(objectDecl: NObjectDecl; expr, body): untyped	
+mapItPlainFields	hnimast/object_decl.html#mapItPlainFields.t,NObjectDecl,,	object_decl: mapItPlainFields(objectDecl: NObjectDecl; expr, body): untyped	
+mapPath	hnimast/object_decl.html#mapPath,NObjectField,seq[NObjectField],NObjectPath,proc(seq[NObjectField]),proc(NObjectPath,seq[NObjectField])	object_decl: mapPath(fld: NObjectField; parentField: seq[NObjectField];\n        parentPath: NObjectPath;\n        caseExpr: proc (path: seq[NObjectField]): NimNode;\n        cb: proc (path: NObjectPath; fields: seq[NObjectField]): NimNode): NimNode	
+mapPath	hnimast/object_decl.html#mapPath,NObjectDecl,proc(seq[NObjectField]),proc(NObjectPath,seq[NObjectField])	object_decl: mapPath(obj: NObjectDecl; caseExpr: proc (path: seq[NObjectField]): NimNode;\n        cb: proc (path: NObjectPath; fields: seq[NObjectField]): NimNode): NimNode	
+mapItPath	hnimast/object_decl.html#mapItPath.t,NObjectDecl,untyped,untyped	object_decl: mapItPath(objectDecl: NObjectDecl; expr, body: untyped): untyped	
+Fields	hnimast/object_decl.html#fields	  Fields	

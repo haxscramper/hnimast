@@ -1,0 +1,38 @@
+efvNone	hnimast/enum_decl.html#efvNone	EnumFieldVal.efvNone	
+efvIdent	hnimast/enum_decl.html#efvIdent	EnumFieldVal.efvIdent	
+efvOrdinal	hnimast/enum_decl.html#efvOrdinal	EnumFieldVal.efvOrdinal	
+efvString	hnimast/enum_decl.html#efvString	EnumFieldVal.efvString	
+efvOrdString	hnimast/enum_decl.html#efvOrdString	EnumFieldVal.efvOrdString	
+EnumFieldVal	hnimast/enum_decl.html#EnumFieldVal	enum_decl: EnumFieldVal	
+rtokInt	hnimast/enum_decl.html#rtokInt	RTimeOrdinalKind.rtokInt	
+rtokBool	hnimast/enum_decl.html#rtokBool	RTimeOrdinalKind.rtokBool	
+rtokChar	hnimast/enum_decl.html#rtokChar	RTimeOrdinalKind.rtokChar	
+RTimeOrdinalKind	hnimast/enum_decl.html#RTimeOrdinalKind	enum_decl: RTimeOrdinalKind	
+RTimeOrdinal	hnimast/enum_decl.html#RTimeOrdinal	enum_decl: RTimeOrdinal	
+EnumField	hnimast/enum_decl.html#EnumField	enum_decl: EnumField	
+EnumDecl	hnimast/enum_decl.html#EnumDecl	enum_decl: EnumDecl	
+NEnumDecl	hnimast/enum_decl.html#NEnumDecl	enum_decl: NEnumDecl	
+PEnumDecl	hnimast/enum_decl.html#PEnumDecl	enum_decl: PEnumDecl	
+isEnum	hnimast/enum_decl.html#isEnum,NimNode	enum_decl: isEnum(en: NimNode): bool	
+makeEnumField	hnimast/enum_decl.html#makeEnumField,string,Option[NNode],string	enum_decl: makeEnumField[NNode](name: string; value: Option[NNode] = none(NNode);\n                     comment: string = &quot;&quot;): EnumField[NNode]	
+newEnumDecl	hnimast/enum_decl.html#newEnumDecl,string,string,string,bool,Pragma[N],LineInfo	enum_decl: newEnumDecl[N](name: string; docComment: string = &quot;&quot;; codeComment: string = &quot;&quot;;\n               exported: bool = true; pragma: Pragma[N] = Pragma[N]();\n               iinfo: LineInfo = defaultIInfo): EnumDecl[N]	
+add	hnimast/enum_decl.html#add,EnumDecl[N],EnumField[N]	enum_decl: add[N](en: var EnumDecl[N]; field: EnumField[N])	
+addField	hnimast/enum_decl.html#addField,EnumDecl[N],string,Option[N],string	enum_decl: addField[N](en: var EnumDecl[N]; name: string; value: Option[N] = none(N);\n            docComment: string = &quot;&quot;)	
+addPragma	hnimast/enum_decl.html#addPragma,EnumDecl[N],N	enum_decl: addPragma[N](decl: var EnumDecl[N]; value: N)	
+addPragma	hnimast/enum_decl.html#addPragma,EnumDecl[N],seq[N]	enum_decl: addPragma[N](f: var EnumDecl[N]; values: seq[N])	
+addPragma	hnimast/enum_decl.html#addPragma,EnumDecl[N],string	enum_decl: addPragma[N](decl: var EnumDecl[N]; name: string)	
+addPragma	hnimast/enum_decl.html#addPragma,EnumDecl[N],string,N	enum_decl: addPragma[N](decl: var EnumDecl[N]; key: string; value: N)	
+parseEnumField	hnimast/enum_decl.html#parseEnumField,NNode	enum_decl: parseEnumField[NNode](fld: NNode): EnumField[NNode]	
+parseRTimeOrdinal	hnimast/enum_decl.html#parseRTimeOrdinal,NNode	enum_decl: parseRTimeOrdinal[NNode](nnode: NNode): RTimeOrdinal	
+makeRTOrdinal	hnimast/enum_decl.html#makeRTOrdinal,int	enum_decl: makeRTOrdinal(ival: int): RTimeOrdinal	
+makeRTOrdinal	hnimast/enum_decl.html#makeRTOrdinal,BiggestInt	enum_decl: makeRTOrdinal(ival: BiggestInt): RTimeOrdinal	
+makeRTOrdinal	hnimast/enum_decl.html#makeRTOrdinal,char	enum_decl: makeRTOrdinal(cval: char): RTimeOrdinal	
+toNNode	hnimast/enum_decl.html#toNNode,RTimeOrdinal	enum_decl: toNNode[NNode](ro: RTimeOrdinal): NNode	
+toNNode	hnimast/enum_decl.html#toNNode,EnumField[NNode]	enum_decl: toNNode[NNode](fld: EnumField[NNode]): NNode	
+toNNode	hnimast/enum_decl.html#toNNode,EnumDecl[NNode],bool	enum_decl: toNNode[NNode](en: EnumDecl[NNode]; standalone: bool = false): NNode	
+parseEnumImpl	hnimast/enum_decl.html#parseEnumImpl,NNode	enum_decl: parseEnumImpl[NNode](en: NNode): EnumDecl[NNode]	
+parseEnum	hnimast/enum_decl.html#parseEnum,NNode	enum_decl: parseEnum[NNode: not enum](node: NNode): EnumDecl[NNode]	
+getEnumPref	hnimast/enum_decl.html#getEnumPref,NimNode	enum_decl: getEnumPref(en: NimNode): string	
+enumPref	hnimast/enum_decl.html#enumPref.m,typed	enum_decl: enumPref(a: typed): string	
+getEnumNames	hnimast/enum_decl.html#getEnumNames,NimNode	enum_decl: getEnumNames(en: NimNode): seq[string]	
+enumNames	hnimast/enum_decl.html#enumNames.m,typed	enum_decl: enumNames(en: typed): seq[string]	

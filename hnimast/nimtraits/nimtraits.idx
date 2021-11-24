@@ -1,0 +1,4 @@
+defaultImpl	hnimast/nimtraits/nimtraits.html#defaultImpl.t,untyped	nimtraits: defaultImpl(arg: untyped)	
+Default	hnimast/nimtraits/nimtraits.html#Default.m,untyped	nimtraits: Default(obj: untyped): untyped	
+Attr	hnimast/nimtraits/nimtraits.html#Attr.t	nimtraits: Attr()	
+Skip	hnimast/nimtraits/nimtraits.html#Skip.t,varargs[untyped]	nimtraits: Skip(contexts: varargs[untyped])	

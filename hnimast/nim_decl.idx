@@ -1,0 +1,62 @@
+nekPassthroughCode	hnimast/nim_decl.html#nekPassthroughCode	NimDeclKind.nekPassthroughCode	
+nekProcDecl	hnimast/nim_decl.html#nekProcDecl	NimDeclKind.nekProcDecl	
+nekObjectDecl	hnimast/nim_decl.html#nekObjectDecl	NimDeclKind.nekObjectDecl	
+nekFieldDecl	hnimast/nim_decl.html#nekFieldDecl	NimDeclKind.nekFieldDecl	
+nekEnumDecl	hnimast/nim_decl.html#nekEnumDecl	NimDeclKind.nekEnumDecl	
+nekAliasDecl	hnimast/nim_decl.html#nekAliasDecl	NimDeclKind.nekAliasDecl	
+nekMultitype	hnimast/nim_decl.html#nekMultitype	NimDeclKind.nekMultitype	
+NimDeclKind	hnimast/nim_decl.html#NimDeclKind	nim_decl: NimDeclKind	
+nekTypeKinds	hnimast/nim_decl.html#nekTypeKinds	nim_decl: nekTypeKinds	
+AliasDecl	hnimast/nim_decl.html#AliasDecl	nim_decl: AliasDecl	
+ntdkEnumDecl	hnimast/nim_decl.html#ntdkEnumDecl	NimTypeDeclKind.ntdkEnumDecl	
+ntdkObjectDecl	hnimast/nim_decl.html#ntdkObjectDecl	NimTypeDeclKind.ntdkObjectDecl	
+ntdkAliasDecl	hnimast/nim_decl.html#ntdkAliasDecl	NimTypeDeclKind.ntdkAliasDecl	
+NimTypeDeclKind	hnimast/nim_decl.html#NimTypeDeclKind	nim_decl: NimTypeDeclKind	
+NimTypeDecl	hnimast/nim_decl.html#NimTypeDecl	nim_decl: NimTypeDecl	
+NimDecl	hnimast/nim_decl.html#NimDecl	nim_decl: NimDecl	
+PNimTypeDecl	hnimast/nim_decl.html#PNimTypeDecl	nim_decl: PNimTypeDecl	
+PNimDecl	hnimast/nim_decl.html#PNimDecl	nim_decl: PNimDecl	
+PAliasDecl	hnimast/nim_decl.html#PAliasDecl	nim_decl: PAliasDecl	
+NAliasDecl	hnimast/nim_decl.html#NAliasDecl	nim_decl: NAliasDecl	
+AnyNimDecl	hnimast/nim_decl.html#AnyNimDecl	nim_decl: AnyNimDecl	
+`==`	hnimast/nim_decl.html#==,ObjectBranch[N],ObjectBranch[N]	nim_decl: `==`[N](a, b: ObjectBranch[N]): bool	
+`==`	hnimast/nim_decl.html#==,EnumField[N],EnumField[N]	nim_decl: `==`[N](a, b: EnumField[N]): bool	
+`==`	hnimast/nim_decl.html#==,RTimeOrdinal,RTimeOrdinal	nim_decl: `==`(a, b: RTimeOrdinal): bool	
+`==`	hnimast/nim_decl.html#==,NimTypeDecl[N],NimTypeDecl[N]	nim_decl: `==`[N](a, b: NimTypeDecl[N]): bool	
+`==`	hnimast/nim_decl.html#==,NimDecl[N],NimDecl[N]	nim_decl: `==`[N](a, b: NimDecl[N]): bool	
+toNNode	hnimast/nim_decl.html#toNNode,NimDecl[N],bool	nim_decl: toNNode[N](entry: NimDecl[N]; standalone: bool = true): N	
+toNNode	hnimast/nim_decl.html#toNNode,seq[NimDecl[N]]	nim_decl: toNNode[N](entries: seq[NimDecl[N]]): N	
+toNimTypeDecl	hnimast/nim_decl.html#toNimTypeDecl,ObjectDecl[N]	nim_decl: toNimTypeDecl[N](odc: ObjectDecl[N]): NimTypeDecl[N]	
+toNimTypeDecl	hnimast/nim_decl.html#toNimTypeDecl,AliasDecl[N]	nim_decl: toNimTypeDecl[N](adc: AliasDecl[N]): NimTypeDecl[N]	
+toNimTypeDecl	hnimast/nim_decl.html#toNimTypeDecl,EnumDecl[N]	nim_decl: toNimTypeDecl[N](edc: EnumDecl[N]): NimTypeDecl[N]	
+toNimTypeDecl	hnimast/nim_decl.html#toNimTypeDecl,NimDecl[N]	nim_decl: toNimTypeDecl[N](entry: NimDecl[N]): NimTypeDecl[N]	
+toNimDecl	hnimast/nim_decl.html#toNimDecl,ObjectField[N]	nim_decl: toNimDecl[N](edc: ObjectField[N]): NimDecl[N]	
+toNimDecl	hnimast/nim_decl.html#toNimDecl,ProcDecl[N]	nim_decl: toNimDecl[N](prd: ProcDecl[N]): NimDecl[N]	
+toNimDecl	hnimast/nim_decl.html#toNimDecl,ObjectDecl[N]	nim_decl: toNimDecl[N](odc: ObjectDecl[N]): NimDecl[N]	
+toNimDecl	hnimast/nim_decl.html#toNimDecl,AliasDecl[N]	nim_decl: toNimDecl[N](adc: AliasDecl[N]): NimDecl[N]	
+toNimDecl	hnimast/nim_decl.html#toNimDecl,EnumDecl[N]	nim_decl: toNimDecl[N](edc: EnumDecl[N]): NimDecl[N]	
+toNimDecl	hnimast/nim_decl.html#toNimDecl,N	nim_decl: toNimDecl[N: NimNode | PNode](decl: N): NimDecl[N]	
+toNimDecl	hnimast/nim_decl.html#toNimDecl,seq[NimTypeDecl[N]]	nim_decl: toNimDecl[N](decl: seq[NimTypeDecl[N]]): NimDecl[N]	
+getProc	hnimast/nim_decl.html#getProc,NimDecl[N]	nim_decl: getProc[N](decl: NimDecl[N]): ProcDecl[N]	
+getEnum	hnimast/nim_decl.html#getEnum,NimTypeDecl[N]	nim_decl: getEnum[N](decl: NimTypeDecl[N]): EnumDecl[N]	
+getEnum	hnimast/nim_decl.html#getEnum,NimDecl[N]	nim_decl: getEnum[N](decl: NimDecl[N]): EnumDecl[N]	
+getObject	hnimast/nim_decl.html#getObject,NimTypeDecl[N]	nim_decl: getObject[N](decl: NimTypeDecl[N]): ObjectDecl[N]	
+getObject	hnimast/nim_decl.html#getObject,NimDecl[N]	nim_decl: getObject[N](decl: NimDecl[N]): ObjectDecl[N]	
+getAlias	hnimast/nim_decl.html#getAlias,NimTypeDecl[N]	nim_decl: getAlias[N](decl: NimTypeDecl[N]): AliasDecl[N]	
+getAlias	hnimast/nim_decl.html#getAlias,NimDecl[N]	nim_decl: getAlias[N](decl: NimDecl[N]): AliasDecl[N]	
+getTypes	hnimast/nim_decl.html#getTypes,NimDecl[N]	nim_decl: getTypes[N](decl: NimDecl[N]): seq[NimTypeDecl[N]]	
+getName	hnimast/nim_decl.html#getName,NimTypeDecl[N]	nim_decl: getName[N](decl: NimTypeDecl[N]): string	
+getFirst	hnimast/nim_decl.html#getFirst,seq[NimTypeDecl[N]],string	nim_decl: getFirst[N](decls: seq[NimTypeDecl[N]]; name: string): NimTypeDecl[N]	
+getFirst	hnimast/nim_decl.html#getFirst,seq[NimDecl[N]],NimDeclKind	nim_decl: getFirst[N](decls: seq[NimDecl[N]]; kind: NimDeclKind): NimDecl[N]	
+add	hnimast/nim_decl.html#add,seq[NimDecl[N]],AnyNimDecl[N]	nim_decl: add[N](declSeq: var seq[NimDecl[N]]; decl: AnyNimDecl[N])	
+newPassCode	hnimast/nim_decl.html#newPassCode,N	nim_decl: newPassCode[N](code: N): NimDecl[N]	
+add	hnimast/nim_decl.html#add,seq[NimDecl[N]],N	nim_decl: add[N](decls: var seq[NimDecl[N]]; code: N)	
+newAliasDecl	hnimast/nim_decl.html#newAliasDecl,NType[N],NType[N],bool,bool,LineInfo,string,string	nim_decl: newAliasDecl[N](t1, t2: NType[N]; isDistinct: bool = true;\n                isExported: bool = true; iinfo: LineInfo = defaultIInfo;\n                docComment: string = &quot;&quot;; codeComment: string = &quot;&quot;): AliasDecl[N]	
+`$`	hnimast/nim_decl.html#$,NimDecl[N]	nim_decl: `$`[N](nd: NimDecl[N]): string	
+toNNode	hnimast/nim_decl.html#toNNode,AliasDecl[N],bool	nim_decl: toNNode[N](alias: AliasDecl[N]; standalone: bool = true): N	
+`$`	hnimast/nim_decl.html#$,seq[NimDecl[N]]	nim_decl: `$`[N](nd: seq[NimDecl[N]]): string	
+iinfo=	hnimast/nim_decl.html#iinfo=,NimDecl[N],LineInfo	nim_decl: iinfo=[N](nd: var NimDecl[N]; iinfo: LineInfo)	
+addCodeComment	hnimast/nim_decl.html#addCodeComment,AnyNimDecl[N],string	nim_decl: addCodeComment[N](nd: var AnyNimDecl[N]; comm: string)	
+addCodeComment	hnimast/nim_decl.html#addCodeComment,NimDecl[N],string	nim_decl: addCodeComment[N](nd: var NimDecl[N]; comm: string)	
+addDocComment	hnimast/nim_decl.html#addDocComment,AnyNimDecl[N],string	nim_decl: addDocComment[N](nd: var AnyNimDecl[N]; comm: string)	
+addDocComment	hnimast/nim_decl.html#addDocComment,NimDecl[N],string	nim_decl: addDocComment[N](nd: var NimDecl[N]; comm: string)	
