@@ -9,7 +9,7 @@ importx:
   compiler/ast
 
   hmisc/[
-    other/[hjson, hshell, oswrap, hlogger, hargparse],
+    other/[hjson, hshell, oswrap, hlogger, hargparse, hpprint],
     algo/[clformat, halgorithm, hstring_algo, hseq_distance, namegen],
     wrappers/treesitter
   ]
@@ -74,10 +74,13 @@ func toNtermName(str: string): string =
   else:
     str.toNamedMulticharJoin()
 
-func ntermName(elem: Tree, lang: string): string =
-  result = lang & elem.ttype.toNtermName().capitalizeAscii()
-  if not elem.named:
+func ntermName(ttype: string, named: bool, lang: string): string =
+  result = lang & ttype.toNtermName().capitalizeAscii()
+  if not named:
     result &= "Tok"
+
+func ntermName(elem: Tree, lang: string): string =
+  ntermName(elem.ttype, elem.named, lang)
 
 func makeNodeName(lang: string): string =
   "Ts" & lang.capitalizeAscii() & "Node"
@@ -93,21 +96,30 @@ proc makeKindEnum(
     spec: NodeSpec,
     lang: string,
     names: var StringNameCache
-  ): PEnumDecl =
+  ): tuple[penum: PEnumDecl, pproc: PProcDecl] =
 
-  result = PEnumDecl(name: lang.makeNodeKindName(), exported: true)
+  var namecase = newCase(newPIdent("kind"))
+
+  result.penum = PEnumDecl(name: lang.makeNodeKindName(), exported: true)
   for elem in spec.nodes:
     let name = elem.ntermName(lang)
     if not names.hasExactName(name):
       let newName = names.getName(name)
-      # debug "name", name, "used first time -> ", newName
-      result.values.add makeEnumField[PNode](
+      result.penum.values.add makeEnumField[PNode](
         newName, comment = elem.ttype)
 
-    # else:
-    #   debug "Name", name, "already used."
+      namecase.addBranch(newPIdent(newName), newPLit(elem.ttype))
 
-  result.values.add makeEnumField[PNode](
+  namecase.addBranch(lang.langErrorName().newPident(), newPLit("ERROR"))
+
+  result.pproc = newPprocDecl(
+    "strRepr",
+    {"kind": newPType(result.penum.name)},
+    returnType = some newPType("string"),
+    impl = namecase
+  )
+
+  result.penum.values.add makeEnumField[PNode](
     lang.langErrorName(),
     comment = "Tree-sitter parser syntax error"
   )
@@ -332,7 +344,9 @@ proc createProcDefinitions(
 
       export treesitter
 
-  result.add makeKindEnum(spec, inputLang, names).toNNode(standalone = true)
+  let (penum, pconvert) = makeKindEnum(spec, inputLang, names)
+  result.add penum.toNNode(standalone = true)
+  result.add pconvert.toNNode()
 
   if spec.externals.len > 0:
     var externEnum = PEnumDecl(
@@ -374,6 +388,40 @@ proc createProcDefinitions(
   )
 
   let langId = newPident makeNodeName(inputLang)
+
+  var allowedKinds = newPStmtList()
+  var tokenKinds = newPTree(nnkCurly)
+
+  for node in spec.nodes:
+    let name = newPIdent(names.getName(node.ntermName(inputLang)))
+    if not node.named:
+      tokenKinds.add name
+
+    if node.children.isSome():
+      allowedKinds.add newXCall("[]=",
+        newPIdent("tmp"),
+        name,
+        newPTree(
+          nnkCurly,
+          node.children.get().types.mapIt(
+            newPIdent(
+              names.getName((
+                ntermName(it[0], it[1], inputLang)))))))
+
+
+  let kindType = inputLang.makeNodeKindName().newPIdent()
+
+  let tmp1 = newPIdent(inputLang & "AllowedSubnodes")
+  let tmp2 = newPIdent(inputLang & "TokenKinds")
+  result.add pquote do:
+    const `tmp1`*: array[`kindType`, set[`kindType`]] =
+      block:
+        var tmp: array[`kindType`, set[`kindType`]]
+        `allowedKinds`
+        tmp
+
+    const `tmp2`*: set[`kindType`] =
+      `tokenKinds`
 
   result.add pquote do:
     proc tsNodeType*(node: `langId`): string

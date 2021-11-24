@@ -478,7 +478,7 @@ proc toLytBlock(n: PNode, conf: NimFormatConf): LytBlock =
         result = H[T[name], I[2, V[decls]]]
 
 
-    of nkIdentDefs:
+    of nkIdentDefs, nkConstDef:
       if n[2].kind == nkLambda:
         result = V[
           tern(
@@ -605,7 +605,10 @@ proc toLytBlock(n: PNode, conf: NimFormatConf): LytBlock =
     of nkAsgn: result = H[~n[0], T[" = "], ~n[1]]
 
     of nkBracket:
-      result = H[T["["], lytCsv(n, false, conf), T["]"]]
+      result = C[
+        H[T["["], lytCsv(n, false, conf), T["]"]],
+        V[T["["], I[2, lytCsv(n, true, conf)], T["]"]]
+      ]
 
     of nkGenericParams:
       result = H[T["["], lytCsv(n, false, conf), T["]"]]
@@ -626,6 +629,11 @@ proc toLytBlock(n: PNode, conf: NimFormatConf): LytBlock =
         result = H[T["{"], lytCsv(n, false, conf), T["}"]]
 
 
+    of nkBlockStmt:
+      result = V[
+        H[T["block"], tern(n[0].isEmptyNode(), E[], H[T[" "], ~n[0]]), T[":"]],
+        I[2, ~n[1]]
+      ]
 
     of nkBracketExpr:
       result = H[~n[0], T["["], lytCsv(n[1..^1], false, conf), T["]"]]
