@@ -22,15 +22,16 @@ grammarFromFile(
   parserOut   = some(gen /. "generated.c"),
   wrapperOut  = some wrapper,
   l           = newTermLogger(),
-  testLink    = false
+  testLink    = false,
+  testCheck   = false
 )
 
 var cmd = shellCmd(nim, check, errormax = 2)
 
-for path in shellCmd(nim, dump, "dump.format" = "json", "-").
-  evalShellStdout().
-  parseJson()["lib_paths"]:
+let j = shellCmd(nim, dump, "dump.format" = "json", $currentSourcePath()).
+  evalShellStdout()
 
+for path in j.parseJson()["lib_paths"]:
   cmd.opt "path", path.asStr()
 
 cmd.arg $wrapper

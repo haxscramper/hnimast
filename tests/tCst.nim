@@ -1,4 +1,5 @@
 import hnimast/[cst_parser, cst_lexer, cst_Types]
+import hmisc/types/colorstring
 
 import
   compiler/[options, idents, lineinfos, pathutils, llstream]

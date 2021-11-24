@@ -6,7 +6,7 @@ import hmisc/core/all
 import hnimast
 import ../pprint
 
-import fusion/matching
+import hmisc/macros/matching
 
 {.experimental: "caseStmtMacros".}
 
@@ -36,6 +36,7 @@ proc enumFieldName(str: string, prefix: string): string =
 
   result = res
 
+proc getParserName*(kind: XsdTokenKind): string = "loadXml"
 
 
 type PNType = NType[PNode]
@@ -523,7 +524,7 @@ proc newMixed(objName, enumName: string): seq[PNode] =
 proc generateForObject(gen, cache): seq[PNimDecl] =
   var parser = newPProcDecl(gen.nimname.parserName(), iinfo = currLInfo())
   with parser:
-    addArgument("parser", newPtype("var", ["HXmlParser"]))
+    addArgument("parser", newPtype("var", ["XmlDeserializer"]))
     addArgument("target", gen.nimName.newPType().newParseTargetPType())
     addArgument("tag", newPType("string"))
     addArgument("inMixed", newPType("bool"),
@@ -730,8 +731,7 @@ proc generateForObject(gen, cache): seq[PNimDecl] =
   mainCase.addBranch(unused):
     pquote do:
       @@@<<(posComment())
-      echo parser.displayAt()
-      assert false
+      assert false, $parser.displayAt()
 
 
   let parsename = newPIdent(gen.nimName.parserName())
@@ -782,7 +782,7 @@ proc generateForDistinct(gen, cache):
   result.parser = newPProcDecl(gen.nimName.parserName(), iinfo = currLInfo())
 
   with result.parser:
-    addArgument("parser", newPType("var", ["HXmlParser"]))
+    addArgument("parser", newPType("var", ["XmlDeserializer"]))
     addArgument("target", result.decl.newType.newParseTargetPType())
     addArgument("tag", newPType("string"))
 
@@ -795,9 +795,8 @@ proc generateForDistinct(gen, cache):
   result.parser.impl = pquote do:
     @@@<<(posComment())
     var tmp: `baseType`
-    `baseParseCall`(tmp, parser)
+    `baseParseCall`(parser, tmp, tag)
     target = `newType`(tmp)
-    parser.next()
 
 
 
@@ -846,16 +845,17 @@ proc generateForXsd*(xsd: AbsFile): seq[PNimDecl] =
   result.add forward
   result.add procs
 
-proc writeXsdGenerator*(decls: seq[PNimDecl], target: AbsFile) =
+proc writeXsdGenerator*(decls: seq[PNimDecl], target: AbsFile, post: string = "") =
   target.writeFile(
     """
 import std/[options, times]
-import hmisc/hasts/[xml_ast]
+import hmisc/hasts/[xml_ast, xml_serde]
 export options, xml_ast
 
 import hmisc/algo/halgorithm
 
-""" & decls.toNNode().toPString(nformatConf(flags -= nffAllowMultilineProcHead))
+""" & decls.toNNode().toPString(nformatConf(flags -= nffAllowMultilineProcHead)) &
+  "\n\n" & post
   )
 
 when isMainModule:

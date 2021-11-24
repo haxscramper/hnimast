@@ -4,7 +4,8 @@ import
   hmisc/preludes/unittest
 
 import
-  hmisc/algo/clformat
+  hmisc/algo/clformat,
+  hmisc/types/colorstring
 
 import
   hnimast,
@@ -242,7 +243,7 @@ suite "PQuote do":
       proc zzz(arg1: float, arg2: @@@^args) =
         discard
 
-    echo code2
+    echov code2
 
   test "3":
     let vals = @[newPLit("3"), newPLit("4")]
@@ -250,13 +251,13 @@ suite "PQuote do":
     let code3 = pquote do:
       let vals = @["1", "2", @@@vals]
 
-    echo code3
+    echov code3
 
   test "4":
     let code3 = pquote do:
       let vals = @[@@@!(newPLit("123"))]
 
-    echo code3
+    echov code3
 
   test "5":
     let subfields = @[
@@ -271,19 +272,19 @@ suite "PQuote do":
           f1: int
           _: @@@^(subfields)
 
-    echo code
+    echov code
 
   test "6":
     let code = pquote do:
       a.@@@!(newPIdent("hello"))
 
-    echo code
+    echov code
 
 suite "working with PNode":
   test "Core":
-    echo newPIdent("hello")
-    echo newReturn(newPIdent("qqqq"))
-    echo newPrefix("!", newPIdent("eee"))
+    echov newPIdent("hello")
+    echov newReturn(newPIdent("qqqq"))
+    echov newPrefix("!", newPIdent("eee"))
     block:
       var decl = newPProcDecl("nice", {"arg1" : newPType("HHH")}).toNNode()
       var procdef: ProcDecl[PNode]
@@ -291,13 +292,13 @@ suite "working with PNode":
       procdef.signature = newProcNType[PNode](@[])
       procdef.docComment = "werqwre"
       let pd = procdef.toNNode()
-      echo pd
+      echov pd
 
       let node = parsePNodeStr($pd)
-      echo node.treeRepr()
+      echov node.treeRepr()
 
       decl.comment = "hello world"
-      echo decl
+      echov decl
 
     block:
       var en = PEnumDecl(name: "Eee").withIt do:
@@ -313,7 +314,7 @@ orci commodo lobortis. Proin neque massa, cursus ut, gravida ut,
 lobortis eget, lacus. Sed diam. Praesent fermentum tempor tellus.
 Nullam tempus. Mauris ac felis vel velit tristique imperdiet."""
 
-      echo en.toNNode()
+      echov en.toNNode()
 
   test "Parsing objects":
     let node = """
@@ -323,7 +324,7 @@ type Type = object
 
     var obj = parseObject(node)
     obj.exported = true
-    echo obj.toNNode()
+    echov obj.toNNode()
 
   test "Runtime ordinal parsing":
     echo parsePNodeStr("1").dropStmtList().parseRTimeOrdinal()
@@ -352,4 +353,4 @@ suite "Distinct API":
   let node = newPProcDecl(name = "hello").toNNode()
   let pr: ProcDeclNode[PNode] = node.asProcDecl()
 
-  echo pr.name().treeRepr()
+  echov pr.name().treeRepr()

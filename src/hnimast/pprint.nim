@@ -505,18 +505,19 @@ proc toLytBlock(n: PNode, conf: NimFormatConf): LytBlock =
       else:
         result = V[]
         var buffer: seq[seq[LytBlock]]
-        for def in n:
+        for idx, def in n:
           if def[2] of nkTypeAliasKinds:
             buffer.add @[lytTypedefHead(def, conf), T[" = "], ~def[2]]
             buffer.add @[S[]]
 
-          else:
+          if not(def[2] of nkTypeALiasKinds) or idx == len(n) - 1:
             if ?buffer:
               result.add makeAlignedGrid(buffer, [sadLeft, sadLeft, sadLeft])
               result.add S[]
 
               buffer.clear()
 
+          if not(def[2] of nkTypeAliasKinds):
             result.add ~def
             result.add S[]
 
