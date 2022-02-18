@@ -17,13 +17,14 @@ startHax()
 let wrapper = gen /. "wrapper.nim"
 
 grammarFromFile(
-  langPrefix  = "lang",
-  grammarJs   = AbsFile(relToSource"assets/grammar1.js"),
-  parserOut   = some(gen /. "generated.c"),
-  wrapperOut  = some wrapper,
-  l           = newTermLogger(),
-  testLink    = false,
-  testCheck   = false
+  defaultHtsGenConf.withIt do:
+    it.langPrefix  = "lang"
+    it.grammarJs   = AbsFile(relToSource"assets/grammar1.js")
+    it.parserOut   = some(gen /. "generated.c")
+    it.wrapperOut  = some wrapper
+    it.l           = newTermLogger()
+    it.testLink    = false
+    it.testCheck   = false
 )
 
 var cmd = shellCmd(nim, check, errormax = 2)

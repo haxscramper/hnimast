@@ -80,8 +80,6 @@ const
     nkNilLit}
 
   nkTokenKinds* = nkLiteralKinds + {nkIdent, nkSym}
-
-
   nkProcDeclKinds* = {
     nkProcDef,
     nkFuncDef,
@@ -883,20 +881,7 @@ proc treeRepr*(
   coloredResult()
 
   proc aux(n: PNode, level: int, idx: seq[int]) =
-    let pref =
-      if pathIndexed:
-        idx.join("", ("[", "]")) & "    "
-
-      elif positionIndexed:
-        if level > 0:
-          "  ".repeat(level - 1) & "\e[38;5;240m#" & $idx[^1] & "\e[0m" &
-            "\e[38;5;237m/" & alignLeft($level, 2) & "\e[0m" & " "
-
-        else:
-          "    "
-
-      else:
-        "  ".repeat(level)
+    let pref = joinPrefix(level, idx, pathIndexed, positionIndexed)
 
     add pref
     if isNil(n):
@@ -909,7 +894,7 @@ proc treeRepr*(
 
     add hshow(n.kind)
 
-    template addComment(): untyped =
+    proc addComment(sep: bool = true) =
       if n.comment.len > 0:
         add "\n"
         for idx, line in enumerate(
@@ -918,10 +903,10 @@ proc treeRepr*(
           if idx > 0: add "\n"
           add pref & "  # " & toCyan(line)
 
-      else:
+      elif sep:
         add " "
 
-    template addFlags(): untyped =
+    proc addFlags() =
       if not isNil(n.typ):
         add " "
         add n.typ.lispRepr(colored)
@@ -965,15 +950,10 @@ proc treeRepr*(
         addComment()
 
       of nkSym:
-        add toGreen(n.getStrVal(), colored)
+        add " "
+        add toCyan(n.getStrVal(), colored)
         add " sk:"
         add toBlue(($n.sym.kind)[2 ..^ 1], colored)
-        add " "
-        if isNil(n.sym.typ):
-          add "<no-type>"
-
-        else:
-          add n.sym.typ.lispRepr(colored, symkind = false)
 
         if n.sym.flags.len > 0:
           add " flags:" & to8Bit($n.sym.flags, 2, 0, 3)
@@ -997,7 +977,7 @@ proc treeRepr*(
       if n.len > 0:
         add "\n"
 
-      addComment()
+      addComment(false)
 
       for newIdx, subn in n:
         aux(subn, level + 1, idx & newIdx)
@@ -1398,17 +1378,17 @@ func flattenSet*[N](node: N, group: Option[EnumValueGroup[N]]): seq[N] =
     of nnkInfix:
       let lowVal = node[1]
       let highVal = node[2]
-      assert node[0].getStrVal() == ".."
-      if group.isSome() and
-         lowVal.kind.toNNK() in nnkIdentKinds and
-         highVal.kind.toNNK() in nnkIdentKinds:
+      if node[0].getStrVal() == "..":
+        if group.isSome() and
+           lowVal.kind.toNNK() in nnkIdentKinds and
+           highVal.kind.toNNK() in nnkIdentKinds:
 
-        for val in valuesInRange(lowVal, highVal, group.get()):
-          result.add val.decl
+          for val in valuesInRange(lowVal, highVal, group.get()):
+            result.add val.decl
 
 
-      else:
-        result = @[ node ]
+        else:
+          result = @[ node ]
 
     else:
       {.cast(noSideEffect).}:
