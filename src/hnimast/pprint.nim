@@ -12,7 +12,7 @@ import
   std/[options, strutils, strformat, sequtils, macros]
 
 import
-  compiler/[ast]
+  compiler/ast/[ast]
 
 proc str(n: PNode): string = `$`(n)
 

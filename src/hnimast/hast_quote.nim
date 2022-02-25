@@ -4,7 +4,7 @@ import
   std/[strutils]
 
 import
-  compiler/[lineinfos, ast]
+  compiler/ast/[lineinfos, ast]
 
 import
   hmisc/core/[all, code_errors]

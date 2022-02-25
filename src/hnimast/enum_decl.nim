@@ -10,7 +10,7 @@ import
   hmisc/core/all
 
 import
-  compiler/[ast]
+  compiler/ast/[ast]
 
 type
   EnumFieldVal* = enum

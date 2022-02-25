@@ -4,7 +4,12 @@ import std/[
 ]
 
 import
-  compiler/[ast, idents, lineinfos, renderer]
+  compiler/ast/[
+    ast,
+    idents,
+    lineinfos,
+    renderer
+  ]
 
 import
   hmisc/types/colorstring,
@@ -13,10 +18,10 @@ import
 
 export macros, colorstring
 
-func eqIdentStr*(a, b: string): bool =
+proc eqIdentStr*(a, b: string): bool =
   a.cmpIgnoreStyle(b) == 0
 
-func eqIdentStr*(str: string, ids: varargs[string]): bool =
+proc eqIdentStr*(str: string, ids: varargs[string]): bool =
   for id in ids:
     if str.eqIdent(id):
       return true
@@ -122,7 +127,7 @@ const
 type
   ProcDeclNode*[N: NimNode | PNode] = distinct N
 
-func asProcDecl*[N](n: N): ProcDeclNode[N] =
+proc asProcDecl*[N](n: N): ProcDeclNode[N] =
   when n is NimNode:
     assertKind(n, nnkProcDeclKinds)
 
@@ -131,20 +136,20 @@ func asProcDecl*[N](n: N): ProcDeclNode[N] =
 
   result = ProcDeclNode(n)
 
-func asNode*(decl: ProcDeclNode[NimNode]): NimNode = NimNode(decl)
-func asNode*(decl: ProcDeclNode[PNode]): PNode = PNode(decl)
+proc asNode*(decl: ProcDeclNode[NimNode]): NimNode = NimNode(decl)
+proc asNode*(decl: ProcDeclNode[PNode]): PNode = PNode(decl)
 
-func name*[N](decl: ProcDeclNode[N]): N = decl.asNode()[namePos]
-func pattern*[N](decl: ProcDeclNode[N]): N = decl.asNode()[patternPos]
-func genericParams*[N](decl: ProcDeclNode[N]): N = decl.asNode()[genericParamsPos]
-func params*[N](decl: ProcDeclNode[N]): N = decl.asNode()[paramsPos]
-func returnType*[N](decl: ProcDeclNode[N]): N = decl.asNode()[paramsPos][0]
-func argumentList*[N](decl: ProcDeclNode[N]): seq[N] =
+proc name*[N](decl: ProcDeclNode[N]): N = decl.asNode()[namePos]
+proc pattern*[N](decl: ProcDeclNode[N]): N = decl.asNode()[patternPos]
+proc genericParams*[N](decl: ProcDeclNode[N]): N = decl.asNode()[genericParamsPos]
+proc params*[N](decl: ProcDeclNode[N]): N = decl.asNode()[paramsPos]
+proc returnType*[N](decl: ProcDeclNode[N]): N = decl.asNode()[paramsPos][0]
+proc argumentList*[N](decl: ProcDeclNode[N]): seq[N] =
   for node in decl.asNode()[paramsPos][1 .. ^1]:
     result.add node
 
-func body*[N](decl: ProcDeclNode[N]): N = decl.asNode()[bodyPos]
-func pragmas*[N](decl: ProcDeclNode[N]): N = decl.asNode()[pragmasPos]
+proc body*[N](decl: ProcDeclNode[N]): N = decl.asNode()[bodyPos]
+proc pragmas*[N](decl: ProcDeclNode[N]): N = decl.asNode()[pragmasPos]
 
 
 type
@@ -171,20 +176,20 @@ proc getInfo*(n: PNode): TLineInfo = n.info
 #   result = n.info
 #   result.filename = getStr(file)
 
-func dropPar1*(nn: NimNode): NimNode =
+proc dropPar1*(nn: NimNode): NimNode =
   if nn.kind == nnkPar: nn[0] else: nn
 
 
 
 #==========================  String conversion  ==========================#
 
-func `$!`*(n: NimNode): string =
+proc `$!`*(n: NimNode): string =
   ## NimNode stringification that does not blow up in your face on
   ## 'invalid node kind'
   n.toStrLit().strVal()
 
 
-func `$!`*(n: PNode): string =
+proc `$!`*(n: PNode): string =
   ## PNode stringification that does not blow up in your face on
   ## 'invalid node kind'
   {.cast(noSideEffect).}:
@@ -204,12 +209,12 @@ proc `&`*(n: PNode, str: string): PNode =
     raise newArgumentError(
       "Cannot concatentate non-string node with string")
 
-func getStrVal*(n: NimNode): string =
+proc getStrVal*(n: NimNode): string =
   ## Get string value from `NimNode` that can have it - e.g. strings,
   ## identifiers etc.
   n.strVal()
 
-func getStrVal*(p: PNode, doRaise: bool = true): string =
+proc getStrVal*(p: PNode, doRaise: bool = true): string =
   ## Get string value from `PNode`
   case p.kind:
     of nkIdent:    p.ident.s
@@ -251,31 +256,31 @@ proc `=~`*[R](nodes: seq[PNode], kinds: array[R, TNodeKind]): bool =
   return true
 
 
-func safeStrVal*(n: PNode): string = getStrVal(n, false)
+proc safeStrVal*(n: PNode): string = getStrVal(n, false)
 
-func getIntVal*(n: PNode): BiggestInt = n.intVal
-func getIntVal*(n: NimNode): BiggestInt = n.intVal()
+proc getIntVal*(n: PNode): BiggestInt = n.intVal
+proc getIntVal*(n: NimNode): BiggestInt = n.intVal()
 
 
 proc getStrVal*(s: PSym): string = s.name.s
 
-func dropStmtList*(p: PNode): PNode =
+proc dropStmtList*(p: PNode): PNode =
   case p.kind:
     of nkStmtList:
       p[0]
     else:
       p
 
-func toString*(n: NimNode): string =
+proc toString*(n: NimNode): string =
   ## Convert any node to string without side effects
   n.toStrLit().strVal()
 
-func toString*(p: PNode): string =
+proc toString*(p: PNode): string =
   ## Convert any node to string without side effects
   {.noSideEffect.}:
     $p
 
-func toStr*(
+proc toStr*(
     info: LineInfo | tuple[filename: string, line: int, column: int],
     shortPath: bool = true
   ): string =
@@ -288,42 +293,42 @@ func toStr*(
     return &"{info.line}:{info.column}:{info.filename}"
 
 
-func toShow*[N](node: N): string = "'" & toString(node) & "'"
+proc toShow*[N](node: N): string = "'" & toString(node) & "'"
 
 #==============  Uniform operations for PNode and NimNode  ===============#
 
-func subnodes*(p: PNode): seq[PNode] =
+proc subnodes*(p: PNode): seq[PNode] =
   ## Get subnodes as a sequence
   p.sons
 
-func subnodes*(n: NimNode): seq[NimNode] =
+proc subnodes*(n: NimNode): seq[NimNode] =
   ## Get subnodes as a sequence
   toSeq(n.children)
 
-func skipNil*(n: NimNode): NimNode =
+proc skipNil*(n: NimNode): NimNode =
   ## If node `n` is `nil` generated new empty node, otherwise return
   ## `n`
   if n == nil: newEmptyNode() else: n
 
-func nilToDiscard*(n: NimNode): NimNode =
+proc nilToDiscard*(n: NimNode): NimNode =
   ## If node `n` is `nil` generate new discard node, otherwise return
   ## `n`
   if n == nil: nnkDiscardStmt.newTree(newEmptyNode()) else: n
 
 
-func toNK*(kind: NimNodeKind): TNodeKind =
+proc toNK*(kind: NimNodeKind): TNodeKind =
   TNodeKind(kind.int)
 
-func toNNK*(kind: TNodeKind): NimNodeKind = NimNodeKind(kind.int)
-func toNNK*(kind: NimNodeKind): NimNodeKind = kind
+proc toNNK*(kind: TNodeKind): NimNodeKind = NimNodeKind(kind.int)
+proc toNNK*(kind: NimNodeKind): NimNodeKind = kind
 
-func nnKind*(node: NimNode): NimNodeKind = node.kind
-func nnKind*(node: PNode): NimNodeKind = NimNodeKind(node.kind.int)
+proc nnKind*(node: NimNode): NimNodeKind = node.kind
+proc nnKind*(node: PNode): NimNodeKind = NimNodeKind(node.kind.int)
 
-func `==`*(k1: TNodeKind, k2: NimNodeKind): bool = k1.toNNK() == k2
+proc `==`*(k1: TNodeKind, k2: NimNodeKind): bool = k1.toNNK() == k2
 
 
-func expectKind*(expr: PNode, kind: NimNodeKind): void =
+proc expectKind*(expr: PNode, kind: NimNodeKind): void =
   ## Raise assertion error of `expr` kind is not equal to `kind`
   if expr.kind != kind.toNK():
     raise newArgumentError(
@@ -331,35 +336,37 @@ func expectKind*(expr: PNode, kind: NimNodeKind): void =
 
 #==========================  Tree construction  ==========================#
 
-func newTree*(kind: NimNodeKind, subnodes: seq[PNode]): PNode =
+proc newTree*(kind: NimNodeKind, subnodes: seq[PNode]): PNode =
   ## Create new `PNode` tree with `subnodes` as child elements. `kind`
   ## will be converted to corresponding `TNodeKind`
-  kind.toNK().newTree(subnodes)
+  {.cast(noSideEffect).}:
+    kind.toNK().newTree(subnodes)
 
-func newAccQuoted*(args: varargs[NimNode]): NimNode =
+proc newAccQuoted*(args: varargs[NimNode]): NimNode =
   nnkAccQuoted.newTree(args)
 
-func newAccQuoted*(args: varargs[string]): NimNode =
+proc newAccQuoted*(args: varargs[string]): NimNode =
   nnkAccQuoted.newTree(args.mapIt(ident it))
 
-proc newPIdent*(str: string): PNode =
+func newPIdent*(str: string): PNode =
   ## Create new `nkIdent` pnode
-  newIdentNode(PIdent(s: str), TLineInfo())
+  {.cast(noSideEffect).}:
+    newIdentNode(PIdent(s: str), TLineInfo())
 
 
-func newInfix*(op: string, lhs, rhs: NimNode): NimNode =
+proc newInfix*(op: string, lhs, rhs: NimNode): NimNode =
   ## Create new `nnkInfix` node
   nnkInfix.newTree(ident op, lhs, rhs)
 
-func newPrefix*(op: string, expr: NimNode): NimNode =
+proc newPrefix*(op: string, expr: NimNode): NimNode =
   ## Create new `nnkPrefix` node
   nnkPrefix.newTree(@[ident op, expr])
 
-func newPrefix*(op: string, expr: PNode): PNode =
+proc newPrefix*(op: string, expr: PNode): PNode =
   ## Create new `nkPrefix` node
   nnkPrefix.newTree(@[newPIdent op, expr])
 
-func newReturn*(expr: NimNode): NimNode =
+proc newReturn*(expr: NimNode): NimNode =
   ## Create new return statement
   nnkReturnStmt.newTree(@[expr])
 
@@ -367,18 +374,19 @@ func newNTree*[NNode: NimNode or PNode](
   kind: NimNodeKind, subnodes: varargs[NNode]): NNode =
   ## Create new tree with `subnodes` and `kind`
   # STYLE rename to `toNNode`
-  when NNode is NimNode:
-    newTree(kind, toSeq(subnodes))
+  {.cast(noSideEffect).}:
+    when NNode is NimNode:
+      newTree(kind, toSeq(subnodes))
 
-  else:
-    newTree(kind.toNK(), toSeq(subnodes))
+    else:
+      newTree(kind.toNK(), toSeq(subnodes))
 
-func newReturn*[N](expr: N): N = newNTree[N](nnkReturnStmt, expr)
-func newRaise*[N](expr: N): N = newNTree[N](nnkRaiseStmt, expr)
-func newStmtListExpr*[N](args: varargs[N]): N =
+proc newReturn*[N](expr: N): N = newNTree[N](nnkReturnStmt, expr)
+proc newRaise*[N](expr: N): N = newNTree[N](nnkRaiseStmt, expr)
+proc newStmtListExpr*[N](args: varargs[N]): N =
   newNTree[N](nnkStmtListExpr, args)
 
-func newNIdent*[N](
+proc newNIdent*[N](
     str: string,
     exported: bool = false,
     pragmas: seq[N] = @[]
@@ -404,16 +412,16 @@ func newNIdent*[N](
         result.add newNTree[N](nnkPragma, p)
 
 
-func newNIdent*[N](n: N): N = n
+proc newNIdent*[N](n: N): N = n
 
 
-func newDiscardStmt*[N](expr: N): N =
+proc newDiscardStmt*[N](expr: N): N =
   newNTree[N](nnkDiscardStmt, expr)
 
-func newDiscardStmt*(): NimNode = newDiscardStmt(newEmptyNode())
+proc newDiscardStmt*(): NimNode = newDiscardStmt(newEmptyNode())
 
 
-func newPTree*(kind: NimNodeKind, subnodes: varargs[PNode]): PNode =
+proc newPTree*(kind: NimNodeKind, subnodes: varargs[PNode]): PNode =
   ## Create new `PNode` tree
   if kind in nnkTokenKinds:
     if subnodes.len > 0:
@@ -460,22 +468,26 @@ template newPositionPComment*(
 
 func newEmptyNNode*[NNode](): NNode =
   ## Create new empty node of type `NNode`
-  when NNode is NimNode:
-    newEmptyNode()
-  else:
-    newTree(nkEmpty)
+  {.cast(noSideEffect).}:
+    when NNode is NimNode:
+      newEmptyNode()
+    else:
+      newTree(nkEmpty)
 
 func newEmptyPNode*(): PNode =
   ## Create new empty PNode
-  newEmptyNNode[PNode]()
+  {.cast(noSideEffect).}:
+    newEmptyNNode[PNode]()
 
 func newPLit*(i: int): PNode =
   ## Create new integer literal `PNode`
-  newIntTypeNode(BiggestInt(i), PType(kind: tyInt))
+  {.cast(noSideEffect).}:
+    newIntTypeNode(BiggestInt(i), PType(kind: tyInt))
 
 func newPLit*(i: BiggestInt): PNode =
   ## Create new integer literal `PNode`
-  newIntTypeNode(i, PType(kind: tyInt))
+  {.cast(noSideEffect).}:
+    newIntTypeNode(i, PType(kind: tyInt))
 
 func newPLit*(n: typeof(nil)): PNode =
   PNode(kind: nkNilLit)
@@ -485,16 +497,19 @@ func newPLit*(b: bool): PNode =
   # newIntTypeNode(BiggestInt(b), PType(kind: tyBool))
 
 func newPLit*(c: char): PNode =
-  newIntTypeNode(BiggestInt(c), PType(kind: tyChar))
+  {.cast(noSideEffect).}:
+    newIntTypeNode(BiggestInt(c), PType(kind: tyChar))
 
 func newPLit*(f: float): PNode =
-  newFloatNode(nkFloatLit, f)
+  {.cast(noSideEffect).}:
+    newFloatNode(nkFloatLit, f)
 
 func newPLit*(i: string): PNode =
   ## Create new string literal `PNode`
-  newStrNode(nkStrLit, i)
+  {.cast(noSideEffect).}:
+    newStrNode(nkStrLit, i)
 
-proc newPLit*(e: enum): PNode =
+func newPLit*(e: enum): PNode =
   proc enumToStr(x: enum): string {.magic: "EnumToStr", noSideEffect.}
   return nnkDotExpr.newPTree(
     newPIdent($typeof(e)), newPIdent(enumToStr(e)))
@@ -510,28 +525,28 @@ proc newLit*[T](s: set[T]): NimNode =
     result.add nnkDotExpr.newTree(
       ident($typeof(T)), ident(toString(value)))
 
-func newRStrLit*(st: string): PNode =
+proc newRStrLit*(st: string): PNode =
   result = nnkRStrLit.newPTree()
   result.strVal = st
 
-func toStrLit*(node: PNode): PNode =
+proc toStrLit*(node: PNode): PNode =
   {.noSideEffect.}:
     result = newPLit($node)
 
 
-func lineIInfo*(node: NimNode): NimNode =
+proc lineIInfo*(node: NimNode): NimNode =
   ## Create tuple literal for `{.line: .}` pragma
   let iinfo = node.lineInfoObj()
   newLit((filename: iinfo.filename, line: iinfo.line))
 
-func newPIdentColonString*(key, value: string): PNode =
+proc newPIdentColonString*(key, value: string): PNode =
   nnkExprColonExpr.newPTree(newPIdent(key), newPLit(value))
 
 
-func newExprColonExpr*[N](key, value: N): N =
+proc newExprColonExpr*[N](key, value: N): N =
   newNTree[N](nnkExprColonExpr, key, value)
 
-func newIdentColonExpr*[N](key: string, value: N): N =
+proc newIdentColonExpr*[N](key: string, value: N): N =
   newNTree[N](nnkExprColonExpr, newNIdent[N](key), value)
 
 template newNNLit*[NNode](val: untyped): untyped =
@@ -542,29 +557,29 @@ template newNNLit*[NNode](val: untyped): untyped =
 
 
 
-func newPTree*(kind: NimNodeKind, val: string): PNode =
+proc newPTree*(kind: NimNodeKind, val: string): PNode =
   result = PNode(kind: kind.toNk())
   result.strVal = val
 
-func newPTree*(kind: NimNodeKind, val: SomeInteger): PNode =
+proc newPTree*(kind: NimNodeKind, val: SomeInteger): PNode =
   result = PNode(kind: kind.toNK())
   result.intVal = BiggestInt(val)
 
 
 
 
-func toBracket*(elems: seq[NimNode]): NimNode =
+proc toBracket*(elems: seq[NimNode]): NimNode =
   ## Create `nnkBracket` with elements
   # TODO use `NNode`
   nnkBracket.newTree(elems)
 
-func toBracketSeq*(elems: seq[NimNode]): NimNode =
+proc toBracketSeq*(elems: seq[NimNode]): NimNode =
   ## Create `nnkBracket` with `@` prefix - sequence literal
   ## `@[<elements>]`
   # TODO use `NNode`
   nnkPrefix.newTree(ident "@", nnkBracket.newTree(elems))
 
-func setPosition*[N](target: var N, source: N) =
+proc setPosition*[N](target: var N, source: N) =
   when N is NimNode:
     target.copyLineInfo(source)
 
@@ -793,7 +808,7 @@ proc callTypeof*[N](head: N): N = newXCall("typeof", head)
 #=======================  Misc helper algorithms  ========================#
 
 
-func flattenInfix*[N](inNode: N, infix: string): seq[N] =
+proc flattenInfix*[N](inNode: N, infix: string): seq[N] =
   func aux(node: N): seq[N] =
     if node.kind == nnkInfix and node[0].getStrVal() == infix:
       result = aux(node[1]) & aux(node[2])
@@ -803,7 +818,7 @@ func flattenInfix*[N](inNode: N, infix: string): seq[N] =
 
   return aux(inNode)
 
-func foldInfix*[N](inNodes: seq[N], infix: string): N =
+proc foldInfix*[N](inNodes: seq[N], infix: string): N =
   func aux(nodes: seq[N]): N =
     if nodes.len == 1:
       result = nodes[0]
@@ -1211,7 +1226,7 @@ proc treeRepr1*(
 
 
 
-func idxTreeRepr*(inputNode: NimNode): string =
+proc idxTreeRepr*(inputNode: NimNode): string =
   ## `treeRepr` with indices for subnodes
   ## .. code-block::
   ##                 TypeDef
@@ -1237,7 +1252,7 @@ func idxTreeRepr*(inputNode: NimNode): string =
 
 #=======================  Init calls construction  =======================#
 
-func makeInitCalls*[T](val: T): NimNode =
+proc makeInitCalls*[T](val: T): NimNode =
   # TODO:DOC
   when T is enum:
     ident($val)
@@ -1245,14 +1260,14 @@ func makeInitCalls*[T](val: T): NimNode =
   else:
     newLit(val)
 
-func makeInitAllFields*[T](val: T): NimNode =
+proc makeInitAllFields*[T](val: T): NimNode =
   # TODO:DOC
   result = newCall("init" & $typeof(T))
   for name, val in fieldPairs(val):
     result.add nnkExprEqExpr.newTree(
       ident(name), makeInitCalls(val))
 
-func makeConstructAllFields*[T](val: T): NimNode =
+proc makeConstructAllFields*[T](val: T): NimNode =
   # TODO:DOC
   when val is seq:
     result = val.mapPairs(
@@ -1289,7 +1304,7 @@ func makeConstructAllFields*[T](val: T): NimNode =
           result.add nnkExprColonExpr.newTree(
             ident(name), makeConstructAllFields(fld))
 
-func makeInitCalls*[A, B](table: Table[A, B]): NimNode =
+proc makeInitCalls*[A, B](table: Table[A, B]): NimNode =
   # TODO:DOC
   mixin makeInitCalls
   result = nnkTableConstr.newTree()
@@ -1305,7 +1320,7 @@ func makeInitCalls*[A, B](table: Table[A, B]): NimNode =
     result
   )
 
-func makeInitCalls*[A](hset: HashSet[A]): NimNode =
+proc makeInitCalls*[A](hset: HashSet[A]): NimNode =
   # TODO:DOC
   mixin makeInitCalls
   result = nnkBracket.newTree()
@@ -1315,7 +1330,7 @@ func makeInitCalls*[A](hset: HashSet[A]): NimNode =
   result = newCall("toHashSet", result)
 
 #=======================  Enum set normalization  ========================#
-func valuesInRange*[N](
+proc valuesInRange*[N](
     lowVal, highVal: N, group: EnumValueGroup[N]): seq[EnumFieldDef[N]] =
 
   var values: seq[EnumFieldDef[N]]
@@ -1356,7 +1371,7 @@ func valuesInRange*[N](
   return values
 
 
-func flattenSet*[N](node: N, group: Option[EnumValueGroup[N]]): seq[N] =
+proc flattenSet*[N](node: N, group: Option[EnumValueGroup[N]]): seq[N] =
   case node.kind.toNNK():
     of nnkIdent:
       if group.isSome() and node.getStrVal() in group.get().enumConsts:
@@ -1413,14 +1428,14 @@ func flattenSet*[N](node: N, group: Option[EnumValueGroup[N]]): seq[N] =
 
 
 
-func normalizeSet*[N](nodes: seq[N], group: EnumValueGroup[N]): N =
+proc normalizeSet*[N](nodes: seq[N], group: EnumValueGroup[N]): N =
   var vals: seq[N]
   for n in nodes:
     vals.add flattenSet(n, group)
 
   return newNTree[N](nnkCurly, vals)
 
-func normalizeSet*[N](
+proc normalizeSet*[N](
     node: N, group: EnumValueGroup[N], forcebrace: bool = false): N =
   ## Convert any possible set representation (e.g. `{1}`, `{1, 2}`,
   ## `{2 .. 6}` as well as `2, 3` (in case branches). Return
@@ -1433,7 +1448,7 @@ func normalizeSet*[N](
   else:
     return newNTree[N](nnkCurly, vals)
 
-func joinSets*[NNode](nodes: seq[NNode], group: EnumValueGroup[NNode]): NNode =
+proc joinSets*[NNode](nodes: seq[NNode], group: EnumValueGroup[NNode]): NNode =
   ## Concatenate multiple sets in one element. Result will be wrapped
   ## in `Curly` node.
   let vals = nodes.mapIt(it.flattenSet(group)).concat()
@@ -1745,11 +1760,11 @@ proc getSomeBase*[N](node: N): Option[N] =
     else:
       discard
 
-func eqIdent*(node: PNode, str: string): bool =
+proc eqIdent*(node: PNode, str: string): bool =
   node.getStrVal(false)[0] == str[0] and
   node.getStrVal(false).normalize() == str.normalize()
 
-func newSection*[N](
+proc newSection*[N](
     kind: NimNodeKind,
     name: string, ctype, expr: N,
     exported: bool = false,
@@ -1766,8 +1781,8 @@ func newSection*[N](
       newNIdent[N](name, exported, pragmas), ctype, expr))
 
 
-func newConst*[N](name: string, ctype, expr: N, exported: bool = false): N =
+proc newConst*[N](name: string, ctype, expr: N, exported: bool = false): N =
   newSection(nnkConstSection, name, ctype, expr, exported)
 
-func newConst*[N](name: string, expr: N, exported: bool = false): N =
+proc newConst*[N](name: string, expr: N, exported: bool = false): N =
   newConst(name, newEmptyNNode[N](), expr, exported)

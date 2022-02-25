@@ -11,7 +11,7 @@ import
   hmisc/algo/[namegen, hstring_algo]
 
 import
-  compiler/ast
+  compiler/ast/ast
 
 type
   NTypeKind* = enum

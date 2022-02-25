@@ -9,7 +9,7 @@ import
 import
   std/[sequtils, strutils],
   hmisc/core/all,
-  compiler/[ast]
+  compiler/ast/[ast]
 
 type
   NimDeclKind* = enum

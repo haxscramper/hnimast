@@ -3,7 +3,7 @@ import std/[macros, options, tables, sequtils]
 import ./hast_common
 
 import
-  compiler/[ast]
+  compiler/ast/[ast]
 
 import
   hmisc/core/all

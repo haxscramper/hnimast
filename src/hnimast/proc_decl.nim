@@ -8,7 +8,7 @@ import
   std/[sequtils, macros, options, strformat, tables]
 
 import
-  compiler/[ast, lineinfos]
+  compiler/ast/[ast, lineinfos]
 
 when defined(nimdoc):
   discard

@@ -6,7 +6,7 @@ import std/[
 
 export options
 
-import compiler/ast
+import compiler/ast/ast
 
 import
   hmisc/types/colorstring,

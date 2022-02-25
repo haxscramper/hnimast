@@ -5,7 +5,7 @@ import
   std/[macros, tables, options, strutils, sequtils, strformat]
 
 import
-  compiler/[ast]
+  compiler/ast/[ast]
 
 import
   hmisc/core/all,

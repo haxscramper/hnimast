@@ -4,7 +4,7 @@
 ## defintions etc.
 
 import std/[options, macros]
-import compiler/[ast, idents, lineinfos, renderer]
+import compiler/ast/[ast, idents, lineinfos, renderer]
 export idents, lineinfos
 
 import hnimast/[
