@@ -216,7 +216,7 @@ func toNIdentDefs*[NNode](
   ## Each identifier will be immutable (e.g. no `var` annotation).
   for (name, atype) in args:
     result.add NIdentDefs[NNode](
-      idents: @[newNIdent[NNode](name)], vtype: atype)
+      idents: @[escapedIdent[NNode](name)], vtype: atype)
 
 func toNIdentDefs*[NNode](
   args: openarray[tuple[
@@ -229,7 +229,7 @@ func toNIdentDefs*[NNode](
   ## `vndVar`)
   for (name, atype, nvd) in args:
     result.add NIdentDefs[NNode](
-      idents: @[newNIdent[NNode](name)],
+      idents: @[escapedIdent[NNode](name)],
       vtype: atype,
       kind: nvd
     )
@@ -276,7 +276,7 @@ func toNNode*[NNode](
         var arg = arg
         for name in mitems(arg.idents):
           if name.kind in {nnkEmpty}:
-            name = newNIdent[NNode]("arg" & $cnt)
+            name = escapedIdent[NNode]("arg" & $cnt)
 
 
           inc cnt
@@ -297,10 +297,10 @@ func toNNode*[NNode](
     of ntkRange:
       result = newNTree[NNode](
         nnkBracketExpr,
-        newNIdent[NNode]("range"),
+        escapedIdent[NNode]("range"),
         newNTree[NNode](
           nnkInfix,
-          newNIdent[NNode](".."),
+          escapedIdent[NNode](".."),
           ntype.rngStart,
           ntype.rngEnd
         )
@@ -324,7 +324,7 @@ func toNNode*[NNode](
         result.add toNNode[NNode](param)
 
     of ntkNamedTuple:
-      result = newNTree[NNode](nnkBracketExpr, newNIdent[NNode]("tuple"))
+      result = newNTree[NNode](nnkBracketExpr, escapedIdent[NNode]("tuple"))
       for field in items(ntype.arguments):
         result.add toNNode[NNode](field)
 
@@ -334,22 +334,22 @@ func toNNode*[NNode](
         buf.add toNNode[NNode](entry)
 
       result = foldl(buf, nnkInfix.newNTree(
-        newNIdent[NNode]("|"), a, b)) # foldInfix(buf, "|")
+        escapedIdent[NNode]("|"), a, b)) # foldInfix(buf, "|")
 
       if inParam:
         result = newNTree[NNode](nnkPar, result)
 
     of ntkVarargs:
-      result = newNTree[NNode](nnkBracketExpr, newNIdent[NNode]("varargs"))
+      result = newNTree[NNode](nnkBracketExpr, escapedIdent[NNode]("varargs"))
       result.add toNNode[NNode](ntype.vaType)
       if ntype.vaConverter.isSome():
         result.add ntype.vaConverter.get()
 
     of ntkIdent:
       if ntype.genParams.len == 0:
-        result = newNIdent[NNode](ntype.head)
+        result = escapedIdent[NNode](ntype.head)
         if exported:
-          return newNTree[NNode](nnkPostfix, newNIdent[NNode]("*"), result)
+          return newNTree[NNode](nnkPostfix, escapedIdent[NNode]("*"), result)
 
       else:
         if ntype.head in ["ref", "ptr", "var"]:
@@ -374,10 +374,10 @@ func toNNode*[NNode](
           result = newNTree[NNode](nnkNilLit)
 
         else:
-          result = newNIdent[NNode](ntype.head)
+          result = escapedIdent[NNode](ntype.head)
 
           if exported:
-            result = newNTree[NNode](nnkPostfix, newNIdent[NNode]("*"), result)
+            result = newNTree[NNode](nnkPostfix, escapedIdent[NNode]("*"), result)
 
           result = newNTree[NNode](nnkBracketExpr, result)
 
@@ -400,7 +400,7 @@ func newNIdentDefs*[N](
     value: Option[N] = none(N)
   ): NIdentDefs[N] =
   NIdentDefs[N](
-    idents: @[newNIdent[N](vname)],
+    idents: @[escapedIdent[N](vname)],
     vtype: vtype, value: value, kind: kind)
 
 
@@ -741,7 +741,7 @@ func newVarDecl*(name: string, vtype: NType,
   ## Declare varaible `name` of type `vtype`
   # TODO initalization value, pragma annotations and `isGensym`
   # parameter
-  NIdentDefs[NimNode](idents: @[newNIdent[NimNode](name)],
+  NIdentDefs[NimNode](idents: @[escapedIdent[NimNode](name)],
                       kind: kind, vtype: vtype)
 
 func newVarStmt*(varname: string, vtype: NType, val: NimNode): NimNode =
@@ -942,7 +942,7 @@ proc newVar*[N: NimNode | PNode](
 
   newNTree[N](nnkVarSection, newNTree[N](
     nnkIdentDefs,
-    newNIdent[N](name),
+    escapedIdent[N](name),
     (
       when varType is N:
         varType

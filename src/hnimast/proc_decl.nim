@@ -100,12 +100,12 @@ proc addPragma*[N](f: var ProcDecl[N], values: seq[N]) =
     f.signature.pragma.add v
 
 proc addPragma*[N](decl: var ProcDecl[N], name: string) =
-  decl.signature.pragma.add newNIdent[N](name)
+  decl.signature.pragma.add escapedIdent[N](name)
 
 proc addPragma*[N](
     decl: var ProcDecl[N], key: string, value: N) =
   decl.signature.pragma.add newNTree[N](
-    nnkExprColonExpr, newNIdent[N](key), value)
+    nnkExprColonExpr, escapedIdent[N](key), value)
 
 func hasPragma*[N](decl: ProcDecl[N], name: string): bool =
   decl.signature.pragma.hasElem(name)
@@ -155,20 +155,20 @@ proc toNNode*[NNode](
 
   let headSym = case pr.kind:
     of pkRegular:
-      newNIdent[NNode](pr.name)
+      escapedIdent[NNode](pr.name)
 
     of pkHook: newNTree[NNode](
       nnkAccQuoted,
-      newNIdent[NNode]("="),
-      newNIdent[NNode](pr.name))
+      escapedIdent[NNode]("="),
+      escapedIdent[NNode](pr.name))
 
     of pkAssgn: newNTree[NNode](
       nnkAccQuoted,
-      newNIdent[NNode](pr.name),
-      newNIdent[NNode]("="))
+      escapedIdent[NNode](pr.name),
+      escapedIdent[NNode]("="))
 
     of pkOperator: newNTree[NNode](
-      nnkAccQuoted, newNIdent[NNode](pr.name))
+      nnkAccQuoted, escapedIdent[NNode](pr.name))
 
     of pkLambda:
       newEmptyNNode[NNode]()
@@ -176,7 +176,7 @@ proc toNNode*[NNode](
   let head =
     if pr.exported and pr.kind != pkLambda:
       newNTree[NNode](
-        nnkPostfix, newNIdent[NNode]("*"), headSym)
+        nnkPostfix, escapedIdent[NNode]("*"), headSym)
 
     else:
       headSym
@@ -327,7 +327,7 @@ func newNProcDecl*(
 
 #   let procHead =
 #     if exported:
-#       newNTree[NNode](nnkPostfix, newNIdent[NNode]("*"), procHead)
+#       newNTree[NNode](nnkPostfix, escapedIdent[NNode]("*"), procHead)
 #     else:
 #       procHead
 

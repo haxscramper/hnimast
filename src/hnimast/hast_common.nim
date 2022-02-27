@@ -13,7 +13,7 @@ import
 
 import
   hmisc/types/colorstring,
-  hmisc/algo/[htemplates, clformat, hstring_algo, hseq_mapping],
+  hmisc/algo/[htemplates, clformat, hstring_algo, hseq_mapping, namegen],
   hmisc/core/all
 
 export macros, colorstring
@@ -740,10 +740,16 @@ proc newXCall*[N](
   else:
     case str:
       of ".":
-        result = newNTree[N](nnkDotExpr, args)
+        result = foldl(args, newNTree[N](nnkDotExpr, a, b))
 
       of "[]":
         result = newNTree[N](nnkBracketExpr, args)
+
+      of "=":
+        result = newNTree[N](nnkAsgn, args)
+
+      of "``":
+        result = newNTree[N](nnkAccQuoted, args)
 
       of "{}":
         result = newNTree[N](nnkCurlyExpr, args)
@@ -1786,3 +1792,27 @@ proc newConst*[N](name: string, ctype, expr: N, exported: bool = false): N =
 
 proc newConst*[N](name: string, expr: N, exported: bool = false): N =
   newConst(name, newEmptyNNode[N](), expr, exported)
+
+
+func escapedPIdent*(name: string): PNode =
+  {.cast(noSideEffect).}:
+    result = newPIdent(name)
+    if name.isReservedNimIdent():
+      result = newPTree(nnkAccQuoted, result)
+
+func escapedNIdent*(name: string): NimNode =
+  {.cast(noSideEffect).}:
+    result = newIdentNode(name)
+    if name.isReservedNimIdent():
+      result = newTree(nnkAccQuoted, result)
+
+
+func escapedIdent*[N](name: string | N): N =
+  when N is PNode and name is string:
+    escapedPIdent(name)
+
+  elif name is string:
+    escapedNIdent(name)
+
+  else:
+    name
